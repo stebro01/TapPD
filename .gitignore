@@ -1,0 +1,13 @@
+SDK/
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+*.egg-info/
+dist/
+build/
+data/sessions/
+data/samples/
+data/tappd.db
+leapc_cffi/
+.DS_Store

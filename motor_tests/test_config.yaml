@@ -1,0 +1,407 @@
+# TapPD Motor Test Configuration
+# Each test defines what to capture, how to analyse, and what to display.
+
+finger_tapping:
+  updrs_item: "3.4"
+  label: "Finger Tapping"
+  label_short: "Finger Tapping"
+  description: "Daumen-Zeigefinger"
+  bilateral: false
+  default_duration_s: 10
+
+  instructions: |
+    Finger Tapping – {side} Hand (MDS-UPDRS 3.4)
+
+    Tippen Sie mit Daumen und Zeigefinger der {side}n Hand
+    so schnell und gleichmaessig wie moeglich zusammen.
+
+    Wichtig:
+    - Hand flach / planar ueber dem Sensor halten
+    - Finger bewegen sich senkrecht zum Sensor (auf/ab)
+    - Restliche Finger moeglichst still halten
+    - Volle Amplitude: Finger weit oeffnen, dann zusammen
+
+  # What data to extract from each HandFrame
+  capture:
+    primary_metric: "thumb_index_distance"  # euclidean distance between finger 0 and 1
+    required_fingers: [0, 1]                # thumb and index must be tracked
+    use_palm_normal: false
+    use_palm_position: false
+
+  # Live plot during recording
+  display:
+    metric_label: "Daumen-Zeigefinger Distanz (mm)"
+    plot_color: "#1976D2"
+
+  # Signal processing pipeline
+  analysis:
+    min_frames: 20
+    warmup_trim_s: 0.3           # discard first N seconds (tracking stabilisation)
+    cooldown_trim_s: 0.2         # discard last N seconds (deceleration artifact)
+    detrend: true                # remove linear drift
+    outlier_removal: true        # MAD-based outlier replacement
+    onset_detection:
+      enabled: true
+      window_s: 0.5             # rolling std window
+      threshold_pct: 20.0       # % of overall std to detect movement
+    peak_detection:
+      method: "prominence"
+      min_distance_factor: 6     # min_distance = fs / this_value
+      min_prominence_pct: 15     # % of signal range
+      max_frequency_hz: 7.0      # physiological maximum for tapping
+
+  # What features to compute
+  features:
+    - key: "tap_frequency_hz"
+      method: "peak_frequency"     # 1 / mean inter-peak interval
+      label: "Tapping-Frequenz"
+      unit: "Hz"
+
+    - key: "mean_amplitude_mm"
+      method: "peak_to_trough_mean"
+      label: "Mittlere Amplitude"
+      unit: "mm"
+
+    - key: "amplitude_decrement"
+      method: "amplitude_slope_normalized"
+      label: "Amplituden-Dekrement"
+      unit: "/Zyklus"
+
+    - key: "intertap_variability_cv"
+      method: "interval_cv"
+      label: "Variabilitaet (CV)"
+      unit: ""
+
+    - key: "mean_velocity_mm_s"
+      method: "mean_abs_velocity"
+      label: "Mittlere Geschwindigkeit"
+      unit: "mm/s"
+
+    - key: "n_taps"
+      method: "peak_count"
+      label: "Anzahl Taps"
+      unit: ""
+
+
+hand_open_close:
+  updrs_item: "3.5"
+  label: "Hand Oeffnen/Schliessen"
+  label_short: "Hand Oeffnen/\nSchliessen"
+  description: "Oeffnen & Schliessen"
+  bilateral: false
+  default_duration_s: 10
+
+  instructions: |
+    Hand Oeffnen/Schliessen – {side} Hand (MDS-UPDRS 3.5)
+
+    Oeffnen und schliessen Sie die {side} Hand
+    so schnell und vollstaendig wie moeglich.
+
+    Wichtig:
+    - Hand flach ueber dem Sensor, Handflaeche nach unten
+    - Finger beim Oeffnen weit spreizen
+    - Beim Schliessen Faust machen
+    - Gleichmaessiger Rhythmus
+
+  capture:
+    primary_metric: "mean_finger_spread"   # mean fingertip-to-palm distance in mm
+    required_fingers: []
+    use_palm_normal: false
+    use_palm_position: false
+
+  display:
+    metric_label: "Fingerspreizung (mm)"
+    plot_color: "#1976D2"
+
+  analysis:
+    min_frames: 20
+    warmup_trim_s: 0.3
+    cooldown_trim_s: 0.2
+    detrend: true
+    outlier_removal: true
+    onset_detection:
+      enabled: true
+      window_s: 0.5
+      threshold_pct: 20.0
+    peak_detection:
+      method: "prominence"
+      min_distance_factor: 4
+      min_prominence_pct: 15
+      max_frequency_hz: 5.0
+
+  features:
+    - key: "mean_amplitude_mm"
+      method: "peak_to_trough_mean"
+      label: "Mittlere Amplitude"
+      unit: "mm"
+
+    - key: "cycle_frequency_hz"
+      method: "peak_frequency"
+      label: "Zyklusfrequenz"
+      unit: "Hz"
+
+    - key: "mean_velocity_mm_s"
+      method: "mean_abs_velocity"
+      label: "Mittlere Geschwindigkeit"
+      unit: "mm/s"
+
+    - key: "amplitude_decrement"
+      method: "amplitude_slope_normalized"
+      label: "Amplituden-Dekrement"
+      unit: "/Zyklus"
+
+    - key: "n_cycles"
+      method: "peak_count"
+      label: "Anzahl Zyklen"
+      unit: ""
+
+
+pronation_supination:
+  updrs_item: "3.6"
+  label: "Pronation/Supination"
+  label_short: "Pronation/\nSupination"
+  description: "Unterarm drehen"
+  bilateral: false
+  default_duration_s: 10
+
+  instructions: |
+    Pronation/Supination – {side} Hand (MDS-UPDRS 3.6)
+
+    Drehen Sie den {side}n Unterarm so schnell und
+    vollstaendig wie moeglich hin und her.
+
+    Wichtig:
+    - Hand ueber dem Sensor, Unterarm waagerecht
+    - Handflaeche dreht abwechselnd nach oben und unten
+    - Wie 'Gluehbirne einschrauben'
+    - Volle Drehbewegung, gleichmaessiger Rhythmus
+
+  capture:
+    primary_metric: "palm_roll_angle"      # atan2(nx, -ny) in degrees
+    required_fingers: []
+    use_palm_normal: true
+    use_palm_position: false
+
+  display:
+    metric_label: "Rotationswinkel (Grad)"
+    plot_color: "#7B1FA2"
+
+  analysis:
+    min_frames: 20
+    warmup_trim_s: 0.3
+    cooldown_trim_s: 0.2
+    detrend: true
+    outlier_removal: true
+    onset_detection:
+      enabled: true
+      window_s: 0.5
+      threshold_pct: 20.0
+    peak_detection:
+      method: "prominence"
+      min_distance_factor: 4
+      min_prominence_pct: 15
+      max_frequency_hz: 4.0
+
+  features:
+    - key: "rotation_frequency_hz"
+      method: "peak_frequency"
+      label: "Rotationsfrequenz"
+      unit: "Hz"
+
+    - key: "range_of_motion_deg"
+      method: "peak_to_trough_mean_x2"   # full ROM = 2 * half-amplitude
+      label: "Bewegungsumfang"
+      unit: "Grad"
+
+    - key: "mean_angular_velocity_deg_s"
+      method: "mean_abs_velocity"
+      label: "Mittl. Winkelgeschw."
+      unit: "Grad/s"
+
+    - key: "amplitude_decrement"
+      method: "amplitude_slope_normalized"
+      label: "Amplituden-Dekrement"
+      unit: "/Zyklus"
+
+    - key: "n_cycles"
+      method: "peak_count"
+      label: "Anzahl Zyklen"
+      unit: ""
+
+
+postural_tremor:
+  updrs_item: "3.15"
+  label: "Posturaler Tremor"
+  label_short: "Posturaler\nTremor"
+  description: "Haende vorgestreckt"
+  bilateral: true
+  default_duration_s: 10
+
+  instructions: |
+    Posturaler Tremor – beide Haende (MDS-UPDRS 3.15)
+
+    Strecken Sie beide Haende vor sich aus,
+    Handflaechen nach unten, Finger gespreizt.
+
+    Wichtig:
+    - Beide Haende ueber dem Sensor
+    - Arme frei (nicht auf Lehne abstuetzen)
+    - Haende so still wie moeglich halten
+    - Finger nicht verkrampfen, natuerliche Haltung
+
+  capture:
+    primary_metric: "palm_displacement"    # sqrt(x² + (y-base)² + z²)
+    required_fingers: []
+    use_palm_normal: true                  # for rotational tremor component
+    use_palm_position: true
+    base_y: 200.0                          # baseline hand height for postural
+
+  display:
+    metric_label: "Handposition Abweichung (mm)"
+    plot_color: "#1976D2"
+
+  analysis:
+    min_frames: 30
+    warmup_trim_s: 0.5                     # longer warmup for hand stabilisation
+    cooldown_trim_s: 0.2
+    detrend: true
+    outlier_removal: true
+    onset_detection:
+      enabled: false                       # tremor: no onset detection
+    bandpass:
+      low_hz: 3.0
+      high_hz: 12.0
+      order: 4
+    fft:
+      method: "hann_windowed"
+      dominant_freq_band: [3.0, 12.0]
+    amplitude_method: "rms"                # root mean square (standard for tremor)
+
+  features:
+    # Per-hand features (prefixed R_ / L_ automatically)
+    per_hand:
+      - key: "dominant_frequency_hz"
+        method: "fft_dominant_frequency"
+        label: "Dominante Frequenz"
+        unit: "Hz"
+
+      - key: "translational_amplitude_mm"
+        method: "rms_3d_amplitude"
+        label: "Translation-Amplitude"
+        unit: "mm"
+
+      - key: "rotational_amplitude_deg"
+        method: "rms_roll_amplitude"
+        label: "Rotations-Amplitude"
+        unit: "Grad"
+
+      - key: "spectral_power"
+        method: "spectral_power_integral"
+        label: "Spektrale Leistung"
+        unit: "mm-sq"
+
+    # Asymmetry features
+    asymmetry:
+      - key: "asymmetry_index"
+        left_key: "L_translational_amplitude_mm"
+        right_key: "R_translational_amplitude_mm"
+        label: "Asymmetrie-Index (Transl.)"
+
+      - key: "rotation_asymmetry_index"
+        left_key: "L_rotational_amplitude_deg"
+        right_key: "R_rotational_amplitude_deg"
+        label: "Asymmetrie-Index (Rot.)"
+
+
+rest_tremor:
+  updrs_item: "3.17"
+  label: "Ruhetremor"
+  label_short: "Ruhetremor"
+  description: "Haende entspannt"
+  bilateral: true
+  default_duration_s: 10
+
+  instructions: |
+    Ruhetremor – beide Haende (MDS-UPDRS 3.17)
+
+    Legen Sie beide Haende entspannt auf die Oberschenkel,
+    Handflaechen nach unten.
+    Halten Sie die Haende ueber dem Sensor.
+
+    Wichtig:
+    - Beide Haende nebeneinander ueber dem Sensor
+    - Haende komplett entspannt, nicht anspannen
+    - Arme locker, Schultern entspannt
+    - Nicht versuchen, den Tremor zu unterdruecken
+
+  capture:
+    primary_metric: "palm_displacement"
+    required_fingers: []
+    use_palm_normal: true
+    use_palm_position: true
+    base_y: 150.0                          # lower position for rest
+
+  display:
+    metric_label: "Handposition Abweichung (mm)"
+    plot_color: "#1976D2"
+
+  analysis:
+    min_frames: 30
+    warmup_trim_s: 0.5
+    cooldown_trim_s: 0.2
+    detrend: true
+    outlier_removal: true
+    onset_detection:
+      enabled: false
+    bandpass:
+      low_hz: 3.0
+      high_hz: 12.0
+      order: 4
+    fft:
+      method: "hann_windowed"
+      dominant_freq_band: [3.0, 12.0]
+    amplitude_method: "rms"
+
+  features:
+    per_hand:
+      - key: "dominant_frequency_hz"
+        method: "fft_dominant_frequency"
+        label: "Dominante Frequenz"
+        unit: "Hz"
+
+      - key: "translational_amplitude_mm"
+        method: "rms_3d_amplitude"
+        label: "Translation-Amplitude"
+        unit: "mm"
+
+      - key: "rotational_amplitude_deg"
+        method: "rms_roll_amplitude"
+        label: "Rotations-Amplitude"
+        unit: "Grad"
+
+      - key: "spectral_power"
+        method: "spectral_power_integral"
+        label: "Spektrale Leistung"
+        unit: "mm-sq"
+
+    asymmetry:
+      - key: "asymmetry_index"
+        left_key: "L_translational_amplitude_mm"
+        right_key: "R_translational_amplitude_mm"
+        label: "Asymmetrie-Index (Transl.)"
+
+      - key: "rotation_asymmetry_index"
+        left_key: "L_rotational_amplitude_deg"
+        right_key: "R_rotational_amplitude_deg"
+        label: "Asymmetrie-Index (Rot.)"
+
+
+# ── Hand Detection Settings ──────────────────────────────────────────
+hand_detection:
+  timeout_s: 30                            # max wait before auto-cancel
+  poll_interval_ms: 100                    # how often to check for hands
+  min_confidence: 0.5                      # minimum tracking confidence to accept
+  require_stable_frames: 10               # consecutive good frames before accepting
+  message_waiting: "Bitte Haende ueber den Sensor halten..."
+  message_detected: "Haende erkannt!"
+  message_timeout: "Keine Haende erkannt. Bitte pruefen Sie die Sensorposition."

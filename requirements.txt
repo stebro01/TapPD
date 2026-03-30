@@ -1,0 +1,6 @@
+numpy>=1.26
+scipy>=1.12
+matplotlib>=3.8
+PyQt6>=6.6
+websockets>=12.0
+pyyaml>=6.0

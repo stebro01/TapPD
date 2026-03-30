@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.backends._legacy:_Backend"
+
+[project]
+name = "TapPD"
+version = "0.1.0"
+description = "Contactless motor analysis tool for Parkinson's patients using Leap Motion"
+requires-python = ">=3.12"
+dependencies = [
+    "numpy>=1.26",
+    "scipy>=1.12",
+    "matplotlib>=3.8",
+    "PyQt6>=6.6",
+    "websockets>=12.0",
+    "pyyaml>=6.0",
+]
