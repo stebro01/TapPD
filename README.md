@@ -22,10 +22,10 @@ werden kontaktlos per Infrarot-Sensor erfasst und quantitative Parameter automat
 
 ## Voraussetzungen
 
-- macOS (getestet: macOS 26 Tahoe)
+- **Windows 10/11** oder **macOS** (getestet: Windows 10 Pro, macOS 26 Tahoe)
 - Python 3.12+
 - Leap Motion Controller LM-010 (Original, 2013)
-- [Ultraleap Gemini V5 Hand Tracking](https://developer.leapmotion.com/tracking-software-download)
+- [Ultraleap Tracking Software](https://www.ultraleap.com/downloads/leap-controller/) (Hyperion v6 oder Gemini v5)
 
 ## Installation
 
@@ -33,35 +33,54 @@ werden kontaktlos per Infrarot-Sensor erfasst und quantitative Parameter automat
 # Repository klonen
 git clone <repo-url>
 cd TapPD
+```
 
+### Windows (empfohlen: PowerShell)
+
+```powershell
+# Start-Script erstellt venv, installiert Abhaengigkeiten,
+# kopiert LeapC-Bindings aus dem SDK und startet die App:
+.\start.ps1
+```
+
+Alternativ mit `start.bat` (cmd.exe).
+
+### macOS
+
+```bash
 # Virtual Environment
 python3 -m venv .venv
 source .venv/bin/activate
-
-# Abhaengigkeiten
 pip install -r requirements.txt
 ```
 
 ### Sensor-Setup
 
-1. **Ultraleap Gemini V5** installieren (aus dem Link oben)
-2. Anwendung starten: `/Applications/Ultraleap Hand Tracking.app`
-3. LeapC Python-Bindings in das Projekt kopieren:
-
-```bash
-cp -r "/Applications/Ultraleap Hand Tracking.app/Contents/LeapSDK/leapc_cffi/" ./leapc_cffi/
-```
-
-4. Falls Python 3.14 verwendet wird, die .so-Datei umbenennen:
-
-```bash
-cd leapc_cffi
-cp _leapc_cffi.cpython-312-darwin.so _leapc_cffi.cpython-314-darwin.so
-```
-
+1. **Ultraleap Tracking Software** installieren (aus dem Link oben)
+2. Tracking-Service starten:
+   - **Windows**: Laeuft automatisch als Dienst (LeapSvc.exe)
+   - **macOS**: `/Applications/Ultraleap Hand Tracking.app` oeffnen
+3. LeapC Python-Bindings ins Projekt kopieren:
+   - **Windows**: `start.ps1` / `start.bat` erledigt dies automatisch aus `C:\Program Files\Ultraleap\LeapSDK\leapc_cffi\`
+   - **macOS**: `cp -r "/Applications/Ultraleap Hand Tracking.app/Contents/LeapSDK/leapc_cffi/" ./leapc_cffi/`
+4. Falls die Python-Version nicht mit den SDK-Bindings uebereinstimmt (SDK liefert 3.12):
+   - **Windows**: `start.ps1` / `start.bat` benennt die `.pyd`-Datei automatisch um
+   - **macOS**: `cp leapc_cffi/_leapc_cffi.cpython-312-darwin.so leapc_cffi/_leapc_cffi.cpython-3XX-darwin.so`
 5. Leap Motion Controller per USB anschliessen (LED sollte gruen leuchten)
 
 ## Quickstart
+
+### Windows
+
+```powershell
+# Mit Sensor (Auto-Detection)
+.\start.ps1
+
+# Ohne Sensor (Simulationsmodus)
+.\start.ps1 --mock
+```
+
+### macOS
 
 ```bash
 # Mit Sensor (Auto-Detection)
@@ -69,14 +88,6 @@ cp _leapc_cffi.cpython-312-darwin.so _leapc_cffi.cpython-314-darwin.so
 
 # Ohne Sensor (Simulationsmodus)
 ./start.sh --mock
-```
-
-Alternativ manuell:
-
-```bash
-source .venv/bin/activate
-export DYLD_LIBRARY_PATH="$(pwd)/leapc_cffi"
-python main.py --mock
 ```
 
 ### Bedienung
@@ -94,7 +105,9 @@ python main.py --mock
 ```
 TapPD/
 ├── main.py                     # Entry Point
-├── start.sh                    # Start-Script
+├── start.sh                    # Start-Script (macOS)
+├── start.ps1                   # Start-Script (Windows PowerShell)
+├── start.bat                   # Start-Script (Windows cmd)
 ├── requirements.txt            # Python-Abhaengigkeiten
 ├── pyproject.toml              # Projekt-Metadaten
 │
@@ -320,47 +333,53 @@ sqlite3 data/tappd.db "SELECT * FROM measurements ORDER BY recorded_at DESC"
 ### "Sensor nicht erkannt" beim Start
 
 1. **Ultraleap Software installiert?**
-   Pruefen: `/Applications/Ultraleap Hand Tracking.app` muss vorhanden sein.
+   - **Windows**: `C:\Program Files\Ultraleap\` muss vorhanden sein
+   - **macOS**: `/Applications/Ultraleap Hand Tracking.app` muss vorhanden sein
 
 2. **Tracking-Service laeuft?**
-   ```bash
-   pgrep -f libtrack_server
-   ```
-   Falls leer: Ultraleap Hand Tracking App oeffnen.
+   - **Windows**: `tasklist /FI "IMAGENAME eq LeapSvc.exe"` (startet normalerweise automatisch)
+   - **macOS**: `pgrep -f libtrack_server` (Ultraleap Hand Tracking App oeffnen falls leer)
 
 3. **Controller per USB angeschlossen?**
-   ```bash
-   ioreg -p IOUSB -l | grep -i leap
-   ```
    LED am Controller sollte gruen leuchten. Anderes USB-Kabel oder anderen Port versuchen.
+   - **Windows**: Geraete-Manager pruefen (Ultraleap / Leap Motion unter USB-Geraete)
+   - **macOS**: `ioreg -p IOUSB -l | grep -i leap`
 
 4. **LeapC-Bindings vorhanden?**
-   Das Verzeichnis `leapc_cffi/` muss `_leapc_cffi.cpython-3xx-darwin.so` und
-   `libLeapC.dylib` enthalten. Siehe Installationsanleitung oben.
+   Das Verzeichnis `leapc_cffi/` muss vorhanden sein mit:
+   - **Windows**: `_leapc_cffi.cp3XX-win_amd64.pyd` + `LeapC.dll`
+   - **macOS**: `_leapc_cffi.cpython-3XX-darwin.so` + `libLeapC.dylib`
+
+   Auf Windows kopiert `start.ps1`/`start.bat` diese automatisch aus dem SDK.
+
+5. **Nur eine App-Instanz gleichzeitig**
+   LeapC erlaubt nur eine aktive Verbindung. Falls eine alte Instanz laeuft,
+   diese zuerst schliessen.
 
 ### Import-Fehler `_leapc_cffi`
 
-Die .so-Datei aus dem SDK ist fuer Python 3.12 kompiliert. Bei neueren Python-Versionen:
+Die Bindings aus dem SDK sind fuer Python 3.12 kompiliert. Bei neueren Python-Versionen
+muss die Datei kopiert/umbenannt werden (C-ABI ist kompatibel):
 
-```bash
-cd leapc_cffi
-cp _leapc_cffi.cpython-312-darwin.so _leapc_cffi.cpython-3XX-darwin.so
-```
+- **Windows**: `start.ps1`/`start.bat` erledigt dies automatisch
+- **macOS**: `cp leapc_cffi/_leapc_cffi.cpython-312-darwin.so leapc_cffi/_leapc_cffi.cpython-3XX-darwin.so`
 
 (XX durch die eigene Minor-Version ersetzen, z.B. 314 fuer Python 3.14)
 
 ### App startet, aber kein Live-Plot
 
-- `DYLD_LIBRARY_PATH` muss gesetzt sein. Am einfachsten `./start.sh` verwenden.
-- macOS gibt `DYLD_LIBRARY_PATH` nicht an Kind-Prozesse weiter. Die App setzt die
+- **Windows**: Am einfachsten `start.ps1` verwenden (setzt PATH automatisch)
+- **macOS**: `DYLD_LIBRARY_PATH` muss gesetzt sein. Am einfachsten `./start.sh` verwenden.
+  macOS gibt `DYLD_LIBRARY_PATH` nicht an Kind-Prozesse weiter. Die App setzt die
   Variable intern in `main.py`.
 
 ### "No module named PyQt6"
 
 ```bash
-source .venv/bin/activate
 pip install -r requirements.txt
 ```
+
+Auf Windows erledigen `start.ps1`/`start.bat` dies automatisch beim ersten Start.
 
 ## Weitergehende Dokumentation
 

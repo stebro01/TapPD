@@ -27,7 +27,7 @@ TapPD digitalisiert die motorischen Handtests der MDS-UPDRS Part III mithilfe ei
 ## Technologie
 
 - Python 3.12+ / PyQt6
-- Leap Motion Controller (LM-010) mit Ultraleap Gemini V5 SDK
+- Leap Motion Controller (LM-010) mit Ultraleap Tracking SDK (Hyperion v6 / Gemini v5)
 - SQLite-Datenbank fur Patienten und Messungen
 - Echtzeit-Signalverarbeitung (NumPy, SciPy)
 

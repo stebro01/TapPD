@@ -12,7 +12,10 @@ from capture.base_capture import BaseCaptureDevice, BoneData, FingerData, HandFr
 _LEAPC_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "leapc_cffi")
 if _LEAPC_DIR not in sys.path:
     sys.path.insert(0, _LEAPC_DIR)
-os.environ.setdefault("DYLD_LIBRARY_PATH", _LEAPC_DIR)
+if sys.platform == "win32":
+    os.environ["PATH"] = _LEAPC_DIR + os.pathsep + os.environ.get("PATH", "")
+else:
+    os.environ.setdefault("DYLD_LIBRARY_PATH", _LEAPC_DIR)
 
 from _leapc_cffi import ffi, lib as libleapc  # noqa: E402
 

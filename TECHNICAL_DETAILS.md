@@ -4,12 +4,30 @@
 
 ### Systemvoraussetzungen
 
-- **Betriebssystem**: macOS (getestet unter macOS 26 Tahoe / Darwin 25.3.0)
+- **Betriebssystem**: Windows 10/11 oder macOS (getestet: Windows 10 Pro, macOS 26 Tahoe)
 - **Python**: 3.12 oder hoeher
 - **Sensor**: Leap Motion Controller LM-010 (Original, 2013)
-- **SDK**: Ultraleap Gemini V5 Hand Tracking Software
+- **SDK**: [Ultraleap Tracking Software](https://www.ultraleap.com/downloads/leap-controller/) (Hyperion v6 oder Gemini v5)
 
 ### Installation
+
+#### Windows (PowerShell)
+
+```powershell
+# 1. Repository klonen
+git clone <repo-url>
+cd TapPD
+
+# 2. Start-Script erledigt alles automatisch:
+#    - Erstellt venv + installiert Abhaengigkeiten
+#    - Kopiert LeapC-Bindings aus dem SDK
+#    - Benennt .pyd fuer aktuelle Python-Version um
+.\start.ps1
+```
+
+Alternativ `start.bat` fuer cmd.exe.
+
+#### macOS
 
 ```bash
 # 1. Repository klonen
@@ -23,8 +41,8 @@ source .venv/bin/activate
 # 3. Abhaengigkeiten installieren
 pip install -r requirements.txt
 
-# 4. Ultraleap Gemini V5 installieren
-#    Download: https://developer.leapmotion.com/tracking-software-download
+# 4. Ultraleap Tracking Software installieren
+#    Download: https://www.ultraleap.com/downloads/leap-controller/
 #    Installation: /Applications/Ultraleap Hand Tracking.app
 
 # 5. LeapC Python-Bindings kopieren (aus dem SDK)
@@ -33,17 +51,18 @@ cp -r "/Applications/Ultraleap Hand Tracking.app/Contents/LeapSDK/leapc_cffi/" .
 
 ### Starten
 
+#### Windows
+
+```powershell
+.\start.ps1              # Mit Sensor (Auto-Detection)
+.\start.ps1 --mock       # Simulationsmodus
+```
+
+#### macOS
+
 ```bash
-# Mit echtem Sensor (Auto-Detection)
-./start.sh
-
-# Im Simulationsmodus (ohne Sensor)
-./start.sh --mock
-
-# Alternativ direkt
-source .venv/bin/activate
-export DYLD_LIBRARY_PATH="$(pwd)/leapc_cffi"
-python main.py --mock
+./start.sh               # Mit Sensor (Auto-Detection)
+./start.sh --mock         # Simulationsmodus
 ```
 
 ### Sensor-Konfiguration
@@ -52,12 +71,17 @@ Der Leap Motion Controller LM-010 wird ueber USB angeschlossen und im Desktop-Mo
 (Sensor zeigt nach oben, Haende darueber). Die Kommunikation erfolgt ueber die native LeapC API
 via CFFI Python-Bindings (nicht per WebSocket wie beim Legacy-SDK 2.x).
 
-**Wichtig**: Die CFFI-Bindings aus dem Gemini V5 SDK sind fuer Python 3.12 kompiliert
-(`_leapc_cffi.cpython-312-darwin.so`). Fuer Python 3.14 muss die .so-Datei umbenannt werden
-zu `cpython-314-darwin.so` – die C-ABI ist kompatibel.
+**Wichtig**: Die CFFI-Bindings aus dem SDK sind fuer Python 3.12 kompiliert. Bei neueren
+Python-Versionen muss die Binding-Datei kopiert/umbenannt werden (C-ABI ist kompatibel):
 
-`DYLD_LIBRARY_PATH` muss auf das Verzeichnis mit `libLeapC.dylib` zeigen, da macOS die
-Umgebungsvariable beim Exec nicht weitergibt. Dies wird in `main.py` und `start.sh` gesetzt.
+- **Windows**: `_leapc_cffi.cp312-win_amd64.pyd` → `_leapc_cffi.cp3XX-win_amd64.pyd`
+  (wird von `start.ps1`/`start.bat` automatisch erledigt)
+- **macOS**: `_leapc_cffi.cpython-312-darwin.so` → `_leapc_cffi.cpython-3XX-darwin.so`
+
+**Shared Library Pfad**:
+- **Windows**: `LeapC.dll` muss im `PATH` liegen. Die Start-Scripts setzen `PATH` auf `leapc_cffi/`.
+- **macOS**: `DYLD_LIBRARY_PATH` muss auf das Verzeichnis mit `libLeapC.dylib` zeigen.
+  macOS gibt diese Variable nicht an Kind-Prozesse weiter — sie wird in `main.py` und `start.sh` gesetzt.
 
 ---
 
@@ -66,7 +90,9 @@ Umgebungsvariable beim Exec nicht weitergibt. Dies wird in `main.py` und `start.
 ```
 TapPD/
 ├── main.py                              # Entry Point
-├── start.sh                             # Start-Script (aktiviert venv + DYLD)
+├── start.sh                             # Start-Script macOS (aktiviert venv + DYLD)
+├── start.ps1                            # Start-Script Windows PowerShell (venv + SDK-Kopie)
+├── start.bat                            # Start-Script Windows cmd (venv + SDK-Kopie)
 ├── pyproject.toml                       # Projekt-Metadaten
 ├── requirements.txt                     # Python-Abhaengigkeiten
 ├── ABOUT.md                             # Info-Dialog Inhalt
@@ -125,8 +151,10 @@ TapPD/
 │   └── instr_*.png                      # 5 Instruktionsbilder
 │
 ├── leapc_cffi/                          # LeapC SDK Bindings (nicht im Repo)
-│   ├── _leapc_cffi.cpython-314-darwin.so
-│   ├── libLeapC.dylib
+│   ├── _leapc_cffi.cp3XX-win_amd64.pyd  # Windows
+│   ├── LeapC.dll                         # Windows
+│   ├── _leapc_cffi.cpython-3XX-darwin.so # macOS
+│   ├── libLeapC.dylib                    # macOS
 │   └── __init__.py
 │
 └── data/                                # Laufzeitdaten (nicht im Repo)
@@ -496,4 +524,5 @@ PatientScreen → PatientDetailScreen → TestDashboard → TestScreen      → 
 - **grab_strength fuer Hand Open/Close**: Robuster als Fingertip-Distanz bei Faust, aber
   binaeres Signal (0/1) statt kontinuierlich → Detrend-Artefakte moeglich
 - **Einzelplatz**: Keine Multi-User-Faehigkeit, lokale SQLite-Datenbank
-- **macOS-only**: DYLD_LIBRARY_PATH-Handling und LeapC-Bindings sind macOS-spezifisch
+- **Plattform-Support**: Windows 10/11 und macOS. Plattformspezifische Unterschiede bei
+  Library-Pfaden (PATH vs. DYLD_LIBRARY_PATH) und Sensor-Diagnostik sind im Code abstrahiert.
