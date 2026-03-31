@@ -304,6 +304,26 @@ rot markiert und gezaehlt. Verbindungslinien zeigen den zurueckgelegten Pfad.
 
 **Detail-Plots**: Pfadkarte, Segmentzeiten, Pfad-Effizienz, Fehler pro Segment
 
+## Motor Performance Index (MPI)
+
+Fuer die drei repetitiven Motorik-Tests wird ein zusammengefasster **Motor Performance Index**
+als normalisierter Verlaufsmarker berechnet (0.0 = schwer betroffen, 1.0 = gesund).
+
+Der MPI aggregiert vier Subdomaenen, angelehnt an die MDS-UPDRS Bewertungskriterien:
+
+| Subdomaene | Gewicht | Was wird gemessen? |
+|---|---|---|
+| Speed | 30% | Bewegungsfrequenz (Hz) |
+| Amplitude | 30% | Oeffnungsweite / ROM |
+| Decrement | 20% | Ermuedung ueber die Aufnahmedauer |
+| Regularity | 20% | Rhythmusstabilitaet (CV) oder Geschwindigkeit |
+
+Jede Komponente wird gegen konfigurierbare Referenzwerte (Literatur: Butt 2018, Heldman 2014)
+linear normalisiert. Die Referenzwerte koennen in `motor_tests/test_config.yaml` angepasst werden.
+
+Der MPI wird als **erste Zeile** in der Ergebnistabelle angezeigt, farbcodiert:
+gruen (>0.7), gelb (0.4-0.7), rot (<0.4).
+
 ## Ausgabeformate
 
 ### Automatische Speicherung

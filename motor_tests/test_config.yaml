@@ -82,6 +82,32 @@ finger_tapping:
       label: "Anzahl Taps"
       unit: ""
 
+  # Motor Performance Index: composite score 0.0 (severe) to 1.0 (healthy)
+  mpi:
+    weights:
+      speed: 0.30
+      amplitude: 0.30
+      decrement: 0.20
+      regularity: 0.20
+    components:
+      speed:
+        feature_key: "tap_frequency_hz"
+        min_val: 1.0          # severe bradykinesia
+        max_val: 5.0          # healthy control
+      amplitude:
+        feature_key: "mean_amplitude_mm"
+        min_val: 5.0          # minimal opening
+        max_val: 30.0         # full opening
+      decrement:
+        feature_key: "amplitude_decrement"
+        min_val: -0.15        # severe fatigue
+        max_val: 0.0          # no fatigue
+      regularity:
+        feature_key: "intertap_variability_cv"
+        min_val: 0.05         # very regular (best)
+        max_val: 0.40         # very irregular (worst)
+        invert: true
+
 
 hand_open_close:
   updrs_item: "3.5"
@@ -155,6 +181,30 @@ hand_open_close:
       label: "Anzahl Zyklen"
       unit: ""
 
+  mpi:
+    weights:
+      speed: 0.30
+      amplitude: 0.30
+      decrement: 0.20
+      regularity: 0.20
+    components:
+      speed:
+        feature_key: "cycle_frequency_hz"
+        min_val: 0.5
+        max_val: 3.5
+      amplitude:
+        feature_key: "mean_amplitude_mm"
+        min_val: 10.0
+        max_val: 60.0
+      decrement:
+        feature_key: "amplitude_decrement"
+        min_val: -0.15
+        max_val: 0.0
+      regularity:
+        feature_key: "mean_velocity_mm_s"
+        min_val: 30.0
+        max_val: 300.0
+
 
 pronation_supination:
   updrs_item: "3.6"
@@ -227,6 +277,30 @@ pronation_supination:
       method: "peak_count"
       label: "Anzahl Zyklen"
       unit: ""
+
+  mpi:
+    weights:
+      speed: 0.30
+      amplitude: 0.30
+      decrement: 0.20
+      regularity: 0.20
+    components:
+      speed:
+        feature_key: "rotation_frequency_hz"
+        min_val: 0.5
+        max_val: 3.0
+      amplitude:
+        feature_key: "range_of_motion_deg"
+        min_val: 20.0
+        max_val: 120.0
+      decrement:
+        feature_key: "amplitude_decrement"
+        min_val: -0.15
+        max_val: 0.0
+      regularity:
+        feature_key: "mean_angular_velocity_deg_s"
+        min_val: 40.0
+        max_val: 400.0
 
 
 postural_tremor:

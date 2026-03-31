@@ -8,7 +8,7 @@ from pathlib import Path
 
 import numpy as np
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QColor
+from PyQt6.QtGui import QColor, QFont
 from PyQt6.QtWidgets import (
     QCheckBox,
     QFileDialog,
@@ -214,12 +214,30 @@ class ResultsScreen(QWidget):
         for row, (key, value) in enumerate(display_features.items()):
             meta = FEATURE_META.get(key, (key, ""))
             name_item = QTableWidgetItem(meta[0])
-            val_item = QTableWidgetItem(f"{value:.4f}" if isinstance(value, float) else str(value))
+            if key == "mpi":
+                val_item = QTableWidgetItem(f"{value:.3f}" if isinstance(value, float) else str(value))
+            else:
+                val_item = QTableWidgetItem(f"{value:.4f}" if isinstance(value, float) else str(value))
             unit_item = QTableWidgetItem(meta[1])
 
             val_item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
 
-            if key.startswith("R_"):
+            if key == "mpi":
+                bold = QFont()
+                bold.setBold(True)
+                bold.setPointSize(bold.pointSize() + 1)
+                for item in (name_item, val_item, unit_item):
+                    item.setFont(bold)
+                v = value if isinstance(value, (int, float)) else 0.0
+                if v >= 0.7:
+                    bg = QColor(232, 245, 233)   # green-50
+                elif v >= 0.4:
+                    bg = QColor(255, 249, 196)   # yellow-50
+                else:
+                    bg = QColor(255, 235, 238)   # red-50
+                for item in (name_item, val_item, unit_item):
+                    item.setBackground(bg)
+            elif key.startswith("R_"):
                 for item in (name_item, val_item, unit_item):
                     item.setBackground(COLOR_RIGHT)
             elif key.startswith("L_"):

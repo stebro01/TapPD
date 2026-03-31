@@ -1,6 +1,9 @@
 """Shared feature metadata: display names and units for all computed features."""
 
 FEATURE_META: dict[str, tuple[str, str]] = {
+    # Motor Performance Index (composite score)
+    "mpi": ("Motor Performance Index", ""),
+
     # Finger Tapping (3.4)
     "tap_frequency_hz": ("Tapping-Frequenz", "Hz"),
     "mean_amplitude_mm": ("Mittlere Amplitude", "mm"),

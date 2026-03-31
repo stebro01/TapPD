@@ -520,7 +520,72 @@ PatientScreen → PatientDetailScreen → TestDashboard → TestScreen      → 
 
 ---
 
-## 10. Logging & Audit
+## 10. Motor Performance Index (MPI)
+
+### Konzept
+
+Der MPI ist ein normalisierter Composite-Score von **0.0** (schwer betroffen) bis **1.0** (gesund),
+der als Verlaufsmarker fuer die drei repetitiven Motorik-Tests dient (3.4, 3.5, 3.6).
+Er aggregiert vier klinisch relevante Subdomaenen mit konfigurierbaren Gewichten.
+
+### Formel
+
+```
+MPI = w_speed * norm(frequency) + w_amp * norm(amplitude) + w_dec * norm(decrement) + w_reg * norm(regularity)
+```
+
+Normalisierung: Lineares Min-Max-Mapping mit Clipping auf [0.0, 1.0]:
+```
+norm(x) = clamp((x - min_val) / (max_val - min_val), 0.0, 1.0)
+```
+
+Fuer invertierte Metriken (z.B. CV, wo niedriger = besser): `norm(x) = 1.0 - norm(x)`
+
+### Gewichte (default)
+
+| Subdomaene | Gewicht | Begruendung |
+|---|---|---|
+| Speed (Frequenz) | 0.30 | MDS-UPDRS Primaerkriterium |
+| Amplitude | 0.30 | MDS-UPDRS Primaerkriterium |
+| Decrement (Ermuedung) | 0.20 | Sekundaerkriterium |
+| Regularity (CV/Geschw.) | 0.20 | Sekundaerkriterium |
+
+### Referenzwerte
+
+| Test | Speed | Amplitude | Decrement | Regularity |
+|---|---|---|---|---|
+| Finger Tapping | 1.0-5.0 Hz | 5-30 mm | -0.15 bis 0.0 /Zyklus | CV 0.05-0.40 (inv.) |
+| Hand Oeffnen/Schliessen | 0.5-3.5 Hz | 10-60 mm | -0.15 bis 0.0 /Zyklus | 30-300 mm/s |
+| Pronation/Supination | 0.5-3.0 Hz | 20-120 Grad | -0.15 bis 0.0 /Zyklus | 40-400 Grad/s |
+
+Referenzwerte sind in `motor_tests/test_config.yaml` unter der `mpi:`-Sektion jedes Tests konfigurierbar
+und sollten mit klinischen Daten kalibriert werden.
+
+### Validierungsbeispiele
+
+| Profil | Freq | Amp | Dec | CV/Vel | MPI |
+|---|---|---|---|---|---|
+| Gesunde Kontrolle | 4.5 Hz | 25 mm | 0.00 | 0.08 | **0.885** |
+| Moderate PD | 2.5 Hz | 15 mm | -0.08 | 0.25 | **0.412** |
+| Schwere PD | 1.2 Hz | 6 mm | -0.14 | 0.38 | **0.052** |
+
+### UI-Darstellung
+
+Der MPI erscheint als **erste Zeile** in der Ergebnistabelle (fett, farbcodiert):
+- **Gruen** (>= 0.7): Gering betroffen / normal
+- **Gelb** (0.4-0.7): Moderat betroffen
+- **Rot** (< 0.4): Schwer betroffen
+
+### Implementation
+
+- Konfiguration: `motor_tests/test_config.yaml` (pro Test: `mpi:` Sektion)
+- Berechnung: `motor_tests/recorder.py` → `_compute_mpi()`
+- Wird am Ende von `_compute_unilateral()` aufgerufen
+- Propagiert automatisch in DB, CSV-Export, Detail-Dialog, Data-Browser
+
+---
+
+## 11. Logging & Audit
 
 ### Architektur
 
@@ -576,7 +641,7 @@ Echtzeit-Log-Viewer mit:
 
 ---
 
-## 11. Bekannte Einschraenkungen
+## 12. Bekannte Einschraenkungen
 
 - **Kein klinisches Medizinprodukt**: Forschungsprototyp, nicht fuer diagnostische Entscheidungen
 - **Sensor-Limitierungen**: Leap Motion LM-010 hat begrenztes Sichtfeld; schnelle Bewegungen

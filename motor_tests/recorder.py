@@ -283,6 +283,11 @@ def _compute_unilateral(
     features["_onset_s"] = onset_s
     features["_offset_s"] = offset_s
 
+    # Compute MPI if configured
+    mpi_cfg = cfg.get("mpi")
+    if mpi_cfg:
+        features = _compute_mpi(mpi_cfg, features)
+
     return features
 
 
@@ -340,6 +345,47 @@ def _compute_single_feature(
     else:
         log.warning("Unknown feature method: %s", method)
         return 0.0
+
+
+def _compute_mpi(mpi_cfg: dict, features: dict[str, float]) -> dict[str, float]:
+    """Compute Motor Performance Index from existing features.
+
+    Returns a new dict with 'mpi' as the first key, preserving all others.
+    MPI is a weighted composite score from 0.0 (severely impaired) to 1.0 (healthy).
+    """
+    weights = mpi_cfg.get("weights", {})
+    components = mpi_cfg.get("components", {})
+    weighted_sum = 0.0
+    total_weight = 0.0
+
+    for comp_name, weight in weights.items():
+        comp = components.get(comp_name)
+        if not comp:
+            continue
+        raw = features.get(comp["feature_key"], 0.0)
+        min_v = comp["min_val"]
+        max_v = comp["max_val"]
+
+        if max_v == min_v:
+            sub_score = 0.5
+        else:
+            sub_score = (raw - min_v) / (max_v - min_v)
+
+        if comp.get("invert", False):
+            sub_score = 1.0 - sub_score
+
+        sub_score = max(0.0, min(1.0, sub_score))
+        weighted_sum += weight * sub_score
+        total_weight += weight
+
+    mpi = weighted_sum / total_weight if total_weight > 0 else 0.0
+    mpi = round(float(np.clip(mpi, 0.0, 1.0)), 3)
+
+    log.info("MPI berechnet: %.3f (Komponenten: %s)",
+             mpi, {k: f"{features.get(components[k]['feature_key'], 0.0):.2f}"
+                    for k in weights if k in components})
+
+    return {"mpi": mpi, **features}
 
 
 
@@ -462,6 +508,8 @@ def _compute_tremor_hand(
 def _empty_features(cfg: dict) -> dict[str, float]:
     """Return zero-valued features dict based on config."""
     features = {}
+    if cfg.get("mpi"):
+        features["mpi"] = 0.0
     if cfg.get("bilateral"):
         for prefix in ("R", "L"):
             for d in cfg.get("features", {}).get("per_hand", []):
