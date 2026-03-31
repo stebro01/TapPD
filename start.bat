@@ -36,17 +36,28 @@ if not exist leapc_cffi (
 )
 
 rem Rename .pyd for current Python version if needed
-if exist leapc_cffi (
-    for /f %%v in ('python -c "import sys; print(f\"cp{sys.version_info.major}{sys.version_info.minor}\")"') do set PYVER=%%v
-    if not exist "leapc_cffi\_leapc_cffi.%PYVER%-win_amd64.pyd" (
-        for %%f in (leapc_cffi\_leapc_cffi.cp*-win_amd64.pyd) do (
-            echo Copying %%~nxf -^> _leapc_cffi.%PYVER%-win_amd64.pyd
-            copy "%%f" "leapc_cffi\_leapc_cffi.%PYVER%-win_amd64.pyd" >nul
-            goto :pyd_done
-        )
-        :pyd_done
-    )
+if not exist leapc_cffi goto :skip_pyd
+for /f %%v in ('python -c "import sys; print('cp'+str(sys.version_info.major)+str(sys.version_info.minor))"') do set PYVER=%%v
+if exist "leapc_cffi\_leapc_cffi.%PYVER%-win_amd64.pyd" goto :skip_pyd
+for %%f in (leapc_cffi\_leapc_cffi.cp*-win_amd64.pyd) do (
+    echo Copying %%~nxf -^> _leapc_cffi.%PYVER%-win_amd64.pyd
+    copy "%%f" "leapc_cffi\_leapc_cffi.%PYVER%-win_amd64.pyd" >nul
+    goto :skip_pyd
 )
+:skip_pyd
 
 set PATH=%cd%\leapc_cffi;%PATH%
+
+where python >nul 2>&1
+if errorlevel 1 (
+    echo ERROR: python not found in PATH
+    pause
+    exit /b 1
+)
+
 python main.py %*
+if errorlevel 1 (
+    echo.
+    echo TapPD exited with an error.
+    pause
+)
