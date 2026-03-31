@@ -31,7 +31,7 @@ from motor_tests.spatial_srt import SpatialSRTTest
 from motor_tests.trail_making import TrailMakingTest
 from storage.database import (
     Measurement, Patient, Session,
-    create_session, get_db, save_measurement,
+    create_session, get_db, save_measurement, update_raw_data_path,
 )
 from ui.patient_screen import PatientScreen
 from ui.patient_detail_screen import PatientDetailScreen
@@ -406,11 +406,7 @@ class TapPDMainWindow(QMainWindow):
         if filepath and measurement_id:
             try:
                 conn = get_db()
-                conn.execute(
-                    "UPDATE measurements SET raw_data_path=? WHERE id=?",
-                    (str(filepath), measurement_id),
-                )
-                conn.commit()
+                update_raw_data_path(conn, measurement_id, str(filepath))
                 conn.close()
             except Exception:
                 pass

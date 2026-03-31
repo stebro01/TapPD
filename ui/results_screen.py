@@ -28,7 +28,7 @@ from matplotlib.figure import Figure
 
 from motor_tests.base_test import BaseMotorTest
 from storage.session_store import SessionResult, export_csv
-from storage.database import get_db, delete_measurement
+from storage.database import get_db, delete_measurement, update_raw_data_path
 from analysis.signal_processing import (
     bandpass_filter,
     compute_fft,
@@ -392,11 +392,7 @@ class ResultsScreen(QWidget):
             if self._measurement_id:
                 try:
                     conn = get_db()
-                    conn.execute(
-                        "UPDATE measurements SET raw_data_path=? WHERE id=?",
-                        (str(filepath), self._measurement_id),
-                    )
-                    conn.commit()
+                    update_raw_data_path(conn, self._measurement_id, str(filepath))
                     conn.close()
                 except Exception:
                     log.exception("Failed to update raw_data_path in DB")
