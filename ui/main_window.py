@@ -4,11 +4,16 @@
 
 import logging
 
+from PyQt6.QtCore import Qt, QThread, pyqtSignal
 from PyQt6.QtWidgets import (
+    QHBoxLayout,
+    QLabel,
     QMainWindow,
     QMessageBox,
+    QPushButton,
     QStackedWidget,
     QStatusBar,
+    QWidget,
 )
 
 log = logging.getLogger(__name__)
@@ -37,6 +42,25 @@ from ui.srt_screen import SRTScreen
 from ui.tmt_screen import TMTScreen
 from ui.results_screen import ResultsScreen, save_raw_data
 from ui.log_viewer import LogViewerDialog
+
+
+class _SensorCheckWorker(QThread):
+    """Background thread for non-blocking sensor check."""
+    finished = pyqtSignal(bool, str)  # (device_present, error_msg)
+
+    def __init__(self, capture_device, parent=None):
+        super().__init__(parent)
+        self._device = capture_device
+
+    def run(self):
+        try:
+            if hasattr(self._device, 'check_device_present'):
+                present = self._device.check_device_present()
+            else:
+                present = self._device.is_connected()
+            self.finished.emit(present, "")
+        except Exception as e:
+            self.finished.emit(False, str(e))
 
 
 TEST_CLASSES = {
@@ -95,11 +119,30 @@ class TapPDMainWindow(QMainWindow):
         self.stack.addWidget(self.srt_screen)
         self.stack.addWidget(self.tmt_screen)
 
-        # Status bar with log button
+        # Status bar: [dot + sensor text (left, clickable)] ... [Log button (right)]
         self._status_bar = QStatusBar()
         self.setStatusBar(self._status_bar)
 
-        from PyQt6.QtWidgets import QPushButton
+        # Sensor indicator in left area (replaces showMessage)
+        self._sensor_widget = QWidget()
+        sensor_layout = QHBoxLayout(self._sensor_widget)
+        sensor_layout.setContentsMargins(4, 0, 12, 0)
+        sensor_layout.setSpacing(7)
+
+        self._sensor_dot = QLabel()
+        self._sensor_dot.setFixedSize(10, 10)
+        sensor_layout.addWidget(self._sensor_dot)
+
+        self._sensor_label = QLabel()
+        self._sensor_label.setStyleSheet("font-size: 11px; color: #757575; border: none;")
+        sensor_layout.addWidget(self._sensor_label)
+
+        self._sensor_widget.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._sensor_widget.mousePressEvent = lambda e: self._check_sensor_status()
+        self._sensor_widget.setToolTip("Klicken um Sensor-Status zu pruefen")
+        self._status_bar.addWidget(self._sensor_widget, 1)  # left side, stretch
+
+        # Log button (right side)
         self._log_btn = QPushButton("  Log  ")
         self._log_btn.setStyleSheet(
             "QPushButton { background: transparent; color: #757575; border: 1px solid #E0E0E0; "
@@ -116,16 +159,141 @@ class TapPDMainWindow(QMainWindow):
         self._check_sensor_on_start()
 
     def _update_status_bar(self) -> None:
-        if isinstance(self.capture_device, MockCaptureDevice):
+        is_mock = isinstance(self.capture_device, MockCaptureDevice)
+        if is_mock:
             issues = getattr(self.capture_device, "_sensor_issues", None)
             if issues:
-                self._status_bar.showMessage("Sensor: Nicht verbunden (Simulationsmodus)")
+                self._set_sensor_indicator(False, "Sensor nicht verbunden – Simulationsmodus")
             else:
-                self._status_bar.showMessage("Sensor: Simulationsmodus (--mock)")
+                self._set_sensor_indicator(False, "Simulationsmodus (--mock)")
         else:
+            connected = self.capture_device.is_connected()
             device_name = type(self.capture_device).__name__
-            connected = "Verbunden" if self.capture_device.is_connected() else "Bereit"
-            self._status_bar.showMessage(f"Sensor: {device_name} | Status: {connected}")
+            if connected:
+                self._set_sensor_indicator(True, f"Leap Motion Controller verbunden")
+            else:
+                self._set_sensor_indicator(False, f"Leap Motion Controller getrennt")
+
+    def _set_sensor_indicator(self, connected: bool, label: str) -> None:
+        color = "#43A047" if connected else "#E53935"
+        self._sensor_dot.setStyleSheet(
+            f"background-color: {color}; border-radius: 5px; border: none;"
+        )
+        self._sensor_label.setText(label)
+
+    def _check_sensor_status(self) -> None:
+        """Re-check sensor connection and show detailed diagnostics on click."""
+        log.info("Sensor-Status wird geprueft...")
+        is_mock = isinstance(self.capture_device, MockCaptureDevice)
+
+        if is_mock:
+            # Try to connect a real Leap device
+            try:
+                from capture.leap_capture import LeapCaptureDevice
+                test_device = LeapCaptureDevice()
+                test_device.connect()
+                self.capture_device = test_device
+                self._update_status_bar()
+                log.info("Leap Controller gefunden! Wechsel von Mock auf LeapCaptureDevice")
+                QMessageBox.information(
+                    self, "Sensor erkannt",
+                    "Leap Motion Controller erfolgreich verbunden!\n"
+                    "Der Simulationsmodus wurde deaktiviert."
+                )
+                return
+            except Exception as e:
+                log.warning("Sensor-Check: Leap nicht verfuegbar (%s)", e)
+
+            # Show detailed diagnostics
+            from capture import diagnose_sensor
+            issues = diagnose_sensor()
+            self._show_sensor_diagnostics(issues, str(e) if 'e' in dir() else "")
+            self._update_status_bar()
+            return
+
+        # Real device: run check in background thread to avoid UI freeze
+        self._sensor_label.setText("Pruefe Sensor...")
+        self._sensor_check_worker = _SensorCheckWorker(self.capture_device, self)
+        self._sensor_check_worker.finished.connect(self._on_sensor_check_done)
+        self._sensor_check_worker.start()
+
+    def _on_sensor_check_done(self, device_present: bool, error: str) -> None:
+        """Handle result from background sensor check."""
+        if device_present and not self.capture_device.is_connected():
+            # USB device is back but connection was lost — reconnect
+            log.info("Sensor-Check: USB-Geraet vorhanden, reconnecte...")
+            try:
+                self.capture_device.disconnect()
+                self.capture_device.connect()
+                self._update_status_bar()
+                log.info("Sensor-Check: Reconnect erfolgreich")
+                QMessageBox.information(self, "Sensor-Status", "Verbindung wiederhergestellt!")
+                return
+            except Exception as e:
+                log.error("Sensor-Check: Reconnect fehlgeschlagen: %s", e)
+                from capture import diagnose_sensor
+                issues = diagnose_sensor()
+                self._show_sensor_diagnostics(issues, str(e))
+                self._update_status_bar()
+                return
+
+        self._update_status_bar()
+        if device_present:
+            log.info("Sensor-Check: Verbunden und aktiv")
+            QMessageBox.information(
+                self, "Sensor-Status",
+                "Leap Motion Controller ist verbunden und betriebsbereit."
+            )
+        else:
+            log.warning("Sensor-Check: Geraet nicht erreichbar, versuche Reconnect...")
+            from capture import diagnose_sensor
+            issues = diagnose_sensor()
+            self._show_sensor_diagnostics(issues, error)
+            self._update_status_bar()
+
+    def _show_sensor_diagnostics(self, issues: list[str], error: str) -> None:
+        """Show a detailed sensor diagnostic dialog."""
+        log.info("Zeige Sensor-Diagnose (%d Probleme gefunden)", len(issues))
+        msg = QMessageBox(self)
+        msg.setIcon(QMessageBox.Icon.Warning)
+        msg.setWindowTitle("Sensor-Diagnose")
+        msg.setText("Der Leap Motion Controller konnte nicht verbunden werden.")
+
+        # Build checklist
+        info_parts = [
+            "Checkliste:",
+            "",
+            "1. Ultraleap Hand Tracking Software installiert?",
+            "   -> Download: ultraleap.com/downloads/leap-controller/",
+            "",
+            "2. Tracking-Service (LeapSvc) gestartet?",
+            "   -> Windows: Dienste-Manager pruefen",
+            "   -> Oder Ultraleap Control Panel oeffnen",
+            "",
+            "3. Controller per USB angeschlossen?",
+            "   -> LED am Controller sollte gruen leuchten",
+            "   -> Anderes USB-Kabel / anderen Port versuchen",
+            "",
+            "4. Nur eine App-Instanz gleichzeitig?",
+            "   -> LeapC erlaubt nur eine aktive Verbindung",
+        ]
+        msg.setInformativeText("\n".join(info_parts))
+
+        # Detailed diagnostic results
+        detail_parts = []
+        if error:
+            detail_parts.append(f"Fehler: {error}")
+            detail_parts.append("")
+        if issues:
+            detail_parts.append("Automatische Diagnose:")
+            for i, issue in enumerate(issues, 1):
+                detail_parts.append(f"\n{i}. {issue}")
+        else:
+            detail_parts.append("Automatische Diagnose: Keine spezifischen Probleme erkannt.")
+            detail_parts.append("Moeglicherweise ist der Treiber installiert aber der Controller nicht angeschlossen.")
+
+        msg.setDetailedText("\n".join(detail_parts))
+        msg.exec()
 
     def _check_sensor_on_start(self) -> None:
         if not isinstance(self.capture_device, MockCaptureDevice):

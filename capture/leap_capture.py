@@ -81,6 +81,39 @@ class LeapCaptureDevice(BaseCaptureDevice):
     def is_connected(self) -> bool:
         return self._connected
 
+    def check_device_present(self) -> bool:
+        """Check if the Leap Motion USB device is physically present.
+
+        Checks at OS level (USB enumeration) since the LeapSvc service
+        keeps running even after USB disconnect.
+        Called from a background thread.
+        """
+        import subprocess
+        try:
+            if sys.platform == "win32":
+                result = subprocess.run(
+                    ["pnputil", "/enum-devices", "/connected"],
+                    capture_output=True, text=True, timeout=3,
+                )
+                present = "Leap" in result.stdout or "Ultraleap" in result.stdout
+            else:
+                result = subprocess.run(
+                    ["ioreg", "-p", "IOUSB", "-l"],
+                    capture_output=True, text=True, timeout=3,
+                )
+                present = "Leap" in result.stdout
+        except Exception as e:
+            log.warning("USB-Geraetecheck fehlgeschlagen: %s", e)
+            return self._connected
+
+        if present:
+            log.debug("USB-Check: Leap Geraet vorhanden")
+            return True
+        else:
+            log.warning("USB-Check: Kein Leap Geraet gefunden")
+            self._connected = False
+            return False
+
     @property
     def sample_rate(self) -> float:
         return self._current_fps
