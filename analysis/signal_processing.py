@@ -1,9 +1,13 @@
 """Signal processing utilities: filtering, FFT, peak detection, resampling."""
 
+import logging
+
 import numpy as np
 from numpy.typing import NDArray
 from scipy import signal as sp_signal
 from scipy.stats import linregress
+
+log = logging.getLogger(__name__)
 
 
 def bandpass_filter(
@@ -20,6 +24,7 @@ def bandpass_filter(
     low_n = max(low_n, 0.001)
     high_n = min(high_n, 0.999)
     if len(data) < 3 * order:
+        log.debug("Bandpass uebersprungen: zu wenig Datenpunkte (%d < %d)", len(data), 3 * order)
         return data
     sos = sp_signal.butter(order, [low_n, high_n], btype="band", output="sos")
     return sp_signal.sosfiltfilt(sos, data)
@@ -194,7 +199,9 @@ def resample_to_uniform(
     duration = times_s[-1]
     n_samples = int(duration * target_fs)
     if n_samples < 2:
+        log.debug("Resampling uebersprungen: zu kurze Dauer (%.3fs)", duration)
         return times_s, values
     uniform_t = np.linspace(0, duration, n_samples)
     resampled = np.interp(uniform_t, times_s, values)
+    log.debug("Resampled: %d -> %d Samples (%.1f Hz, %.2fs)", len(values), n_samples, target_fs, duration)
     return uniform_t, resampled

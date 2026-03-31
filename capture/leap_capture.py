@@ -1,10 +1,13 @@
 """Leap Motion capture device using LeapC API via CFFI bindings."""
 
+import logging
 import os
 import sys
 import threading
 import time
 from typing import Callable
+
+log = logging.getLogger(__name__)
 
 from capture.base_capture import BaseCaptureDevice, BoneData, FingerData, HandFrame
 
@@ -33,14 +36,17 @@ class LeapCaptureDevice(BaseCaptureDevice):
         self._current_fps = 120.0
 
     def connect(self) -> None:
+        log.info("Verbinde mit Leap Motion Controller...")
         ppconn = ffi.new("LEAP_CONNECTION*")
         result = libleapc.LeapCreateConnection(ffi.NULL, ppconn)
         if result != 0:
+            log.error("LeapCreateConnection fehlgeschlagen: %d", result)
             raise RuntimeError(f"LeapCreateConnection failed: {result}")
         self._conn = ppconn[0]
 
         result = libleapc.LeapOpenConnection(self._conn)
         if result != 0:
+            log.error("LeapOpenConnection fehlgeschlagen: %d", result)
             raise RuntimeError(f"LeapOpenConnection failed: {result}")
 
         # Wait for connection + device
@@ -57,16 +63,20 @@ class LeapCaptureDevice(BaseCaptureDevice):
                     device_found = True
                     break
         if not device_found:
+            log.error("Kein Leap Motion Geraet innerhalb von 5 Sekunden gefunden")
             raise RuntimeError("No Leap Motion device found within 5 seconds.")
         self._connected = True
+        log.info("Leap Motion Controller verbunden")
 
     def disconnect(self) -> None:
+        log.info("Trenne Leap Motion Controller...")
         self.stop_recording()
         if self._conn is not None:
             libleapc.LeapCloseConnection(self._conn)
             libleapc.LeapDestroyConnection(self._conn)
             self._conn = None
         self._connected = False
+        log.info("Leap Motion Controller getrennt")
 
     def is_connected(self) -> bool:
         return self._connected
@@ -83,6 +93,7 @@ class LeapCaptureDevice(BaseCaptureDevice):
         self._stop_event.clear()
         self._thread = threading.Thread(target=self._poll_loop, daemon=True)
         self._thread.start()
+        log.debug("Leap-Aufnahme gestartet (%.0f Hz)", self._current_fps)
 
     def stop_recording(self) -> None:
         self._recording = False
@@ -90,6 +101,7 @@ class LeapCaptureDevice(BaseCaptureDevice):
         if self._thread is not None:
             self._thread.join(timeout=2.0)
             self._thread = None
+        log.debug("Leap-Aufnahme gestoppt")
 
     def _poll_loop(self) -> None:
         event = ffi.new("LEAP_CONNECTION_MESSAGE*")

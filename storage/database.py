@@ -1,10 +1,13 @@
 """SQLite database for patients, sessions, and measurements."""
 
 import json
+import logging
 import sqlite3
 from dataclasses import dataclass
 from datetime import date, datetime
 from pathlib import Path
+
+log = logging.getLogger(__name__)
 
 DB_PATH = Path(__file__).parent.parent / "data" / "tappd.db"
 
@@ -79,6 +82,7 @@ def get_db() -> sqlite3.Connection:
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA foreign_keys=ON")
     _create_tables(conn)
+    log.debug("Datenbankverbindung geoeffnet: %s", DB_PATH)
     return conn
 
 
@@ -134,6 +138,7 @@ def save_patient(conn: sqlite3.Connection, patient: Patient) -> Patient:
             (patient.patient_code, patient.first_name, patient.last_name,
              patient.birth_date, patient.gender, patient.notes, patient.id),
         )
+        log.info("Patient aktualisiert: %s (ID %d)", patient.patient_code, patient.id)
     else:
         cur = conn.execute(
             "INSERT INTO patients (patient_code, first_name, last_name, birth_date, gender, notes) "
@@ -142,6 +147,7 @@ def save_patient(conn: sqlite3.Connection, patient: Patient) -> Patient:
              patient.birth_date, patient.gender, patient.notes),
         )
         patient.id = cur.lastrowid
+        log.info("Neuer Patient angelegt: %s (ID %d)", patient.patient_code, patient.id)
     conn.commit()
     return patient
 
@@ -173,6 +179,7 @@ def create_session(conn: sqlite3.Connection, patient_id: int) -> Session:
     )
     s.id = cur.lastrowid
     conn.commit()
+    log.info("Neue Session erstellt: ID %d fuer Patient %d", s.id, patient_id)
     return s
 
 
@@ -189,6 +196,7 @@ def delete_session(conn: sqlite3.Connection, session_id: int) -> None:
     conn.execute("DELETE FROM measurements WHERE session_id=?", (session_id,))
     conn.execute("DELETE FROM sessions WHERE id=?", (session_id,))
     conn.commit()
+    log.info("Session geloescht: ID %d (inkl. zugehoeriger Messungen)", session_id)
 
 
 def get_session_measurements(conn: sqlite3.Connection, session_id: int) -> list[Measurement]:
@@ -213,6 +221,8 @@ def save_measurement(conn: sqlite3.Connection, m: Measurement) -> Measurement:
     )
     m.id = cur.lastrowid
     conn.commit()
+    log.info("Messung gespeichert: %s %s (ID %d, Patient %d, %.1fs)",
+             m.test_type, m.hand, m.id, m.patient_id, m.duration_s)
     return m
 
 
@@ -227,6 +237,7 @@ def get_measurements(conn: sqlite3.Connection, patient_id: int) -> list[Measurem
 def delete_measurement(conn: sqlite3.Connection, measurement_id: int) -> None:
     conn.execute("DELETE FROM measurements WHERE id=?", (measurement_id,))
     conn.commit()
+    log.info("Messung geloescht: ID %d", measurement_id)
 
 
 def get_last_measurement_dates(conn: sqlite3.Connection) -> dict[int, str]:

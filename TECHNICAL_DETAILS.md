@@ -90,6 +90,7 @@ Python-Versionen muss die Binding-Datei kopiert/umbenannt werden (C-ABI ist komp
 ```
 TapPD/
 ├── main.py                              # Entry Point
+├── logging_config.py                    # Zentrales Logging (File + Console + Qt-Signal)
 ├── start.sh                             # Start-Script macOS (aktiviert venv + DYLD)
 ├── start.ps1                            # Start-Script Windows PowerShell (venv + SDK-Kopie)
 ├── start.bat                            # Start-Script Windows cmd (venv + SDK-Kopie)
@@ -144,7 +145,8 @@ TapPD/
 │   ├── tmt_screen.py                   # dTMT (QPainter, Trail-Linien, Fehler-Feedback)
 │   ├── results_screen.py               # Ergebnisanzeige + Plots + Rohdaten-Speicherung
 │   ├── data_browser.py                 # Historische Messungen (Filter, Delete, Export)
-│   └── detail_dialog.py                # Detail-Ansicht mit Analyse-Plots
+│   ├── detail_dialog.py                # Detail-Ansicht mit Analyse-Plots
+│   └── log_viewer.py                   # Log Viewer Dialog (Live-Logs, Farbcodiert)
 │
 ├── assets/                              # Instruktionsbilder
 │   ├── generate_instructions.py         # Generiert PNG-Bilder
@@ -159,7 +161,8 @@ TapPD/
 │
 └── data/                                # Laufzeitdaten (nicht im Repo)
     ├── tappd.db                         # SQLite-Datenbank
-    └── samples/                         # JSON-Rohdaten
+    ├── samples/                         # JSON-Rohdaten
+    └── logs/                            # Log-Dateien (tageweise Rotation, 7 Tage)
 ```
 
 ---
@@ -216,6 +219,7 @@ Sensor (120 Hz) → HandFrame → BaseMotorTest.frames[]
 | `PyQt6` | >= 6.6 | GUI-Framework |
 | `pyyaml` | >= 6.0 | YAML-Konfiguration laden |
 | `websockets` | >= 12.0 | WebSocket-Fallback (reserviert) |
+| `cffi` | >= 1.0 | LeapC Python-Bindings (Backend fuer leapc_cffi) |
 
 ---
 
@@ -516,7 +520,63 @@ PatientScreen → PatientDetailScreen → TestDashboard → TestScreen      → 
 
 ---
 
-## 10. Bekannte Einschraenkungen
+## 10. Logging & Audit
+
+### Architektur
+
+TapPD verwendet Pythons `logging`-Modul mit zentraler Konfiguration in `logging_config.py`.
+Beim App-Start wird `setup_logging()` aufgerufen, das drei Handler konfiguriert:
+
+| Handler | Level | Ziel |
+|---------|-------|------|
+| `TimedRotatingFileHandler` | DEBUG | `data/logs/tappd.log` (tageweise Rotation) |
+| `StreamHandler` | INFO | Konsole (stdout) |
+| `QtLogHandler` | DEBUG | Qt-Signal → Log Viewer UI |
+
+### Log-Format
+
+```
+2026-03-31 09:42:18 | INFO     | capture.leap_capture         | Leap Motion Controller verbunden
+```
+
+### Automatische Bereinigung
+
+Log-Dateien aelter als 7 Tage werden beim App-Start automatisch geloescht.
+Die Rotation erfolgt taeglich um Mitternacht mit maximal 7 Backup-Dateien.
+
+### Instrumentierte Module
+
+Alle relevanten Module loggen Ereignisse auf passenden Levels:
+
+| Modul | Beispiel-Events |
+|-------|----------------|
+| `main` | App-Start, Python-Version, Capture-Modus |
+| `capture` | Sensor-Diagnose, Device-Erstellung, Verbindung |
+| `capture.leap_capture` | Connect/Disconnect, Aufnahme Start/Stop |
+| `capture.mock_capture` | Mock-Modus, Aufnahme Start/Stop |
+| `motor_tests.base_test` | Test Start/Stop, Frame-Anzahl |
+| `motor_tests.recorder` | Feature-Berechnung, Bilateral-Infos |
+| `storage.database` | CRUD-Operationen (Patient, Session, Measurement) |
+| `storage.session_store` | Session-Speicherung, CSV-Export |
+| `analysis.signal_processing` | Resampling, Bandpass-Skip |
+| `ui.main_window` | Navigation, Session-Start, Test-Start |
+| `ui.test_screen` | Aufnahme-Callbacks, Fehler |
+| `ui.results_screen` | Rohdaten-Speicherung, DB-Updates |
+
+### Log Viewer (GUI)
+
+Ueber den "Log"-Button in der Statusleiste (rechts unten) oeffnet sich ein
+Echtzeit-Log-Viewer mit:
+
+- Dunklem Terminal-Design (Consolas/Menlo)
+- Farbcodierung nach Level (blau=INFO, orange=WARNING, rot=ERROR)
+- Level-Filter (DEBUG/INFO/WARNING/ERROR)
+- Auto-Scroll (umschaltbar)
+- Laedt die letzten 200 Zeilen aus der aktuellen Log-Datei beim Oeffnen
+
+---
+
+## 11. Bekannte Einschraenkungen
 
 - **Kein klinisches Medizinprodukt**: Forschungsprototyp, nicht fuer diagnostische Entscheidungen
 - **Sensor-Limitierungen**: Leap Motion LM-010 hat begrenztes Sichtfeld; schnelle Bewegungen

@@ -56,10 +56,14 @@ class BaseMotorTest(ABC):
         self.left_frames.clear()
         self.right_frames.clear()
         self.capture.start_recording(self._on_frame)
+        log.info("Aufnahme gestartet: %s (Hand: %s, Dauer: %.1fs, bilateral: %s)",
+                 self.test_type(), self.hand, self.duration, self.bilateral)
 
     def stop(self) -> None:
         """Stop recording."""
         self.capture.stop_recording()
+        n = len(self.frames) + len(self.left_frames) + len(self.right_frames)
+        log.info("Aufnahme gestoppt: %s – %d Frames aufgenommen", self.test_type(), n)
 
     def get_frames(self, hand: str | None = None) -> list[HandFrame]:
         """Thread-safe copy of recorded frames.

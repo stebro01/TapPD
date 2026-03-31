@@ -1,5 +1,6 @@
 """Capture device factory with sensor diagnostics."""
 
+import logging
 import os
 import sys
 import subprocess
@@ -7,12 +8,15 @@ import shutil
 
 from capture.base_capture import BaseCaptureDevice
 
+log = logging.getLogger(__name__)
+
 _IS_WINDOWS = sys.platform == "win32"
 _IS_MACOS = sys.platform == "darwin"
 
 
 def diagnose_sensor() -> list[str]:
     """Check SDK, USB device, and tracking service. Returns list of issues found."""
+    log.debug("Starte Sensor-Diagnose...")
     issues = []
 
     # 1. Check if Ultraleap Tracking software is installed
@@ -111,14 +115,17 @@ def create_capture_device(mode: str = "auto") -> BaseCaptureDevice:
         SensorError: When mode is "auto" and no sensor is found (contains diagnostic info).
     """
     if mode == "mock":
+        log.info("Mock-Modus angefordert")
         from capture.mock_capture import MockCaptureDevice
         return MockCaptureDevice()
 
     if mode == "leap":
+        log.info("Leap-Modus angefordert")
         from capture.leap_capture import LeapCaptureDevice
         return LeapCaptureDevice()
 
     if mode == "websocket":
+        log.info("WebSocket-Modus angefordert")
         from capture.websocket_capture import WebSocketCaptureDevice
         return WebSocketCaptureDevice()
 
@@ -127,13 +134,18 @@ def create_capture_device(mode: str = "auto") -> BaseCaptureDevice:
         from capture.leap_capture import LeapCaptureDevice
         device = LeapCaptureDevice()
         device.connect()
+        log.info("Leap Motion Controller erfolgreich verbunden")
         return device
     except Exception as leap_err:
-        print(f"[TapPD] Leap-Verbindung fehlgeschlagen: {type(leap_err).__name__}: {leap_err}")
+        log.warning("Leap-Verbindung fehlgeschlagen: %s: %s", type(leap_err).__name__, leap_err)
 
     # Sensor not found — run diagnostics
     issues = diagnose_sensor()
+    if issues:
+        for issue in issues:
+            log.warning("Sensor-Problem: %s", issue.split('\n')[0])
     from capture.mock_capture import MockCaptureDevice
     device = MockCaptureDevice()
     device._sensor_issues = issues  # attach diagnostics for the UI to display
+    log.info("Fallback auf Simulationsmodus (MockCaptureDevice)")
     return device

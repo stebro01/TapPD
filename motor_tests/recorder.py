@@ -141,11 +141,15 @@ def compute_features_from_config(
     For bilateral tests, pass left_frames and right_frames.
     For unilateral tests, pass frames.
     """
+    log.info("Feature-Berechnung: %s (bilateral=%s, frames=%d, fs=%.1f)",
+             test_key, cfg.get("bilateral", False) if (cfg := get_test_config(test_key)) else False,
+             len(frames), fs)
     cfg = get_test_config(test_key)
     analysis = cfg.get("analysis", {})
     is_bilateral = cfg.get("bilateral", False)
 
     if is_bilateral:
+        log.debug("Bilateral: L=%d R=%d Frames", len(left_frames or []), len(right_frames or []))
         return _compute_bilateral(cfg, left_frames or [], right_frames or [], fs)
     else:
         return _compute_unilateral(cfg, frames, fs)

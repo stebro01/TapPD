@@ -2,10 +2,13 @@
 
 import csv
 import json
+import logging
 import os
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from pathlib import Path
+
+log = logging.getLogger(__name__)
 
 
 DATA_DIR = Path(__file__).parent.parent / "data" / "sessions"
@@ -41,6 +44,7 @@ def save_session(result: SessionResult, include_raw: bool = False) -> Path:
     with open(filepath, "w") as f:
         json.dump(data, f, indent=2, default=str)
 
+    log.info("Session gespeichert: %s", filepath.name)
     return filepath
 
 
@@ -53,6 +57,7 @@ def load_session(path: str | Path) -> SessionResult:
 
 def export_csv(result: SessionResult, path: str | Path) -> Path:
     """Export session features as a flat CSV row."""
+    log.info("CSV-Export: %s %s -> %s", result.test_type, result.hand, path)
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
 

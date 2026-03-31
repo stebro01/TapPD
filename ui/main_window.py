@@ -2,12 +2,16 @@
    Patient Screen → Patient Detail → New Session → Test Dashboard → Test → Results
 """
 
+import logging
+
 from PyQt6.QtWidgets import (
     QMainWindow,
     QMessageBox,
     QStackedWidget,
     QStatusBar,
 )
+
+log = logging.getLogger(__name__)
 
 from capture.base_capture import BaseCaptureDevice
 from capture.mock_capture import MockCaptureDevice
@@ -32,6 +36,7 @@ from ui.hanoi_screen import HanoiScreen
 from ui.srt_screen import SRTScreen
 from ui.tmt_screen import TMTScreen
 from ui.results_screen import ResultsScreen, save_raw_data
+from ui.log_viewer import LogViewerDialog
 
 
 TEST_CLASSES = {
@@ -90,9 +95,21 @@ class TapPDMainWindow(QMainWindow):
         self.stack.addWidget(self.srt_screen)
         self.stack.addWidget(self.tmt_screen)
 
-        # Status bar
+        # Status bar with log button
         self._status_bar = QStatusBar()
         self.setStatusBar(self._status_bar)
+
+        from PyQt6.QtWidgets import QPushButton
+        self._log_btn = QPushButton("  Log  ")
+        self._log_btn.setStyleSheet(
+            "QPushButton { background: transparent; color: #757575; border: 1px solid #E0E0E0; "
+            "border-radius: 4px; padding: 2px 10px; font-size: 11px; font-weight: 600; }"
+            "QPushButton:hover { background: #F5F5F5; color: #1976D2; border-color: #1976D2; }"
+        )
+        self._log_btn.clicked.connect(self._show_log_viewer)
+        self._status_bar.addPermanentWidget(self._log_btn)
+
+        self._log_viewer: LogViewerDialog | None = None
         self._update_status_bar()
 
         self.stack.setCurrentWidget(self.patient_screen)
@@ -134,10 +151,19 @@ class TapPDMainWindow(QMainWindow):
         )
         msg.exec()
 
+    def _show_log_viewer(self) -> None:
+        """Open or bring to front the log viewer dialog."""
+        if self._log_viewer is None or not self._log_viewer.isVisible():
+            self._log_viewer = LogViewerDialog(self)
+        self._log_viewer.show()
+        self._log_viewer.raise_()
+        self._log_viewer.activateWindow()
+
     # ── Navigation ──────────────────────────────────────────────────
 
     def select_patient(self, patient: Patient) -> None:
         """Show patient detail screen with session history."""
+        log.info("Patient ausgewaehlt: %s (ID %s)", patient.patient_code, patient.id)
         self.current_patient = patient
         self.current_session = None
         self.patient_detail.set_patient(patient)
@@ -155,11 +181,14 @@ class TapPDMainWindow(QMainWindow):
         conn = get_db()
         self.current_session = create_session(conn, self.current_patient.id)
         conn.close()
+        log.info("Neue Session gestartet: Session %d fuer %s",
+                 self.current_session.id, self.current_patient.patient_code)
         self.dashboard.set_patient(self.current_patient)
         self.stack.setCurrentWidget(self.dashboard)
 
     def start_test(self, test_key: str, hand: str, duration: int) -> None:
         """Start a motor test from the dashboard."""
+        log.info("Test gestartet: %s (Hand: %s, Dauer: %ds)", test_key, hand, duration)
         test_cls = TEST_CLASSES[test_key]
 
         # Set mock mode
@@ -223,6 +252,7 @@ class TapPDMainWindow(QMainWindow):
 
     def show_results(self, test: BaseMotorTest, patient_code: str) -> None:
         """Show results and auto-save to database."""
+        log.info("Ergebnisse berechnen: %s %s fuer %s", test.test_type(), test.hand, patient_code)
         features = test.compute_features()
 
         # Auto-save to database
@@ -269,6 +299,7 @@ class TapPDMainWindow(QMainWindow):
         self.start_test(test_key, hand, duration)
 
     def closeEvent(self, event) -> None:
+        log.info("Anwendung wird geschlossen")
         if self.capture_device.is_connected():
             self.capture_device.disconnect()
         event.accept()

@@ -8,6 +8,7 @@ dist/
 build/
 data/sessions/
 data/samples/
+data/logs/
 data/tappd.db
 leapc_cffi/
 .DS_Store

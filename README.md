@@ -19,6 +19,8 @@ werden kontaktlos per Infrarot-Sensor erfasst und quantitative Parameter automat
 - Rohdaten-Speicherung als JSON (optional)
 - CSV-Export fuer statistische Auswertung
 - Simulationsmodus fuer Entwicklung ohne Sensor
+- Zentrales Logging-System mit tageweiser Rotation (data/logs/)
+- Log Viewer im GUI (Statusleiste → "Log"-Button)
 
 ## Voraussetzungen
 
@@ -105,6 +107,7 @@ pip install -r requirements.txt
 ```
 TapPD/
 ├── main.py                     # Entry Point
+├── logging_config.py           # Zentrales Logging (File + Console + Qt)
 ├── start.sh                    # Start-Script (macOS)
 ├── start.ps1                   # Start-Script (Windows PowerShell)
 ├── start.bat                   # Start-Script (Windows cmd)
@@ -156,7 +159,8 @@ TapPD/
 │   ├── tmt_screen.py           #   Trail Making Test (dTMT)
 │   ├── results_screen.py       #   Ergebnis-Anzeige
 │   ├── data_browser.py         #   Daten-Browser
-│   └── detail_dialog.py        #   Detail-Ansicht mit Analyse-Plots
+│   ├── detail_dialog.py        #   Detail-Ansicht mit Analyse-Plots
+│   └── log_viewer.py           #   Log Viewer Dialog (Live-Logs)
 │
 ├── assets/                     # Instruktionsbilder
 │   └── instr_*.png             #   5 Instruktionsbilder
@@ -164,7 +168,8 @@ TapPD/
 ├── leapc_cffi/                 # LeapC SDK (nicht im Repo)
 └── data/                       # SQLite DB + Rohdaten (nicht im Repo)
     ├── tappd.db
-    └── samples/                #   JSON-Rohdaten
+    ├── samples/                #   JSON-Rohdaten
+    └── logs/                   #   Log-Dateien (tageweise, 7 Tage)
 ```
 
 ## Tests & Berechnete Features

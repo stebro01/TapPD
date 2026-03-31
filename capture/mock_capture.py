@@ -1,11 +1,14 @@
 """Simulated capture device generating realistic hand movement data at 120 Hz."""
 
+import logging
 import math
 import threading
 import time
 from typing import Callable
 
 import numpy as np
+
+log = logging.getLogger(__name__)
 
 from capture.base_capture import BaseCaptureDevice, BoneData, FingerData, HandFrame
 
@@ -63,6 +66,7 @@ class MockCaptureDevice(BaseCaptureDevice):
         self._stop_event.clear()
         self._thread = threading.Thread(target=self._generate_loop, daemon=True)
         self._thread.start()
+        log.debug("Mock-Aufnahme gestartet (Modus: %s, %.0f Hz)", self._mode, self.SAMPLE_RATE)
 
     def stop_recording(self) -> None:
         self._recording = False
@@ -70,6 +74,7 @@ class MockCaptureDevice(BaseCaptureDevice):
         if self._thread is not None:
             self._thread.join(timeout=2.0)
             self._thread = None
+        log.debug("Mock-Aufnahme gestoppt")
 
     def _generate_loop(self) -> None:
         interval = 1.0 / self.SAMPLE_RATE
