@@ -44,27 +44,31 @@ class LeapCaptureDevice(BaseCaptureDevice):
             raise RuntimeError(f"LeapCreateConnection failed: {result}")
         self._conn = ppconn[0]
 
-        result = libleapc.LeapOpenConnection(self._conn)
-        if result != 0:
-            log.error("LeapOpenConnection fehlgeschlagen: %d", result)
-            raise RuntimeError(f"LeapOpenConnection failed: {result}")
+        try:
+            result = libleapc.LeapOpenConnection(self._conn)
+            if result != 0:
+                log.error("LeapOpenConnection fehlgeschlagen: %d", result)
+                raise RuntimeError(f"LeapOpenConnection failed: {result}")
 
-        # Wait for connection + device
-        event = ffi.new("LEAP_CONNECTION_MESSAGE*")
-        deadline = time.time() + 5.0
-        device_found = False
-        while time.time() < deadline:
-            result = libleapc.LeapPollConnection(self._conn, 500, event)
-            if result == 0:
-                if event.type == libleapc.eLeapEventType_Device:
-                    device_found = True
-                    break
-                if event.type == libleapc.eLeapEventType_Tracking:
-                    device_found = True
-                    break
-        if not device_found:
-            log.error("Kein Leap Motion Geraet innerhalb von 5 Sekunden gefunden")
-            raise RuntimeError("No Leap Motion device found within 5 seconds.")
+            # Wait for connection + device
+            event = ffi.new("LEAP_CONNECTION_MESSAGE*")
+            deadline = time.time() + 5.0
+            device_found = False
+            while time.time() < deadline:
+                result = libleapc.LeapPollConnection(self._conn, 500, event)
+                if result == 0:
+                    if event.type in (libleapc.eLeapEventType_Device, libleapc.eLeapEventType_Tracking):
+                        device_found = True
+                        break
+            if not device_found:
+                log.error("Kein Leap Motion Geraet innerhalb von 5 Sekunden gefunden")
+                raise RuntimeError("No Leap Motion device found within 5 seconds.")
+        except Exception:
+            libleapc.LeapCloseConnection(self._conn)
+            libleapc.LeapDestroyConnection(self._conn)
+            self._conn = None
+            raise
+
         self._connected = True
         log.info("Leap Motion Controller verbunden")
 

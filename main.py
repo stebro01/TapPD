@@ -4,6 +4,11 @@ import logging
 import os
 import sys
 
+# Set Windows AppUserModelID so taskbar groups correctly and shows our icon
+if sys.platform == "win32":
+    import ctypes
+    ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("tappd.motor.analysis")
+
 # Ensure LeapC shared library can be found
 _LEAPC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "leapc_cffi")
 if os.path.isdir(_LEAPC_DIR):
@@ -14,12 +19,17 @@ if os.path.isdir(_LEAPC_DIR):
     if _LEAPC_DIR not in sys.path:
         sys.path.insert(0, _LEAPC_DIR)
 
+from pathlib import Path
+
+from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import QApplication
 
 from logging_config import setup_logging
 from capture import create_capture_device
 from ui.main_window import TapPDMainWindow
 from ui.theme import APP_STYLESHEET
+
+ICON_PATH = Path(__file__).parent / "assets" / "tappd.png"
 
 log = logging.getLogger(__name__)
 
@@ -28,6 +38,8 @@ def main() -> None:
     app = QApplication(sys.argv)
     app.setApplicationName("TapPD")
     app.setStyleSheet(APP_STYLESHEET)
+    if ICON_PATH.exists():
+        app.setWindowIcon(QIcon(str(ICON_PATH)))
 
     setup_logging()
     log.info("TapPD wird gestartet (Python %s, Plattform: %s)", sys.version.split()[0], sys.platform)

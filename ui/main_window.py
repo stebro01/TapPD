@@ -207,7 +207,7 @@ class TapPDMainWindow(QMainWindow):
             # Show detailed diagnostics
             from capture import diagnose_sensor
             issues = diagnose_sensor()
-            self._show_sensor_diagnostics(issues, str(e) if 'e' in dir() else "")
+            self._show_sensor_diagnostics(issues, str(e))
             self._update_status_bar()
             return
 
@@ -398,18 +398,22 @@ class TapPDMainWindow(QMainWindow):
             )
             m.features = features
             conn = get_db()
-            save_measurement(conn, m)
-            measurement_id = m.id
-            conn.close()
+            try:
+                save_measurement(conn, m)
+                measurement_id = m.id
+            finally:
+                conn.close()
         # Save raw data
         filepath = save_raw_data(test, patient_code, features)
         if filepath and measurement_id:
             try:
                 conn = get_db()
-                update_raw_data_path(conn, measurement_id, str(filepath))
-                conn.close()
+                try:
+                    update_raw_data_path(conn, measurement_id, str(filepath))
+                finally:
+                    conn.close()
             except Exception:
-                pass
+                log.exception("Failed to update raw_data_path for measurement %d", measurement_id)
         card = self.dashboard.cards.get(test.test_type())
         if card:
             card.mark_completed(test.hand)
@@ -431,9 +435,11 @@ class TapPDMainWindow(QMainWindow):
             )
             m.features = features
             conn = get_db()
-            save_measurement(conn, m)
-            measurement_id = m.id
-            conn.close()
+            try:
+                save_measurement(conn, m)
+                measurement_id = m.id
+            finally:
+                conn.close()
 
         # Mark test as completed on dashboard
         card = self.dashboard.cards.get(test.test_type())

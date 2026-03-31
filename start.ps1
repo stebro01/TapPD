@@ -1,6 +1,20 @@
 # If execution is blocked, run once: Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
 Set-Location $PSScriptRoot
 
+# ── --install: Create desktop shortcut and exit ──────────────────
+if ($args -contains "--install") {
+    $ws = New-Object -ComObject WScript.Shell
+    $lnk = $ws.CreateShortcut([IO.Path]::Combine([Environment]::GetFolderPath("Desktop"), "TapPD.lnk"))
+    $lnk.TargetPath = "$PSScriptRoot\start.bat"
+    $lnk.WorkingDirectory = $PSScriptRoot
+    $lnk.IconLocation = "$PSScriptRoot\assets\tappd.ico,0"
+    $lnk.WindowStyle = 1
+    $lnk.Description = "TapPD - Contactless Motor Analysis"
+    $lnk.Save()
+    Write-Host "Desktop shortcut created: TapPD.lnk"
+    exit 0
+}
+
 if (-not (Test-Path .venv)) {
     Write-Host "Creating virtual environment..."
     python -m venv .venv

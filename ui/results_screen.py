@@ -392,8 +392,10 @@ class ResultsScreen(QWidget):
             if self._measurement_id:
                 try:
                     conn = get_db()
-                    update_raw_data_path(conn, self._measurement_id, str(filepath))
-                    conn.close()
+                    try:
+                        update_raw_data_path(conn, self._measurement_id, str(filepath))
+                    finally:
+                        conn.close()
                 except Exception:
                     log.exception("Failed to update raw_data_path in DB")
 
@@ -424,9 +426,11 @@ class ResultsScreen(QWidget):
         if self._measurement_id:
             try:
                 conn = get_db()
-                delete_measurement(conn, self._measurement_id)
-                conn.close()
-                log.info("Measurement %d deleted", self._measurement_id)
+                try:
+                    delete_measurement(conn, self._measurement_id)
+                    log.info("Measurement %d deleted", self._measurement_id)
+                finally:
+                    conn.close()
             except Exception:
                 log.exception("Failed to delete measurement")
 
@@ -446,8 +450,10 @@ class ResultsScreen(QWidget):
         if self._measurement_id:
             try:
                 conn = get_db()
-                delete_measurement(conn, self._measurement_id)
-                conn.close()
+                try:
+                    delete_measurement(conn, self._measurement_id)
+                finally:
+                    conn.close()
             except Exception:
                 log.exception("Failed to delete measurement on retry")
 

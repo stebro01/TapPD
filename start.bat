@@ -1,6 +1,22 @@
 @echo off
 cd /d "%~dp0"
 
+rem ── --install: Create desktop shortcut and exit ──────────────────
+if "%~1"=="--install" (
+    echo Creating desktop shortcut...
+    powershell -NoProfile -Command ^
+        "$ws = New-Object -ComObject WScript.Shell;" ^
+        "$lnk = $ws.CreateShortcut([IO.Path]::Combine([Environment]::GetFolderPath('Desktop'), 'TapPD.lnk'));" ^
+        "$lnk.TargetPath = '%~dp0start.bat';" ^
+        "$lnk.WorkingDirectory = '%~dp0';" ^
+        "$lnk.IconLocation = '%~dp0assets\tappd.ico,0';" ^
+        "$lnk.WindowStyle = 1;" ^
+        "$lnk.Description = 'TapPD - Contactless Motor Analysis';" ^
+        "$lnk.Save();" ^
+        "Write-Host 'Desktop shortcut created: TapPD.lnk'"
+    exit /b 0
+)
+
 if not exist .venv (
     echo Creating virtual environment...
     python -m venv .venv
