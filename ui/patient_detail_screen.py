@@ -43,8 +43,8 @@ _TEST_COLS = [
     ("pronation_supination", "Pro-/Supi-\nnation", False),
     ("postural_tremor", "Posturaler\nTremor", True),
     ("rest_tremor", "Ruhe-\ntremor", True),
-    ("tower_of_hanoi", "Tuerme v.\nHanoi", False),
-    ("spatial_srt", "Raeumliche\nReaktion", False),
+    ("tower_of_hanoi", "Türme v.\nHanoi", False),
+    ("spatial_srt", "Räumliche\nReaktion", False),
     ("trail_making_a", "TMT\nTeil A", False),
     ("trail_making_b", "TMT\nTeil B", False),
 ]
@@ -168,7 +168,7 @@ class PatientDetailScreen(QWidget):
         btn_row.setSpacing(10)
         btn_row.addStretch()
 
-        del_patient_btn = QPushButton("Patient loeschen")
+        del_patient_btn = QPushButton("Patient löschen")
         del_patient_btn.setProperty("cssClass", "danger")
         del_patient_btn.setFixedHeight(SZ.BTN_H)
         del_patient_btn.clicked.connect(self._on_delete_patient)
@@ -198,7 +198,7 @@ class PatientDetailScreen(QWidget):
         details = []
         if p.age is not None:
             details.append(f"{p.age} Jahre")
-        gender_str = {"m": "Maennlich", "f": "Weiblich", "d": "Divers"}.get(p.gender)
+        gender_str = {"m": "Männlich", "f": "Weiblich", "d": "Divers"}.get(p.gender)
         if gender_str:
             details.append(gender_str)
         if p.birth_date:
@@ -317,7 +317,7 @@ class PatientDetailScreen(QWidget):
                     item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                     item.setForeground(QColor("#D0D0D0"))
                     if session:
-                        item.setToolTip("Gedrueckt halten oder Rechtsklick fuer Aktionen")
+                        item.setToolTip("Gedrückt halten oder Rechtsklick für Aktionen")
                     self.table.setItem(row, col, item)
                     continue
 
@@ -340,11 +340,11 @@ class PatientDetailScreen(QWidget):
                 if session and not bilateral:
                     existing_hands = set(m.hand for m in ms_for_cell)
                     if len(existing_hands) < 2:
-                        item.setToolTip("Gedrueckt halten oder Rechtsklick fuer Aktionen")
+                        item.setToolTip("Gedrückt halten oder Rechtsklick für Aktionen")
                     else:
-                        item.setToolTip("Klicken fuer Details")
+                        item.setToolTip("Klicken für Details")
                 else:
-                    item.setToolTip("Klicken fuer Details")
+                    item.setToolTip("Klicken für Details")
 
                 self.table.setItem(row, col, item)
                 self._cell_map[(row, col)] = ms_for_cell
@@ -439,7 +439,7 @@ class PatientDetailScreen(QWidget):
 
             if bilateral:
                 if "both" not in existing_hands:
-                    btn = _make_action_btn("Messung hinzufuegen", "accent")
+                    btn = _make_action_btn("Messung hinzufügen", "accent")
                     btn.clicked.connect(lambda: (
                         _close(),
                         self._add_measurement_to_session(session, test_key, "both"),
@@ -447,14 +447,14 @@ class PatientDetailScreen(QWidget):
                     panel_layout.addWidget(btn)
             else:
                 if "left" not in existing_hands:
-                    btn = _make_action_btn("Links hinzufuegen", "primary")
+                    btn = _make_action_btn("Links hinzufügen", "primary")
                     btn.clicked.connect(lambda: (
                         _close(),
                         self._add_measurement_to_session(session, test_key, "left"),
                     ))
                     panel_layout.addWidget(btn)
                 if "right" not in existing_hands:
-                    btn = _make_action_btn("Rechts hinzufuegen", "primary")
+                    btn = _make_action_btn("Rechts hinzufügen", "primary")
                     btn.clicked.connect(lambda: (
                         _close(),
                         self._add_measurement_to_session(session, test_key, "right"),
@@ -462,7 +462,7 @@ class PatientDetailScreen(QWidget):
                     panel_layout.addWidget(btn)
 
         # Delete session
-        del_btn = _make_action_btn("Session loeschen", "danger")
+        del_btn = _make_action_btn("Session löschen", "danger")
         del_btn.clicked.connect(lambda: (_close(), self._delete_session(session)))
         panel_layout.addWidget(del_btn)
 
@@ -502,10 +502,10 @@ class PatientDetailScreen(QWidget):
         total += len(self._orphan_measurements)
         reply = QMessageBox.question(
             self,
-            "Patient loeschen",
-            f"Patient '{self._patient.display_name}' wirklich loeschen?\n\n"
+            "Patient löschen",
+            f"Patient '{self._patient.display_name}' wirklich löschen?\n\n"
             f"{len(self._sessions)} Session(s), {total} Messung(en) und "
-            f"alle zugehoerigen Rohdaten werden unwiderruflich geloescht.",
+            f"alle zugehörigen Rohdaten werden unwiderruflich gelöscht.",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
         )
         if reply != QMessageBox.StandardButton.Yes:
@@ -535,10 +535,10 @@ class PatientDetailScreen(QWidget):
 
         reply = QMessageBox.question(
             self,
-            "Session loeschen",
-            f"Session vom {date_str} loeschen?\n\n"
-            f"Enthaelt {n} Messung{'en' if n != 1 else ''}.\n"
-            "Alle Messungen und Rohdaten dieser Session werden geloescht.",
+            "Session löschen",
+            f"Session vom {date_str} löschen?\n\n"
+            f"Enthält {n} Messung{'en' if n != 1 else ''}.\n"
+            "Alle Messungen und Rohdaten dieser Session werden gelöscht.",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
         )
         if reply != QMessageBox.StandardButton.Yes:

@@ -34,7 +34,7 @@ from storage.database import Measurement, Patient
 from ui.feature_meta import FEATURE_META
 from ui.theme import SZ, ACCENT, PRIMARY, TEXT_SECONDARY
 
-COLOR_RIGHT = QColor(SZ, 227, 242, 253)
+COLOR_RIGHT = QColor(227, 242, 253)
 COLOR_LEFT = QColor(255, 235, 238)
 
 

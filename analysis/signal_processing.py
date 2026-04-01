@@ -24,7 +24,7 @@ def bandpass_filter(
     low_n = max(low_n, 0.001)
     high_n = min(high_n, 0.999)
     if len(data) < 3 * order:
-        log.debug("Bandpass uebersprungen: zu wenig Datenpunkte (%d < %d)", len(data), 3 * order)
+        log.debug("Bandpass übersprungen: zu wenig Datenpunkte (%d < %d)", len(data), 3 * order)
         return data
     sos = sp_signal.butter(order, [low_n, high_n], btype="band", output="sos")
     return sp_signal.sosfiltfilt(sos, data)
@@ -199,7 +199,7 @@ def resample_to_uniform(
     duration = times_s[-1]
     n_samples = int(duration * target_fs)
     if n_samples < 2:
-        log.debug("Resampling uebersprungen: zu kurze Dauer (%.3fs)", duration)
+        log.debug("Resampling übersprungen: zu kurze Dauer (%.3fs)", duration)
         return times_s, values
     uniform_t = np.linspace(0, duration, n_samples)
     resampled = np.interp(uniform_t, times_s, values)

@@ -103,7 +103,7 @@ class LogViewerDialog(QDialog):
         tb_layout.addWidget(self.level_combo)
 
         # Line count
-        self.count_label = QLabel("0 Eintraege")
+        self.count_label = QLabel("0 Einträge")
         self.count_label.setStyleSheet(f"font-size: 11px; color: {TEXT_SECONDARY}; border: none;")
         tb_layout.addWidget(self.count_label)
 
@@ -229,7 +229,7 @@ class LogViewerDialog(QDialog):
         cursor.insertText(line + "\n", fmt)
 
         self._line_count += 1
-        self.count_label.setText(f"{self._line_count} Eintraege")
+        self.count_label.setText(f"{self._line_count} Einträge")
 
         if self._auto_scroll:
             scrollbar = self.text_edit.verticalScrollBar()
@@ -282,4 +282,4 @@ class LogViewerDialog(QDialog):
     def _on_clear(self) -> None:
         self.text_edit.clear()
         self._line_count = 0
-        self.count_label.setText("0 Eintraege")
+        self.count_label.setText("0 Einträge")

@@ -61,7 +61,7 @@ class LeapCaptureDevice(BaseCaptureDevice):
                         device_found = True
                         break
             if not device_found:
-                log.error("Kein Leap Motion Geraet innerhalb von 5 Sekunden gefunden")
+                log.error("Kein Leap Motion Gerät innerhalb von 5 Sekunden gefunden")
                 raise RuntimeError("No Leap Motion device found within 5 seconds.")
         except Exception:
             libleapc.LeapCloseConnection(self._conn)
@@ -107,14 +107,14 @@ class LeapCaptureDevice(BaseCaptureDevice):
                 )
                 present = "Leap" in result.stdout
         except Exception as e:
-            log.warning("USB-Geraetecheck fehlgeschlagen: %s", e)
+            log.warning("USB-Gerätecheck fehlgeschlagen: %s", e)
             return self._connected
 
         if present:
-            log.debug("USB-Check: Leap Geraet vorhanden")
+            log.debug("USB-Check: Leap Gerät vorhanden")
             return True
         else:
-            log.warning("USB-Check: Kein Leap Geraet gefunden")
+            log.warning("USB-Check: Kein Leap Gerät gefunden")
             self._connected = False
             return False
 

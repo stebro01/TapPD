@@ -191,7 +191,7 @@ def get_db() -> sqlite3.Connection:
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA foreign_keys=ON")
     _ensure_schema(conn)
-    log.debug("Datenbankverbindung geoeffnet: %s", DB_PATH)
+    log.debug("Datenbankverbindung geöffnet: %s", DB_PATH)
     return conn
 
 
@@ -364,13 +364,13 @@ def _seed_concepts(conn: sqlite3.Connection) -> None:
 
 def _seed_code_lookup(conn: sqlite3.Connection) -> None:
     codes = [
-        ("SCTID: 248153007", "PATIENT_DIMENSION", "SEX_CD", "Maennlich", '{"app_code":"m"}'),
+        ("SCTID: 248153007", "PATIENT_DIMENSION", "SEX_CD", "Männlich", '{"app_code":"m"}'),
         ("SCTID: 248152002", "PATIENT_DIMENSION", "SEX_CD", "Weiblich", '{"app_code":"f"}'),
         ("SCTID: 32570681000036106", "PATIENT_DIMENSION", "SEX_CD", "Divers", '{"app_code":"d"}'),
         ("SCTID: 438949009", "PATIENT_DIMENSION", "VITAL_STATUS_CD", "Lebendig", None),
         ("SCTID: 55561003", "VISIT_DIMENSION", "ACTIVE_STATUS_CD", "Aktiv", None),
         ("O", "VISIT_DIMENSION", "INOUT_CD", "Ambulant", None),
-        ("I", "VISIT_DIMENSION", "INOUT_CD", "Stationaer", None),
+        ("I", "VISIT_DIMENSION", "INOUT_CD", "Stationär", None),
         ("E", "VISIT_DIMENSION", "INOUT_CD", "Notfall", None),
     ]
     conn.executemany(
@@ -581,7 +581,7 @@ def create_session(conn: sqlite3.Connection, patient_id: int) -> Session:
     )
     s.id = cur.lastrowid
     conn.commit()
-    log.info("Neue Session erstellt: ID %d fuer Patient %d", s.id, patient_id)
+    log.info("Neue Session erstellt: ID %d für Patient %d", s.id, patient_id)
     return s
 
 
@@ -598,7 +598,7 @@ def delete_session(conn: sqlite3.Connection, session_id: int) -> None:
     conn.execute("DELETE FROM OBSERVATION_FACT WHERE ENCOUNTER_NUM=?", (session_id,))
     conn.execute("DELETE FROM VISIT_DIMENSION WHERE ENCOUNTER_NUM=?", (session_id,))
     conn.commit()
-    log.info("Session geloescht: ID %d (inkl. zugehoeriger Messungen)", session_id)
+    log.info("Session gelöscht: ID %d (inkl. zugehöriger Messungen)", session_id)
 
 
 def get_session_measurements(conn: sqlite3.Connection, session_id: int) -> list[Measurement]:
@@ -647,7 +647,7 @@ def get_measurements(conn: sqlite3.Connection, patient_id: int) -> list[Measurem
 def delete_measurement(conn: sqlite3.Connection, measurement_id: int) -> None:
     conn.execute("DELETE FROM OBSERVATION_FACT WHERE OBSERVATION_ID=?", (measurement_id,))
     conn.commit()
-    log.info("Messung geloescht: ID %d", measurement_id)
+    log.info("Messung gelöscht: ID %d", measurement_id)
 
 
 def delete_patient(conn: sqlite3.Connection, patient_id: int) -> None:
@@ -656,7 +656,7 @@ def delete_patient(conn: sqlite3.Connection, patient_id: int) -> None:
     conn.execute("DELETE FROM VISIT_DIMENSION WHERE PATIENT_NUM=?", (patient_id,))
     conn.execute("DELETE FROM PATIENT_DIMENSION WHERE PATIENT_NUM=?", (patient_id,))
     conn.commit()
-    log.info("Patient geloescht: ID %d (inkl. aller Sessions und Messungen)", patient_id)
+    log.info("Patient gelöscht: ID %d (inkl. aller Sessions und Messungen)", patient_id)
 
 
 def get_last_measurement_dates(conn: sqlite3.Connection) -> dict[int, str]:
@@ -704,7 +704,7 @@ def update_raw_data_path(conn: sqlite3.Connection, observation_id: int, path: st
         (observation_id,),
     ).fetchone()
     if not row:
-        log.warning("Observation %d nicht gefunden fuer raw_data_path Update", observation_id)
+        log.warning("Observation %d nicht gefunden für raw_data_path Update", observation_id)
         return
 
     raw_blob = row["OBSERVATION_BLOB"]
@@ -712,7 +712,7 @@ def update_raw_data_path(conn: sqlite3.Connection, observation_id: int, path: st
         try:
             blob = json.loads(raw_blob)
         except (json.JSONDecodeError, TypeError):
-            log.warning("OBSERVATION_BLOB korrupt fuer ID %d; raw_data_path wird nicht aktualisiert", observation_id)
+            log.warning("OBSERVATION_BLOB korrupt für ID %d; raw_data_path wird nicht aktualisiert", observation_id)
             return
     else:
         blob = {"hand": "", "duration_s": 0.0, "raw_data_path": "", "features": {}}
@@ -723,4 +723,4 @@ def update_raw_data_path(conn: sqlite3.Connection, observation_id: int, path: st
         (json.dumps(blob, default=str), datetime.now().isoformat(), observation_id),
     )
     conn.commit()
-    log.debug("raw_data_path aktualisiert fuer Observation %d", observation_id)
+    log.debug("raw_data_path aktualisiert für Observation %d", observation_id)

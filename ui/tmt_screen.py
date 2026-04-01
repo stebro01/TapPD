@@ -155,10 +155,10 @@ class TMTCanvas(QWidget):
                 "Verbinden Sie die Zahlen in aufsteigender Reihenfolge:",
                 "1 → 2 → 3 → 4 → ... und so weiter.",
                 "",
-                "Bewegen Sie Ihre Hand zum naechsten Kreis und halten",
-                "Sie dort kurz an, um ihn zu bestaetigen.",
+                "Bewegen Sie Ihre Hand zum nächsten Kreis und halten",
+                "Sie dort kurz an, um ihn zu bestätigen.",
                 "",
-                "Arbeiten Sie so schnell und genau wie moeglich.",
+                "Arbeiten Sie so schnell und genau wie möglich.",
             ]
         else:
             instructions = [
@@ -167,10 +167,10 @@ class TMTCanvas(QWidget):
                 "Verbinden Sie diese abwechselnd in aufsteigender Reihenfolge:",
                 "1 → A → 2 → B → 3 → C → ... und so weiter.",
                 "",
-                "Bewegen Sie Ihre Hand zum naechsten Kreis und halten",
-                "Sie dort kurz an, um ihn zu bestaetigen.",
+                "Bewegen Sie Ihre Hand zum nächsten Kreis und halten",
+                "Sie dort kurz an, um ihn zu bestätigen.",
                 "",
-                "Arbeiten Sie so schnell und genau wie moeglich.",
+                "Arbeiten Sie so schnell und genau wie möglich.",
                 "Bei einem Fehler wird der falsche Kreis rot markiert.",
             ]
 
@@ -221,7 +221,7 @@ class TMTCanvas(QWidget):
         p.setFont(QFont("Helvetica Neue", 11))
         p.drawText(QRectF(0, h - 40, w, 25),
                    Qt.AlignmentFlag.AlignCenter,
-                   "Hand flach ueber den Sensor halten \u2013 startet automatisch")
+                   "Hand flach über den Sensor halten \u2013 startet automatisch")
 
 
 class TMTScreen(QWidget):

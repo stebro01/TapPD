@@ -32,11 +32,11 @@ class TowerOfHanoiTest(BaseMotorTest):
 
     def get_instructions(self) -> str:
         return (
-            "Tuerme von Hanoi\n\n"
+            "Türme von Hanoi\n\n"
             "Bewegen Sie alle Scheiben vom linken Stab zum rechten Stab.\n"
             "Regeln:\n"
             "- Nur eine Scheibe gleichzeitig bewegen\n"
-            "- Nie eine groessere auf eine kleinere Scheibe legen\n\n"
+            "- Nie eine größere auf eine kleinere Scheibe legen\n\n"
             "Pinzettengriff (Daumen + Zeigefinger) zum Greifen und Loslassen."
         )
 

@@ -141,7 +141,7 @@ class TestScreen(QWidget):
         self.status_label.setProperty("cssClass", "countdown")
         self.status_label.style().unpolish(self.status_label)
         self.status_label.style().polish(self.status_label)
-        self.status_label.setText(cfg.get("message_waiting", "Bitte Haende ueber den Sensor halten..."))
+        self.status_label.setText(cfg.get("message_waiting", "Bitte Hände über den Sensor halten..."))
         self.progress_bar.setValue(0)
 
         self._detect_start_time = time.perf_counter()
@@ -167,7 +167,7 @@ class TestScreen(QWidget):
             self._detecting = False
             self._detect_timer.stop()
             self.test.capture.stop_recording()
-            self.status_label.setText(cfg.get("message_detected", "Haende erkannt!"))
+            self.status_label.setText(cfg.get("message_detected", "Hände erkannt!"))
             QTimer.singleShot(600, self._start_countdown)
             return
 
@@ -181,7 +181,7 @@ class TestScreen(QWidget):
             self._detecting = False
             self._detect_timer.stop()
             self.test.capture.stop_recording()
-            self.status_label.setText(cfg.get("message_timeout", "Keine Haende erkannt."))
+            self.status_label.setText(cfg.get("message_timeout", "Keine Hände erkannt."))
             QTimer.singleShot(2000, lambda: self.main_window.show_start())
 
     def _start_countdown(self) -> None:
@@ -201,7 +201,7 @@ class TestScreen(QWidget):
             self.status_label.setProperty("cssClass", "recording")
             self.status_label.style().unpolish(self.status_label)
             self.status_label.style().polish(self.status_label)
-            self.status_label.setText("Aufnahme laeuft...")
+            self.status_label.setText("Aufnahme läuft...")
             self._start_recording()
 
     def _start_recording(self) -> None:

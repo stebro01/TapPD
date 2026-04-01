@@ -23,8 +23,8 @@ TESTS = [
     ("pronation_supination", "Pronation/\nSupination", "3.6", False, "Unterarm drehen"),
     ("postural_tremor", "Posturaler\nTremor", "3.15", True, "Hände vorgestreckt"),
     ("rest_tremor", "Ruhetremor", "3.17", True, "Hände entspannt"),
-    ("tower_of_hanoi", "Tuerme von\nHanoi", "Kogn.", False, "Scheiben verschieben"),
-    ("spatial_srt", "Raeumliche\nReaktionszeit", "Kogn.", False, "Sequenz-Lernen"),
+    ("tower_of_hanoi", "Türme von\nHanoi", "Kogn.", False, "Scheiben verschieben"),
+    ("spatial_srt", "Räumliche\nReaktionszeit", "Kogn.", False, "Sequenz-Lernen"),
     ("trail_making_a", "Trail Making\nTeil A", "Kogn.", False, "Zahlen verbinden"),
     ("trail_making_b", "Trail Making\nTeil B", "Kogn.", False, "Zahlen & Buchstaben"),
 ]
@@ -189,7 +189,7 @@ class TestDashboard(QWidget):
         btn_row.setSpacing(12)
         btn_row.addStretch()
 
-        back_btn = QPushButton("← Zurueck")
+        back_btn = QPushButton("← Zurück")
         back_btn.setProperty("cssClass", "flat")
         back_btn.setFixedHeight(SZ.BTN_H)
         back_btn.clicked.connect(lambda: self.main_window.show_patient_detail())

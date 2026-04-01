@@ -38,11 +38,11 @@ class SpatialSRTTest(BaseMotorTest):
 
     def get_instructions(self) -> str:
         return (
-            "Raeumliche Reaktionszeit (S-SRT)\n\n"
+            "Räumliche Reaktionszeit (S-SRT)\n\n"
             "Vier Ziele erscheinen auf dem Bildschirm.\n"
             "Bewegen Sie Ihre Hand zum leuchtenden Ziel\n"
             "und halten Sie kurz am Ziel.\n\n"
-            "Es folgt zuerst eine kurze Uebungsphase."
+            "Es folgt zuerst eine kurze Übungsphase."
         )
 
     def get_live_metric(self, frame: HandFrame) -> float:

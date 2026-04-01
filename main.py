@@ -21,13 +21,14 @@ if os.path.isdir(_LEAPC_DIR):
 
 from pathlib import Path
 
+from PyQt6.QtCore import QSettings
 from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import QApplication
 
 from logging_config import setup_logging
 from capture import create_capture_device
 from ui.main_window import TapPDMainWindow
-from ui.theme import APP_STYLESHEET
+from ui import theme
 
 ICON_PATH = Path(__file__).parent / "assets" / "tappd.png"
 
@@ -37,7 +38,12 @@ log = logging.getLogger(__name__)
 def main() -> None:
     app = QApplication(sys.argv)
     app.setApplicationName("TapPD")
-    app.setStyleSheet(APP_STYLESHEET)
+
+    # Restore saved UI mode (dense/touch)
+    settings = QSettings("TapPD", "TapPD")
+    ui_mode = settings.value("ui_mode", "touch")
+    theme.set_ui_mode(ui_mode)
+    app.setStyleSheet(theme.APP_STYLESHEET)
     if ICON_PATH.exists():
         app.setWindowIcon(QIcon(str(ICON_PATH)))
 

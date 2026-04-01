@@ -39,13 +39,13 @@ class TrailMakingTest(BaseMotorTest):
                 "Trail Making Test — Teil A\n\n"
                 "Verbinden Sie die Zahlen in aufsteigender Reihenfolge:\n"
                 "1 → 2 → 3 → ...\n\n"
-                "Bewegen Sie Ihre Hand zum naechsten Ziel."
+                "Bewegen Sie Ihre Hand zum nächsten Ziel."
             )
         return (
             "Trail Making Test — Teil B\n\n"
             "Verbinden Sie abwechselnd Zahlen und Buchstaben:\n"
             "1 → A → 2 → B → 3 → C → ...\n\n"
-            "Bewegen Sie Ihre Hand zum naechsten Ziel."
+            "Bewegen Sie Ihre Hand zum nächsten Ziel."
         )
 
     def get_live_metric(self, frame: HandFrame) -> float:

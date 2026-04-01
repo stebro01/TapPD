@@ -153,7 +153,7 @@ class SRTCanvas(QWidget):
         p.setPen(QColor("#333333"))
         p.setFont(QFont("Helvetica Neue", 18, QFont.Weight.Bold))
         p.drawText(QRectF(0, h * 0.04, w, 32),
-                   Qt.AlignmentFlag.AlignCenter, "Raeumliche Reaktionszeit (S-SRT)")
+                   Qt.AlignmentFlag.AlignCenter, "Räumliche Reaktionszeit (S-SRT)")
 
         # Instructions
         p.setFont(QFont("Helvetica Neue", 11))
@@ -165,13 +165,13 @@ class SRTCanvas(QWidget):
             "Auf dem Bildschirm erscheinen 4 Ziele (oben, rechts, unten, links).",
             "Eines der Ziele leuchtet gelb auf.",
             "",
-            "Bewegen Sie Ihre Hand so schnell wie moeglich zum",
+            "Bewegen Sie Ihre Hand so schnell wie möglich zum",
             "leuchtenden Ziel und halten Sie dort kurz an.",
             "",
-            "Danach leuchtet das naechste Ziel auf.",
-            "Versuchen Sie, moeglichst schnell und genau zu reagieren.",
+            "Danach leuchtet das nächste Ziel auf.",
+            "Versuchen Sie, möglichst schnell und genau zu reagieren.",
             "",
-            "Es beginnt mit einer kurzen Uebungsphase.",
+            "Es beginnt mit einer kurzen Übungsphase.",
         ]
         line_y = h * 0.12
         for line in instructions:
@@ -216,7 +216,7 @@ class SRTCanvas(QWidget):
         p.setPen(QColor("#BDBDBD"))
         p.drawText(QRectF(0, h - 30, w, 20),
                    Qt.AlignmentFlag.AlignCenter,
-                   "Hand flach ueber den Sensor halten – startet automatisch")
+                   "Hand flach über den Sensor halten – startet automatisch")
 
         if self.hand_ok:
             hx = int(self.hand_x * w)
@@ -411,7 +411,7 @@ class SRTScreen(QWidget):
         self._phase = SRTPhase.PLAYING
         self._start_time = time.perf_counter()
         self.test._start_time_s = self._start_time
-        self.status_label.setText("Aufgabe laeuft")
+        self.status_label.setText("Aufgabe läuft")
         self.hint_label.setVisible(True)
         self.canvas.update()
 

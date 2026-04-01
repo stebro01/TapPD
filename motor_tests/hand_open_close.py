@@ -17,14 +17,14 @@ class HandOpenCloseTest(BaseMotorTest):
     def get_instructions(self) -> str:
         side = "rechte" if self.hand == "right" else "linke"
         return (
-            f"Hand Oeffnen/Schliessen – {side} Hand (MDS-UPDRS 3.5)\n\n"
-            f"Oeffnen und schliessen Sie die {side} Hand "
-            "so schnell und vollstaendig wie moeglich.\n\n"
+            f"Hand Öffnen/Schließen – {side} Hand (MDS-UPDRS 3.5)\n\n"
+            f"Öffnen und schließen Sie die {side} Hand "
+            "so schnell und vollständig wie möglich.\n\n"
             "Wichtig:\n"
-            "- Hand flach ueber dem Sensor, Handflaeche nach unten\n"
-            "- Finger beim Oeffnen weit spreizen\n"
-            "- Beim Schliessen Faust machen\n"
-            "- Gleichmaessiger Rhythmus"
+            "- Hand flach über dem Sensor, Handfläche nach unten\n"
+            "- Finger beim Öffnen weit spreizen\n"
+            "- Beim Schließen Faust machen\n"
+            "- Gleichmäßiger Rhythmus"
         )
 
     def get_live_metric(self, frame: HandFrame) -> float:

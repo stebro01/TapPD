@@ -23,6 +23,7 @@ from PyQt6.QtWidgets import (
 )
 
 from storage.database import Patient, find_patients, get_db, get_last_measurement_dates, save_patient
+from ui import theme
 from ui.theme import SZ
 
 
@@ -58,7 +59,7 @@ class NewPatientDialog(QDialog):
         layout.addRow("Geburtsdatum", self.birth_date_input)
 
         self.gender_combo = QComboBox()
-        self.gender_combo.addItems(["–", "Maennlich", "Weiblich", "Divers"])
+        self.gender_combo.addItems(["–", "Männlich", "Weiblich", "Divers"])
         gender_map = {"m": 1, "f": 2, "d": 3}
         self.gender_combo.setCurrentIndex(gender_map.get(self.patient.gender, 0))
         layout.addRow("Geschlecht", self.gender_combo)
@@ -98,7 +99,7 @@ class PatientScreen(QWidget):
         layout.setContentsMargins(50, 24, 50, 24)
         layout.setSpacing(0)
 
-        # ── Top bar: Beenden (left) + Ueber TapPD (right) ──
+        # ── Top bar: Beenden (left) + Über TapPD (right) ──
         top_bar = QHBoxLayout()
         quit_btn = QPushButton("Beenden")
         quit_btn.setFixedWidth(120)
@@ -108,7 +109,15 @@ class PatientScreen(QWidget):
 
         top_bar.addStretch()
 
-        about_btn = QPushButton("Ueber TapPD")
+        mode_label = "Kompakt" if theme.current_ui_mode() == "touch" else "Touch"
+        self.mode_btn = QPushButton(f"⇄ {mode_label}")
+        self.mode_btn.setFixedWidth(130)
+        self.mode_btn.setFixedHeight(SZ.BTN_H)
+        self.mode_btn.setToolTip("UI-Modus wechseln (Dense / Touch)")
+        self.mode_btn.clicked.connect(self.main_window.toggle_ui_mode)
+        top_bar.addWidget(self.mode_btn)
+
+        about_btn = QPushButton("Über TapPD")
         about_btn.setFixedWidth(160)
         about_btn.setFixedHeight(SZ.BTN_H)
         about_btn.clicked.connect(self._on_about)
@@ -180,7 +189,7 @@ class PatientScreen(QWidget):
         layout.addSpacing(10)
 
         # Select button
-        select_btn = QPushButton("Auswaehlen")
+        select_btn = QPushButton("Auswählen")
         select_btn.setProperty("cssClass", "primary")
         select_btn.setFixedWidth(180)
         select_btn.setFixedHeight(SZ.BTN_H)
@@ -265,7 +274,7 @@ class PatientScreen(QWidget):
             md_text = "# TapPD\n\nKontaktlose Motorik-Analyse"
 
         dlg = QDialog(self)
-        dlg.setWindowTitle("Ueber TapPD")
+        dlg.setWindowTitle("Über TapPD")
         dlg.setMinimumSize(560, 480)
         layout = QVBoxLayout(dlg)
         layout.setContentsMargins(24, 24, 24, 24)
@@ -284,7 +293,7 @@ class PatientScreen(QWidget):
         )
         layout.addWidget(browser)
 
-        close_btn = QPushButton("Schliessen")
+        close_btn = QPushButton("Schließen")
         close_btn.setProperty("cssClass", "primary")
         close_btn.setFixedHeight(SZ.BTN_H)
         close_btn.clicked.connect(dlg.accept)

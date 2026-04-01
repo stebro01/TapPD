@@ -182,7 +182,7 @@ class SRTTaskState:
         if not block:
             return ""
         if block.block_type == "practice":
-            return "Uebung"
+            return "Übung"
         # Count only non-practice blocks
         non_practice = [b for b in self.blocks if b.block_type != "practice"]
         pos = next((i for i, b in enumerate(non_practice) if b.block_index == block.block_index), 0)

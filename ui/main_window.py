@@ -42,6 +42,7 @@ from ui.srt_screen import SRTScreen
 from ui.tmt_screen import TMTScreen
 from ui.results_screen import ResultsScreen, save_raw_data
 from ui.log_viewer import LogViewerDialog
+from ui import theme
 from ui.theme import SZ
 
 
@@ -100,25 +101,7 @@ class TapPDMainWindow(QMainWindow):
 
         self.stack = QStackedWidget()
         self.setCentralWidget(self.stack)
-
-        # Screens
-        self.patient_screen = PatientScreen(self)
-        self.patient_detail = PatientDetailScreen(self)
-        self.dashboard = TestDashboard(self)
-        self.test_screen = TestScreen(self)
-        self.results_screen = ResultsScreen(self)
-        self.hanoi_screen = HanoiScreen(self)
-        self.srt_screen = SRTScreen(self)
-        self.tmt_screen = TMTScreen(self)
-
-        self.stack.addWidget(self.patient_screen)
-        self.stack.addWidget(self.patient_detail)
-        self.stack.addWidget(self.dashboard)
-        self.stack.addWidget(self.test_screen)
-        self.stack.addWidget(self.results_screen)
-        self.stack.addWidget(self.hanoi_screen)
-        self.stack.addWidget(self.srt_screen)
-        self.stack.addWidget(self.tmt_screen)
+        self._build_screens()
 
         # Status bar: [dot + sensor text (left, clickable)] ... [Log button (right)]
         self._status_bar = QStatusBar()
@@ -141,7 +124,7 @@ class TapPDMainWindow(QMainWindow):
         self._sensor_widget.setCursor(Qt.CursorShape.PointingHandCursor)
         self._sensor_widget.setMinimumHeight(SZ.MIN)
         self._sensor_widget.mousePressEvent = lambda e: self._check_sensor_status()
-        self._sensor_widget.setToolTip("Klicken um Sensor-Status zu pruefen")
+        self._sensor_widget.setToolTip("Klicken um Sensor-Status zu prüfen")
         self._status_bar.addWidget(self._sensor_widget, 1)  # left side, stretch
 
         # Log button (right side)
@@ -185,7 +168,7 @@ class TapPDMainWindow(QMainWindow):
 
     def _check_sensor_status(self) -> None:
         """Re-check sensor connection and show detailed diagnostics on click."""
-        log.info("Sensor-Status wird geprueft...")
+        log.info("Sensor-Status wird geprüft...")
         is_mock = isinstance(self.capture_device, MockCaptureDevice)
 
         if is_mock:
@@ -204,7 +187,7 @@ class TapPDMainWindow(QMainWindow):
                 )
                 return
             except Exception as e:
-                log.warning("Sensor-Check: Leap nicht verfuegbar (%s)", e)
+                log.warning("Sensor-Check: Leap nicht verfügbar (%s)", e)
 
             # Show detailed diagnostics
             from capture import diagnose_sensor
@@ -214,7 +197,7 @@ class TapPDMainWindow(QMainWindow):
             return
 
         # Real device: run check in background thread to avoid UI freeze
-        self._sensor_label.setText("Pruefe Sensor...")
+        self._sensor_label.setText("Prüfe Sensor...")
         self._sensor_check_worker = _SensorCheckWorker(self.capture_device, self)
         self._sensor_check_worker.finished.connect(self._on_sensor_check_done)
         self._sensor_check_worker.start()
@@ -223,7 +206,7 @@ class TapPDMainWindow(QMainWindow):
         """Handle result from background sensor check."""
         if device_present and not self.capture_device.is_connected():
             # USB device is back but connection was lost — reconnect
-            log.info("Sensor-Check: USB-Geraet vorhanden, reconnecte...")
+            log.info("Sensor-Check: USB-Gerät vorhanden, reconnecte...")
             try:
                 self.capture_device.disconnect()
                 self.capture_device.connect()
@@ -247,7 +230,7 @@ class TapPDMainWindow(QMainWindow):
                 "Leap Motion Controller ist verbunden und betriebsbereit."
             )
         else:
-            log.warning("Sensor-Check: Geraet nicht erreichbar, versuche Reconnect...")
+            log.warning("Sensor-Check: Gerät nicht erreichbar, versuche Reconnect...")
             from capture import diagnose_sensor
             issues = diagnose_sensor()
             self._show_sensor_diagnostics(issues, error)
@@ -269,11 +252,11 @@ class TapPDMainWindow(QMainWindow):
             "   -> Download: ultraleap.com/downloads/leap-controller/",
             "",
             "2. Tracking-Service (LeapSvc) gestartet?",
-            "   -> Windows: Dienste-Manager pruefen",
-            "   -> Oder Ultraleap Control Panel oeffnen",
+            "   -> Windows: Dienste-Manager prüfen",
+            "   -> Oder Ultraleap Control Panel öffnen",
             "",
             "3. Controller per USB angeschlossen?",
-            "   -> LED am Controller sollte gruen leuchten",
+            "   -> LED am Controller sollte grün leuchten",
             "   -> Anderes USB-Kabel / anderen Port versuchen",
             "",
             "4. Nur eine App-Instanz gleichzeitig?",
@@ -292,7 +275,7 @@ class TapPDMainWindow(QMainWindow):
                 detail_parts.append(f"\n{i}. {issue}")
         else:
             detail_parts.append("Automatische Diagnose: Keine spezifischen Probleme erkannt.")
-            detail_parts.append("Moeglicherweise ist der Treiber installiert aber der Controller nicht angeschlossen.")
+            detail_parts.append("Möglicherweise ist der Treiber installiert aber der Controller nicht angeschlossen.")
 
         msg.setDetailedText("\n".join(detail_parts))
         msg.exec()
@@ -309,13 +292,13 @@ class TapPDMainWindow(QMainWindow):
         msg.setWindowTitle("Sensor nicht erkannt")
         msg.setText(
             "Der Leap Motion Controller konnte nicht verbunden werden.\n"
-            "Die App laeuft im Simulationsmodus."
+            "Die App läuft im Simulationsmodus."
         )
         msg.setDetailedText(detail_text)
         msg.setInformativeText(
             "Checkliste:\n"
             "1. Ultraleap Hand Tracking Software installiert und gestartet?\n"
-            "2. Controller per USB angeschlossen (LED gruen)?\n"
+            "2. Controller per USB angeschlossen (LED grün)?\n"
             "3. USB-Kabel fest eingesteckt?\n\n"
             "Behebe die Probleme und starte die App neu."
         )
@@ -329,11 +312,67 @@ class TapPDMainWindow(QMainWindow):
         self._log_viewer.raise_()
         self._log_viewer.activateWindow()
 
+    # ── Screen management ──────────────────────────────────────────
+
+    def _build_screens(self) -> None:
+        """Create (or recreate) all screens and add to stack."""
+        self.patient_screen = PatientScreen(self)
+        self.patient_detail = PatientDetailScreen(self)
+        self.dashboard = TestDashboard(self)
+        self.test_screen = TestScreen(self)
+        self.results_screen = ResultsScreen(self)
+        self.hanoi_screen = HanoiScreen(self)
+        self.srt_screen = SRTScreen(self)
+        self.tmt_screen = TMTScreen(self)
+
+        self.stack.addWidget(self.patient_screen)
+        self.stack.addWidget(self.patient_detail)
+        self.stack.addWidget(self.dashboard)
+        self.stack.addWidget(self.test_screen)
+        self.stack.addWidget(self.results_screen)
+        self.stack.addWidget(self.hanoi_screen)
+        self.stack.addWidget(self.srt_screen)
+        self.stack.addWidget(self.tmt_screen)
+
+    def toggle_ui_mode(self) -> None:
+        """Switch between dense and touch UI mode, rebuild all screens."""
+        from PyQt6.QtCore import QSettings
+        from PyQt6.QtWidgets import QApplication
+        new_mode = "dense" if theme.current_ui_mode() == "touch" else "touch"
+        theme.set_ui_mode(new_mode)
+        QApplication.instance().setStyleSheet(theme.APP_STYLESHEET)
+        QSettings("TapPD", "TapPD").setValue("ui_mode", new_mode)
+
+        # Remove old screens
+        while self.stack.count():
+            w = self.stack.widget(0)
+            self.stack.removeWidget(w)
+            w.deleteLater()
+
+        # Rebuild screens + update status bar
+        self._build_screens()
+        self._apply_statusbar_sizes()
+        self.stack.setCurrentWidget(self.patient_screen)
+        self.patient_screen.refresh_list()
+        log.info("UI-Modus gewechselt: %s", new_mode)
+
+    def _apply_statusbar_sizes(self) -> None:
+        """Update status bar widget sizes to match current UI mode."""
+        self._sensor_widget.setMinimumHeight(SZ.MIN)
+        font_sz = SZ.STATUS_FONT
+        self._sensor_label.setStyleSheet(f"font-size: {font_sz}px; color: #757575; border: none;")
+        self._log_btn.setStyleSheet(
+            f"QPushButton {{ background: transparent; color: #757575; border: 1px solid #E0E0E0; "
+            f"border-radius: 4px; padding: {SZ.STATUS_PAD}; font-size: {font_sz}px; "
+            f"font-weight: 600; min-height: 0px; }}"
+            f"QPushButton:hover {{ background: #F5F5F5; color: #1976D2; border-color: #1976D2; }}"
+        )
+
     # ── Navigation ──────────────────────────────────────────────────
 
     def select_patient(self, patient: Patient) -> None:
         """Show patient detail screen with session history."""
-        log.info("Patient ausgewaehlt: %s (ID %s)", patient.patient_code, patient.id)
+        log.info("Patient ausgewählt: %s (ID %s)", patient.patient_code, patient.id)
         self.current_patient = patient
         self.current_session = None
         self.patient_detail.set_patient(patient)
@@ -351,7 +390,7 @@ class TapPDMainWindow(QMainWindow):
         conn = get_db()
         self.current_session = create_session(conn, self.current_patient.id)
         conn.close()
-        log.info("Neue Session gestartet: Session %d fuer %s",
+        log.info("Neue Session gestartet: Session %d für %s",
                  self.current_session.id, self.current_patient.patient_code)
         self.dashboard.set_patient(self.current_patient)
         self.stack.setCurrentWidget(self.dashboard)
@@ -422,7 +461,7 @@ class TapPDMainWindow(QMainWindow):
 
     def show_results(self, test: BaseMotorTest, patient_code: str) -> None:
         """Show results and auto-save to database."""
-        log.info("Ergebnisse berechnen: %s %s fuer %s", test.test_type(), test.hand, patient_code)
+        log.info("Ergebnisse berechnen: %s %s für %s", test.test_type(), test.hand, patient_code)
         features = test.compute_features()
 
         # Auto-save to database

@@ -219,7 +219,7 @@ class HanoiCanvas(QWidget):
         p.setPen(QColor(TEXT_SECONDARY))
         p.drawText(QRectF(0, h * 0.16, w, 30),
                    Qt.AlignmentFlag.AlignCenter,
-                   "Eine Hand flach ueber den Sensor halten")
+                   "Eine Hand flach über den Sensor halten")
 
         # Single target zone (centered)
         zone_w = int(w * 0.30)
@@ -291,7 +291,7 @@ class HanoiScreen(QWidget):
         self.status_label.setStyleSheet("font-size: 16px; font-weight: 700;")
         status_row.addWidget(self.status_label)
         status_row.addStretch()
-        self.moves_label = QLabel("Zuege: 0")
+        self.moves_label = QLabel("Züge: 0")
         self.moves_label.setStyleSheet(f"font-size: 13px; color: {TEXT_SECONDARY};")
         status_row.addWidget(self.moves_label)
         self.time_label = QLabel("Zeit: 0s")
@@ -311,7 +311,7 @@ class HanoiScreen(QWidget):
 
         # Hint
         self.hint_label = QLabel(
-            "Pinzettengriff zum Greifen  ·  Hand ueber Stab bewegen  ·  Loslassen zum Ablegen"
+            "Pinzettengriff zum Greifen  ·  Hand über Stab bewegen  ·  Loslassen zum Ablegen"
         )
         self.hint_label.setStyleSheet(f"font-size: 12px; color: {TEXT_SECONDARY};")
         self.hint_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -360,7 +360,7 @@ class HanoiScreen(QWidget):
         self.canvas.hand_ok = False
         self.canvas.detected_hand = None
         self.canvas.active_hand = "right"
-        self.moves_label.setText("Zuege: 0")
+        self.moves_label.setText("Züge: 0")
         self.time_label.setText("Zeit: 0s")
         self.giveup_btn.setEnabled(True)
         self.cancel_btn.setEnabled(True)
@@ -463,7 +463,7 @@ class HanoiScreen(QWidget):
         self._phase = GamePhase.PLAYING
         self._start_time = time.perf_counter()
         self.test._start_time_s = self._start_time
-        self.status_label.setText("Spiel laeuft")
+        self.status_label.setText("Spiel läuft")
         self.hint_label.setVisible(True)
         self.canvas.update()
 
@@ -541,7 +541,7 @@ class HanoiScreen(QWidget):
 
         # Labels (no time limit)
         elapsed = time.perf_counter() - self._start_time
-        self.moves_label.setText(f"Zuege: {self.test.game.move_count}")
+        self.moves_label.setText(f"Züge: {self.test.game.move_count}")
         self.time_label.setText(f"Zeit: {int(elapsed)}s")
 
         self.canvas.update()
@@ -562,7 +562,7 @@ class HanoiScreen(QWidget):
         n_moves = self.test.game.move_count
         optimal = self.test.game.optimal_moves(self.test.n_discs)
 
-        self.status_label.setText("Geloest!")
+        self.status_label.setText("Gelöst!")
         self.status_label.setStyleSheet(f"font-size: 20px; font-weight: 700; color: {ACCENT};")
         self.giveup_btn.setEnabled(False)
         self.cancel_btn.setEnabled(False)
@@ -573,20 +573,20 @@ class HanoiScreen(QWidget):
 
     def _show_success_dialog(self, elapsed: float, n_moves: int, optimal: int) -> None:
         dlg = QDialog(self)
-        dlg.setWindowTitle("Aufgabe geloest")
+        dlg.setWindowTitle("Aufgabe gelöst")
         dlg.setFixedSize(400, 280)
         lay = QVBoxLayout(dlg)
         lay.setContentsMargins(24, 20, 24, 20)
         lay.setSpacing(12)
 
-        title = QLabel("Erfolgreich geloest!")
+        title = QLabel("Erfolgreich gelöst!")
         title.setStyleSheet(f"font-size: 18px; font-weight: 700; color: {ACCENT};")
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         lay.addWidget(title)
 
         info = QLabel(
             f"Zeit: {int(elapsed)}s\n"
-            f"Zuege: {n_moves}  (optimal: {optimal})"
+            f"Züge: {n_moves}  (optimal: {optimal})"
         )
         info.setStyleSheet(f"font-size: 13px; color: {TEXT_SECONDARY};")
         info.setAlignment(Qt.AlignmentFlag.AlignCenter)
