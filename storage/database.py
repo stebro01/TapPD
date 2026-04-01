@@ -650,6 +650,15 @@ def delete_measurement(conn: sqlite3.Connection, measurement_id: int) -> None:
     log.info("Messung geloescht: ID %d", measurement_id)
 
 
+def delete_patient(conn: sqlite3.Connection, patient_id: int) -> None:
+    """Delete a patient and all their sessions, measurements."""
+    conn.execute("DELETE FROM OBSERVATION_FACT WHERE PATIENT_NUM=?", (patient_id,))
+    conn.execute("DELETE FROM VISIT_DIMENSION WHERE PATIENT_NUM=?", (patient_id,))
+    conn.execute("DELETE FROM PATIENT_DIMENSION WHERE PATIENT_NUM=?", (patient_id,))
+    conn.commit()
+    log.info("Patient geloescht: ID %d (inkl. aller Sessions und Messungen)", patient_id)
+
+
 def get_last_measurement_dates(conn: sqlite3.Connection) -> dict[int, str]:
     """Return {patient_id: last_recorded_at} for all patients with measurements."""
     rows = conn.execute(

@@ -1,13 +1,15 @@
-"""Central application theme and stylesheet."""
+"""Central application theme and stylesheet with dense/touch mode toggle."""
 
-# Color palette
-PRIMARY = "#1976D2"       # Blue
+from types import SimpleNamespace
+
+# ── Color Palette ───────────────────────────────────────────────
+PRIMARY = "#1976D2"
 PRIMARY_DARK = "#1565C0"
 PRIMARY_LIGHT = "#BBDEFB"
-ACCENT = "#43A047"        # Green
+ACCENT = "#43A047"
 ACCENT_DARK = "#388E3C"
-WARN = "#FB8C00"          # Orange
-DANGER = "#E53935"        # Red
+WARN = "#FB8C00"
+DANGER = "#E53935"
 BG = "#FAFAFA"
 CARD_BG = "#FFFFFF"
 TEXT = "#212121"
@@ -15,14 +17,60 @@ TEXT_SECONDARY = "#757575"
 BORDER = "#E0E0E0"
 HOVER_BG = "#F5F5F5"
 
-APP_STYLESHEET = f"""
+# ── UI Size Profiles ───────────────────────────────────────────
+_PROFILES = {
+    "dense": {
+        "MIN": 30, "ROW_H": 30, "BTN_H": 32, "INPUT_H": 32,
+        "CARD": 155, "INDICATOR_H": 22, "DIALOG_BTN_H": 36,
+        "FONT": 13, "FONT_SUB": 14, "FONT_SEC": 12,
+        "BTN_PAD": "8px 16px", "INPUT_PAD": "8px 12px",
+        "INPUT_PAD_FOCUS": "7px 11px",
+        "TABLE_PAD": "6px 10px", "HEADER_PAD": "8px 10px", "HEADER_FONT": 12,
+        "SCROLLBAR": 8, "SCROLLBAR_R": 4, "SCROLLBAR_MIN": 30,
+        "STATUS_FONT": 11, "STATUS_PAD": "4px 12px",
+    },
+    "touch": {
+        "MIN": 48, "ROW_H": 52, "BTN_H": 48, "INPUT_H": 48,
+        "CARD": 180, "INDICATOR_H": 28, "DIALOG_BTN_H": 52,
+        "FONT": 15, "FONT_SUB": 15, "FONT_SEC": 13,
+        "BTN_PAD": "12px 24px", "INPUT_PAD": "10px 14px",
+        "INPUT_PAD_FOCUS": "9px 13px",
+        "TABLE_PAD": "10px 12px", "HEADER_PAD": "10px 14px", "HEADER_FONT": 13,
+        "SCROLLBAR": 14, "SCROLLBAR_R": 7, "SCROLLBAR_MIN": 48,
+        "STATUS_FONT": 13, "STATUS_PAD": "6px 16px",
+    },
+}
+
+# Shared mutable sizing — import SZ once, always up-to-date
+SZ = SimpleNamespace()
+_ui_mode = "touch"
+APP_STYLESHEET = ""
+
+
+def current_ui_mode() -> str:
+    return _ui_mode
+
+
+def set_ui_mode(mode: str) -> None:
+    """Switch UI profile and regenerate stylesheet."""
+    global _ui_mode, APP_STYLESHEET
+    if mode not in _PROFILES:
+        return
+    _ui_mode = mode
+    for k, v in _PROFILES[mode].items():
+        setattr(SZ, k, v)
+    APP_STYLESHEET = _build_stylesheet()
+
+
+def _build_stylesheet() -> str:
+    return f"""
 /* ── Global ──────────────────────────────────────────── */
 
 QMainWindow, QWidget {{
     background-color: {BG};
     color: {TEXT};
     font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
-    font-size: 13px;
+    font-size: {SZ.FONT}px;
 }}
 
 /* ── Buttons ─────────────────────────────────────────── */
@@ -32,16 +80,17 @@ QPushButton {{
     color: {TEXT};
     border: 1px solid {BORDER};
     border-radius: 8px;
-    padding: 10px 20px;
-    font-size: 13px;
+    padding: {SZ.BTN_PAD};
+    font-size: {SZ.FONT}px;
     font-weight: 500;
+    min-height: {SZ.BTN_H}px;
 }}
 QPushButton:hover {{
     background-color: {HOVER_BG};
     border-color: #BDBDBD;
 }}
 QPushButton:pressed {{
-    background-color: #EEEEEE;
+    background-color: #E0E0E0;
 }}
 QPushButton:disabled {{
     color: #BDBDBD;
@@ -91,13 +140,14 @@ QLineEdit, QSpinBox, QComboBox, QDateEdit {{
     background-color: {CARD_BG};
     border: 1px solid {BORDER};
     border-radius: 8px;
-    padding: 8px 12px;
-    font-size: 13px;
+    padding: {SZ.INPUT_PAD};
+    font-size: {SZ.FONT}px;
+    min-height: {SZ.INPUT_H}px;
     selection-background-color: {PRIMARY_LIGHT};
 }}
 QLineEdit:focus, QSpinBox:focus, QComboBox:focus, QDateEdit:focus {{
     border: 2px solid {PRIMARY};
-    padding: 7px 11px;
+    padding: {SZ.INPUT_PAD_FOCUS};
 }}
 
 QComboBox::drop-down {{
@@ -115,15 +165,15 @@ QTableWidget {{
     selection-background-color: {PRIMARY_LIGHT};
 }}
 QTableWidget::item {{
-    padding: 6px 10px;
+    padding: {SZ.TABLE_PAD};
 }}
 QHeaderView::section {{
     background-color: #F5F5F5;
     border: none;
     border-bottom: 1px solid {BORDER};
-    padding: 8px 10px;
+    padding: {SZ.HEADER_PAD};
     font-weight: 600;
-    font-size: 12px;
+    font-size: {SZ.HEADER_FONT}px;
     color: {TEXT_SECONDARY};
 }}
 
@@ -169,9 +219,9 @@ QProgressBar::chunk {{
 QStatusBar {{
     background-color: #F5F5F5;
     color: {TEXT_SECONDARY};
-    font-size: 11px;
+    font-size: {SZ.STATUS_FONT}px;
     border-top: 1px solid {BORDER};
-    padding: 4px 12px;
+    padding: {SZ.STATUS_PAD};
 }}
 
 /* ── Labels ──────────────────────────────────────────── */
@@ -183,12 +233,12 @@ QLabel[cssClass="title"] {{
     letter-spacing: -0.5px;
 }}
 QLabel[cssClass="subtitle"] {{
-    font-size: 14px;
+    font-size: {SZ.FONT_SUB}px;
     color: {TEXT_SECONDARY};
     font-weight: 400;
 }}
 QLabel[cssClass="section"] {{
-    font-size: 12px;
+    font-size: {SZ.FONT_SEC}px;
     color: {TEXT_SECONDARY};
     font-weight: 600;
     text-transform: uppercase;
@@ -222,14 +272,30 @@ QLabel[cssClass="done"] {{
 
 QScrollBar:vertical {{
     background: transparent;
-    width: 8px;
+    width: {SZ.SCROLLBAR}px;
 }}
 QScrollBar::handle:vertical {{
     background: #C0C0C0;
-    border-radius: 4px;
-    min-height: 30px;
+    border-radius: {SZ.SCROLLBAR_R}px;
+    min-height: {SZ.SCROLLBAR_MIN}px;
 }}
 QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
     height: 0px;
 }}
+QScrollBar:horizontal {{
+    background: transparent;
+    height: {SZ.SCROLLBAR}px;
+}}
+QScrollBar::handle:horizontal {{
+    background: #C0C0C0;
+    border-radius: {SZ.SCROLLBAR_R}px;
+    min-width: {SZ.SCROLLBAR_MIN}px;
+}}
+QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {{
+    width: 0px;
+}}
 """
+
+
+# ── Initialize default mode ─────────────────────────────────────
+set_ui_mode("touch")

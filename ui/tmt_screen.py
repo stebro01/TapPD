@@ -20,7 +20,7 @@ from PyQt6.QtWidgets import (
 from capture.base_capture import HandFrame
 from motor_tests.tmt_logic import TMTTaskState, TMTSegmentResult, TARGET_ZONE_RADIUS
 from motor_tests.trail_making import TrailMakingTest
-from ui.theme import ACCENT, DANGER, PRIMARY, TEXT_SECONDARY
+from ui.theme import SZ, ACCENT, DANGER, PRIMARY, TEXT_SECONDARY
 
 log = logging.getLogger(__name__)
 
@@ -285,6 +285,7 @@ class TMTScreen(QWidget):
         btn_row = QHBoxLayout()
         btn_row.addStretch()
         self.cancel_btn = QPushButton("Abbrechen")
+        self.cancel_btn.setFixedHeight(SZ.BTN_H)
         self.cancel_btn.clicked.connect(self._on_cancel)
         btn_row.addWidget(self.cancel_btn)
         btn_row.addStretch()
@@ -578,7 +579,7 @@ class TMTScreen(QWidget):
     def _show_done_dialog(self, elapsed: float, n_errors: int) -> None:
         dlg = QDialog(self)
         dlg.setWindowTitle("Trail Making abgeschlossen")
-        dlg.setFixedSize(300, 200)
+        dlg.setFixedSize(380, 260)
         lay = QVBoxLayout(dlg)
         lay.setContentsMargins(24, 20, 24, 20)
         lay.setSpacing(12)
@@ -599,7 +600,7 @@ class TMTScreen(QWidget):
         lay.addSpacing(8)
         save_btn = QPushButton("Speichern")
         save_btn.setProperty("cssClass", "primary")
-        save_btn.setFixedHeight(38)
+        save_btn.setFixedHeight(SZ.DIALOG_BTN_H)
         save_btn.clicked.connect(lambda: (dlg.accept(), self._show_results()))
         lay.addWidget(save_btn)
 

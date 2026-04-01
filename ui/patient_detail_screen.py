@@ -3,7 +3,7 @@
 from collections import defaultdict
 from pathlib import Path
 
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QColor, QCursor, QFont
 from PyQt6.QtWidgets import (
     QDialog,
@@ -11,7 +11,6 @@ from PyQt6.QtWidgets import (
     QHBoxLayout,
     QHeaderView,
     QLabel,
-    QMenu,
     QMessageBox,
     QPushButton,
     QTableWidget,
@@ -24,6 +23,7 @@ from storage.database import (
     Measurement,
     Patient,
     Session,
+    delete_patient,
     delete_session,
     get_db,
     get_session_measurements,
@@ -33,7 +33,8 @@ from storage.database import (
 )
 from ui.detail_dialog import DetailDialog
 from ui.patient_screen import NewPatientDialog
-from ui.theme import ACCENT, BORDER, PRIMARY, PRIMARY_LIGHT, TEXT_SECONDARY
+from ui.theme import (SZ, 
+    ACCENT, BORDER, CARD_BG, DANGER, PRIMARY, PRIMARY_LIGHT, TEXT, TEXT_SECONDARY)
 
 # Column definitions for the session matrix
 _TEST_COLS = [
@@ -71,7 +72,8 @@ class PatientDetailScreen(QWidget):
         top = QHBoxLayout()
         back_btn = QPushButton("← Patienten")
         back_btn.setProperty("cssClass", "flat")
-        back_btn.setFixedWidth(130)
+        back_btn.setFixedWidth(140)
+        back_btn.setFixedHeight(SZ.BTN_H)
         back_btn.clicked.connect(lambda: self.main_window.show_patient_screen())
         top.addWidget(back_btn)
         top.addStretch()
@@ -102,7 +104,8 @@ class PatientDetailScreen(QWidget):
         card_layout.addLayout(info_col, stretch=1)
 
         edit_btn = QPushButton("Bearbeiten")
-        edit_btn.setFixedWidth(110)
+        edit_btn.setFixedWidth(130)
+        edit_btn.setFixedHeight(SZ.BTN_H)
         edit_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
         edit_btn.clicked.connect(self._on_edit_patient)
         card_layout.addWidget(edit_btn, alignment=Qt.AlignmentFlag.AlignVCenter)
@@ -112,7 +115,7 @@ class PatientDetailScreen(QWidget):
         # ── New session button ──
         self.new_btn = QPushButton("+ Neue Session")
         self.new_btn.setProperty("cssClass", "accent")
-        self.new_btn.setFixedHeight(44)
+        self.new_btn.setFixedHeight(SZ.BTN_H)
         self.new_btn.setFixedWidth(260)
         self.new_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
         self.new_btn.clicked.connect(self._on_new_session)
@@ -142,26 +145,37 @@ class PatientDetailScreen(QWidget):
         self.table.cellClicked.connect(self._on_cell_click)
         self.table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.table.customContextMenuRequested.connect(self._on_context_menu)
+        self.table.verticalHeader().setDefaultSectionSize(SZ.ROW_H)
         self.table.setStyleSheet(
             "QTableWidget { border-radius: 8px; }"
             "QTableWidget::item { padding: 8px; }"
         )
+        # Long-press support for touch (alternative to right-click context menu)
+        self._press_timer = QTimer()
+        self._press_timer.setSingleShot(True)
+        self._press_timer.timeout.connect(self._on_long_press)
+        self._press_row = -1
+        self._press_col = -1
+        self.table.cellPressed.connect(self._on_cell_pressed)
         layout.addWidget(self.table)
 
         # ── Count + actions ──
         self.count_label = QLabel()
-        self.count_label.setStyleSheet(f"font-size: 11px; color: {TEXT_SECONDARY};")
+        self.count_label.setStyleSheet(f"font-size: 12px; color: {TEXT_SECONDARY};")
         layout.addWidget(self.count_label)
 
         btn_row = QHBoxLayout()
         btn_row.setSpacing(10)
         btn_row.addStretch()
 
-        self.delete_btn = QPushButton("Session loeschen")
-        self.delete_btn.clicked.connect(self._on_delete_session)
-        btn_row.addWidget(self.delete_btn)
+        del_patient_btn = QPushButton("Patient loeschen")
+        del_patient_btn.setProperty("cssClass", "danger")
+        del_patient_btn.setFixedHeight(SZ.BTN_H)
+        del_patient_btn.clicked.connect(self._on_delete_patient)
+        btn_row.addWidget(del_patient_btn)
 
         csv_btn = QPushButton("CSV Export")
+        csv_btn.setFixedHeight(SZ.BTN_H)
         csv_btn.clicked.connect(self._on_csv_export)
         btn_row.addWidget(csv_btn)
 
@@ -247,10 +261,7 @@ class PatientDetailScreen(QWidget):
             self.table.setItem(0, 0, empty)
             self.table.setSpan(0, 0, 1, self.table.columnCount())
             self.count_label.setText("")
-            self.delete_btn.setEnabled(False)
             return
-
-        self.delete_btn.setEnabled(True)
 
         # Build rows: sessions first, then orphan groups
         rows_data: list[tuple[str, str, list[Measurement], Session | None]] = []
@@ -306,7 +317,7 @@ class PatientDetailScreen(QWidget):
                     item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                     item.setForeground(QColor("#D0D0D0"))
                     if session:
-                        item.setToolTip("Rechtsklick um Messung hinzuzufuegen")
+                        item.setToolTip("Gedrueckt halten oder Rechtsklick fuer Aktionen")
                     self.table.setItem(row, col, item)
                     continue
 
@@ -329,8 +340,7 @@ class PatientDetailScreen(QWidget):
                 if session and not bilateral:
                     existing_hands = set(m.hand for m in ms_for_cell)
                     if len(existing_hands) < 2:
-                        missing = "Links" if "left" not in existing_hands else "Rechts"
-                        item.setToolTip(f"Rechtsklick um {missing} hinzuzufuegen")
+                        item.setToolTip("Gedrueckt halten oder Rechtsklick fuer Aktionen")
                     else:
                         item.setToolTip("Klicken fuer Details")
                 else:
@@ -347,7 +357,18 @@ class PatientDetailScreen(QWidget):
 
     # ── Cell click → detail ───────────────────────────────────────
 
+    def _on_cell_pressed(self, row: int, col: int) -> None:
+        """Start long-press timer for touch context actions."""
+        self._press_row = row
+        self._press_col = col
+        self._press_timer.start(500)
+
+    def _on_long_press(self) -> None:
+        """Long-press detected — show touch action panel."""
+        self._show_touch_actions(self._press_row, self._press_col)
+
     def _on_cell_click(self, row: int, col: int) -> None:
+        self._press_timer.stop()  # Cancel long-press on normal click
         ms = self._cell_map.get((row, col))
         if not ms:
             return
@@ -356,56 +377,109 @@ class PatientDetailScreen(QWidget):
         dlg.exec()
 
     def _on_context_menu(self, pos) -> None:
-        """Right-click context menu: add measurement or delete session."""
+        """Right-click → show touch action panel (replaces old QMenu)."""
+        self._press_timer.stop()
         item = self.table.itemAt(pos)
         if not item:
             return
-        row = item.row()
-        col = item.column()
+        self._show_touch_actions(item.row(), item.column())
 
+    def _show_touch_actions(self, row: int, col: int) -> None:
+        """Show touch-friendly action panel as overlay with dimmed backdrop."""
         session = self._row_session.get(row)
         if not session:
             return
 
-        menu = QMenu(self)
+        # ── Dimmed backdrop overlay (click to dismiss) ──
+        main_win = self.main_window
+        overlay = QWidget(main_win)
+        overlay.setObjectName("touchOverlay")
+        overlay.setGeometry(main_win.centralWidget().geometry())
+        overlay.setStyleSheet(
+            "#touchOverlay { background-color: rgba(0, 0, 0, 80); }"
+        )
+        overlay.show()
+        overlay.raise_()
 
-        # On # or Datum columns (or any column): offer session delete
-        if col < 2:
-            del_action = menu.addAction("Session loeschen")
-            del_action.triggered.connect(lambda: self._delete_session(session))
-            menu.exec(self.table.viewport().mapToGlobal(pos))
-            return
+        # ── Action panel card ──
+        panel = QFrame(overlay)
+        panel.setStyleSheet(
+            f"QFrame {{ background: {CARD_BG}; border: 1px solid {BORDER};"
+            f" border-radius: 14px; }}"
+        )
+        panel_layout = QVBoxLayout(panel)
+        panel_layout.setContentsMargins(20, 16, 20, 16)
+        panel_layout.setSpacing(10)
 
-        # On test columns: offer add measurement + session delete
+        # Title
+        date_str = _format_datetime(session.started_at)
+        title = QLabel(f"Session vom {date_str}")
+        title.setStyleSheet(f"font-size: 14px; font-weight: 700; color: {TEXT};")
+        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        panel_layout.addWidget(title)
+
+        def _close():
+            overlay.close()
+            overlay.deleteLater()
+
+        def _make_action_btn(text: str, css_class: str = "") -> QPushButton:
+            btn = QPushButton(text)
+            btn.setFixedHeight(SZ.DIALOG_BTN_H)
+            if css_class:
+                btn.setProperty("cssClass", css_class)
+            btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+            return btn
+
+        # Build actions based on column
         col_idx = col - 2
-        if col_idx < 0 or col_idx >= len(_TEST_COLS):
-            return
-        test_key, _, bilateral = _TEST_COLS[col_idx]
+        if 0 <= col_idx < len(_TEST_COLS):
+            test_key, _, bilateral = _TEST_COLS[col_idx]
+            existing = self._cell_map.get((row, col), [])
+            existing_hands = set(m.hand for m in existing)
 
-        existing = self._cell_map.get((row, col), [])
-        existing_hands = set(m.hand for m in existing)
+            if bilateral:
+                if "both" not in existing_hands:
+                    btn = _make_action_btn("Messung hinzufuegen", "accent")
+                    btn.clicked.connect(lambda: (
+                        _close(),
+                        self._add_measurement_to_session(session, test_key, "both"),
+                    ))
+                    panel_layout.addWidget(btn)
+            else:
+                if "left" not in existing_hands:
+                    btn = _make_action_btn("Links hinzufuegen", "primary")
+                    btn.clicked.connect(lambda: (
+                        _close(),
+                        self._add_measurement_to_session(session, test_key, "left"),
+                    ))
+                    panel_layout.addWidget(btn)
+                if "right" not in existing_hands:
+                    btn = _make_action_btn("Rechts hinzufuegen", "primary")
+                    btn.clicked.connect(lambda: (
+                        _close(),
+                        self._add_measurement_to_session(session, test_key, "right"),
+                    ))
+                    panel_layout.addWidget(btn)
 
-        if bilateral:
-            if "both" not in existing_hands:
-                a = menu.addAction("Messung hinzufuegen")
-                a.triggered.connect(
-                    lambda: self._add_measurement_to_session(session, test_key, "both"))
-        else:
-            if "left" not in existing_hands:
-                a = menu.addAction("Links hinzufuegen")
-                a.triggered.connect(
-                    lambda: self._add_measurement_to_session(session, test_key, "left"))
-            if "right" not in existing_hands:
-                a = menu.addAction("Rechts hinzufuegen")
-                a.triggered.connect(
-                    lambda: self._add_measurement_to_session(session, test_key, "right"))
+        # Delete session
+        del_btn = _make_action_btn("Session loeschen", "danger")
+        del_btn.clicked.connect(lambda: (_close(), self._delete_session(session)))
+        panel_layout.addWidget(del_btn)
 
-        if not menu.isEmpty():
-            menu.addSeparator()
-        del_action = menu.addAction("Session loeschen")
-        del_action.triggered.connect(lambda: self._delete_session(session))
+        # Cancel
+        cancel_btn = _make_action_btn("Abbrechen", "flat")
+        cancel_btn.clicked.connect(_close)
+        panel_layout.addWidget(cancel_btn)
 
-        menu.exec(self.table.viewport().mapToGlobal(pos))
+        # Size and center the panel
+        panel.adjustSize()
+        pw, ph = panel.width(), panel.height()
+        ow, oh = overlay.width(), overlay.height()
+        panel.move((ow - pw) // 2, (oh - ph) // 2)
+        panel.show()
+
+        # Click on dimmed backdrop → close
+        overlay.mousePressEvent = lambda e: _close()
 
     def _add_measurement_to_session(self, session: Session, test_key: str, hand: str) -> None:
         """Resume the session and start the test."""
@@ -420,11 +494,38 @@ class PatientDetailScreen(QWidget):
         if self._patient:
             self.main_window.start_new_session()
 
-    def _on_delete_session(self) -> None:
-        """Delete the most recent session (button action)."""
-        if not self._sessions:
+    def _on_delete_patient(self) -> None:
+        """Delete the entire patient with all sessions and measurements."""
+        if not self._patient or not self._patient.id:
             return
-        self._delete_session(self._sessions[0])
+        total = sum(len(ms) for ms in self._session_measurements.values())
+        total += len(self._orphan_measurements)
+        reply = QMessageBox.question(
+            self,
+            "Patient loeschen",
+            f"Patient '{self._patient.display_name}' wirklich loeschen?\n\n"
+            f"{len(self._sessions)} Session(s), {total} Messung(en) und "
+            f"alle zugehoerigen Rohdaten werden unwiderruflich geloescht.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+        # Delete raw JSON files
+        for ms in self._session_measurements.values():
+            for m in ms:
+                if m.raw_data_path:
+                    raw = Path(m.raw_data_path)
+                    if raw.exists():
+                        raw.unlink()
+        for m in self._orphan_measurements:
+            if m.raw_data_path:
+                raw = Path(m.raw_data_path)
+                if raw.exists():
+                    raw.unlink()
+        conn = get_db()
+        delete_patient(conn, self._patient.id)
+        conn.close()
+        self.main_window.show_patient_screen()
 
     def _delete_session(self, session: Session) -> None:
         """Delete a specific session with confirmation."""

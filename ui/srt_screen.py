@@ -19,7 +19,7 @@ from PyQt6.QtWidgets import (
 from capture.base_capture import HandFrame
 from motor_tests.srt_logic import SRTTaskState, SRTTrialResult, TARGET_POSITIONS, TARGET_ZONE_RADIUS
 from motor_tests.spatial_srt import SpatialSRTTest
-from ui.theme import ACCENT, DANGER, PRIMARY, TEXT_SECONDARY
+from ui.theme import SZ, ACCENT, DANGER, PRIMARY, TEXT_SECONDARY
 
 log = logging.getLogger(__name__)
 
@@ -284,7 +284,7 @@ class SRTScreen(QWidget):
 
         # Hint
         self.hint_label = QLabel("Hand zum leuchtenden Ziel bewegen und kurz halten")
-        self.hint_label.setStyleSheet(f"font-size: 11px; color: {TEXT_SECONDARY};")
+        self.hint_label.setStyleSheet(f"font-size: 12px; color: {TEXT_SECONDARY};")
         self.hint_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self.hint_label)
 
@@ -292,6 +292,7 @@ class SRTScreen(QWidget):
         btn_row = QHBoxLayout()
         btn_row.addStretch()
         self.cancel_btn = QPushButton("Abbrechen")
+        self.cancel_btn.setFixedHeight(SZ.BTN_H)
         self.cancel_btn.clicked.connect(self._on_cancel)
         btn_row.addWidget(self.cancel_btn)
         btn_row.addStretch()

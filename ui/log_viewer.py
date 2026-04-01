@@ -18,6 +18,7 @@ from PyQt6.QtWidgets import (
 
 from logging_config import LOG_DIR, QtLogHandler
 from ui.theme import (
+    SZ,
     ACCENT,
     BG,
     BORDER,
@@ -79,7 +80,7 @@ class LogViewerDialog(QDialog):
             }}
         """)
         tb_layout = QHBoxLayout(toolbar)
-        tb_layout.setContentsMargins(16, 8, 16, 8)
+        tb_layout.setContentsMargins(16, 10, 16, 10)
         tb_layout.setSpacing(12)
 
         title = QLabel("Log Viewer")
@@ -96,7 +97,8 @@ class LogViewerDialog(QDialog):
         self.level_combo = QComboBox()
         self.level_combo.addItems(["DEBUG", "INFO", "WARNING", "ERROR"])
         self.level_combo.setCurrentText("DEBUG")
-        self.level_combo.setFixedWidth(110)
+        self.level_combo.setFixedWidth(130)
+        self.level_combo.setFixedHeight(SZ.INPUT_H)
         self.level_combo.setStyleSheet("border: 1px solid #E0E0E0; border-radius: 6px;")
         tb_layout.addWidget(self.level_combo)
 
@@ -107,7 +109,8 @@ class LogViewerDialog(QDialog):
 
         # Auto-scroll toggle
         self.scroll_btn = QPushButton("Auto-Scroll: An")
-        self.scroll_btn.setFixedWidth(130)
+        self.scroll_btn.setFixedWidth(150)
+        self.scroll_btn.setFixedHeight(SZ.BTN_H)
         self.scroll_btn.setStyleSheet(f"""
             QPushButton {{
                 background-color: {ACCENT};
@@ -115,8 +118,9 @@ class LogViewerDialog(QDialog):
                 border: none;
                 border-radius: 6px;
                 padding: 6px 12px;
-                font-size: 11px;
+                font-size: 12px;
                 font-weight: 600;
+                min-height: 0px;
             }}
             QPushButton:hover {{ background-color: #388E3C; }}
         """)
@@ -124,7 +128,8 @@ class LogViewerDialog(QDialog):
 
         # Clear
         clear_btn = QPushButton("Leeren")
-        clear_btn.setFixedWidth(80)
+        clear_btn.setFixedWidth(100)
+        clear_btn.setFixedHeight(SZ.BTN_H)
         clear_btn.setStyleSheet(f"""
             QPushButton {{
                 background-color: transparent;
@@ -132,8 +137,9 @@ class LogViewerDialog(QDialog):
                 border: 1px solid {DANGER};
                 border-radius: 6px;
                 padding: 6px 12px;
-                font-size: 11px;
+                font-size: 12px;
                 font-weight: 600;
+                min-height: 0px;
             }}
             QPushButton:hover {{ background-color: #FFEBEE; }}
         """)

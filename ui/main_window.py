@@ -42,6 +42,7 @@ from ui.srt_screen import SRTScreen
 from ui.tmt_screen import TMTScreen
 from ui.results_screen import ResultsScreen, save_raw_data
 from ui.log_viewer import LogViewerDialog
+from ui.theme import SZ
 
 
 class _SensorCheckWorker(QThread):
@@ -130,14 +131,15 @@ class TapPDMainWindow(QMainWindow):
         sensor_layout.setSpacing(7)
 
         self._sensor_dot = QLabel()
-        self._sensor_dot.setFixedSize(10, 10)
+        self._sensor_dot.setFixedSize(16, 16)
         sensor_layout.addWidget(self._sensor_dot)
 
         self._sensor_label = QLabel()
-        self._sensor_label.setStyleSheet("font-size: 11px; color: #757575; border: none;")
+        self._sensor_label.setStyleSheet("font-size: 13px; color: #757575; border: none;")
         sensor_layout.addWidget(self._sensor_label)
 
         self._sensor_widget.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._sensor_widget.setMinimumHeight(SZ.MIN)
         self._sensor_widget.mousePressEvent = lambda e: self._check_sensor_status()
         self._sensor_widget.setToolTip("Klicken um Sensor-Status zu pruefen")
         self._status_bar.addWidget(self._sensor_widget, 1)  # left side, stretch
@@ -146,7 +148,7 @@ class TapPDMainWindow(QMainWindow):
         self._log_btn = QPushButton("  Log  ")
         self._log_btn.setStyleSheet(
             "QPushButton { background: transparent; color: #757575; border: 1px solid #E0E0E0; "
-            "border-radius: 4px; padding: 2px 10px; font-size: 11px; font-weight: 600; }"
+            "border-radius: 4px; padding: 8px 16px; font-size: 13px; font-weight: 600; min-height: 36px; }"
             "QPushButton:hover { background: #F5F5F5; color: #1976D2; border-color: #1976D2; }"
         )
         self._log_btn.clicked.connect(self._show_log_viewer)
@@ -177,7 +179,7 @@ class TapPDMainWindow(QMainWindow):
     def _set_sensor_indicator(self, connected: bool, label: str) -> None:
         color = "#43A047" if connected else "#E53935"
         self._sensor_dot.setStyleSheet(
-            f"background-color: {color}; border-radius: 5px; border: none;"
+            f"background-color: {color}; border-radius: 8px; border: none;"
         )
         self._sensor_label.setText(label)
 

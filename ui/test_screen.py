@@ -21,7 +21,7 @@ from matplotlib.figure import Figure
 from motor_tests.base_test import BaseMotorTest
 from motor_tests.config import get_test_config, get_hand_detection_config
 from motor_tests.recorder import HandDetector, extract_metric
-from ui.theme import PRIMARY, ACCENT, TEXT_SECONDARY
+from ui.theme import SZ, PRIMARY, ACCENT, TEXT_SECONDARY
 
 log = logging.getLogger(__name__)
 
@@ -52,7 +52,7 @@ class TestScreen(QWidget):
         self.instructions_label = QLabel()
         self.instructions_label.setWordWrap(True)
         self.instructions_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
-        self.instructions_label.setStyleSheet("font-size: 13px; line-height: 1.5;")
+        self.instructions_label.setStyleSheet("font-size: 14px; line-height: 1.5;")
         self.instructions_label.setMinimumWidth(280)
         top.addWidget(self.instructions_label, stretch=1)
 
@@ -86,7 +86,8 @@ class TestScreen(QWidget):
 
         # Cancel
         self.cancel_button = QPushButton("Abbrechen")
-        self.cancel_button.setFixedWidth(140)
+        self.cancel_button.setFixedWidth(180)
+        self.cancel_button.setFixedHeight(SZ.BTN_H)
         self.cancel_button.clicked.connect(self._on_cancel)
         layout.addWidget(self.cancel_button, alignment=Qt.AlignmentFlag.AlignCenter)
 

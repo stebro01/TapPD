@@ -23,17 +23,18 @@ from PyQt6.QtWidgets import (
 )
 
 from storage.database import Patient, find_patients, get_db, get_last_measurement_dates, save_patient
+from ui.theme import SZ
 
 
 class NewPatientDialog(QDialog):
     def __init__(self, parent=None, patient: Patient | None = None) -> None:
         super().__init__(parent)
         self.setWindowTitle("Neuer Patient" if patient is None else "Patient bearbeiten")
-        self.setMinimumWidth(400)
+        self.setMinimumWidth(460)
         self.patient = patient or Patient()
 
         layout = QFormLayout(self)
-        layout.setSpacing(12)
+        layout.setSpacing(16)
         layout.setContentsMargins(24, 24, 24, 24)
 
         self.code_input = QLineEdit(self.patient.patient_code)
@@ -67,6 +68,8 @@ class NewPatientDialog(QDialog):
         layout.addRow("Notizen", self.notes_input)
 
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        for btn in buttons.buttons():
+            btn.setFixedHeight(SZ.BTN_H)
         buttons.accepted.connect(self._on_accept)
         buttons.rejected.connect(self.reject)
         layout.addRow(buttons)
@@ -98,14 +101,16 @@ class PatientScreen(QWidget):
         # ── Top bar: Beenden (left) + Ueber TapPD (right) ──
         top_bar = QHBoxLayout()
         quit_btn = QPushButton("Beenden")
-        quit_btn.setFixedWidth(100)
+        quit_btn.setFixedWidth(120)
+        quit_btn.setFixedHeight(SZ.BTN_H)
         quit_btn.clicked.connect(self.main_window.close)
         top_bar.addWidget(quit_btn)
 
         top_bar.addStretch()
 
         about_btn = QPushButton("Ueber TapPD")
-        about_btn.setFixedWidth(140)
+        about_btn.setFixedWidth(160)
+        about_btn.setFixedHeight(SZ.BTN_H)
         about_btn.clicked.connect(self._on_about)
         top_bar.addWidget(about_btn)
         layout.addLayout(top_bar)
@@ -132,12 +137,14 @@ class PatientScreen(QWidget):
 
         self.search_input = QLineEdit()
         self.search_input.setPlaceholderText("Patient suchen...")
+        self.search_input.setFixedHeight(SZ.INPUT_H)
         self.search_input.textChanged.connect(self._on_search)
         search_row.addWidget(self.search_input)
 
         self.new_button = QPushButton("+ Neuer Patient")
         self.new_button.setProperty("cssClass", "accent")
-        self.new_button.setFixedWidth(160)
+        self.new_button.setFixedWidth(180)
+        self.new_button.setFixedHeight(SZ.BTN_H)
         self.new_button.clicked.connect(self._on_new_patient)
         search_row.addWidget(self.new_button)
 
@@ -166,7 +173,8 @@ class PatientScreen(QWidget):
         self.patient_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.patient_table.setSortingEnabled(True)
         self.patient_table.setMinimumHeight(280)
-        self.patient_table.doubleClicked.connect(self._on_select)
+        self.patient_table.verticalHeader().setDefaultSectionSize(SZ.ROW_H)
+        self.patient_table.clicked.connect(self._on_select)
         layout.addWidget(self.patient_table, stretch=3)
 
         layout.addSpacing(10)
@@ -175,7 +183,7 @@ class PatientScreen(QWidget):
         select_btn = QPushButton("Auswaehlen")
         select_btn.setProperty("cssClass", "primary")
         select_btn.setFixedWidth(180)
-        select_btn.setFixedHeight(42)
+        select_btn.setFixedHeight(SZ.BTN_H)
         select_btn.clicked.connect(self._on_select)
         layout.addWidget(select_btn, alignment=Qt.AlignmentFlag.AlignCenter)
 
@@ -278,6 +286,7 @@ class PatientScreen(QWidget):
 
         close_btn = QPushButton("Schliessen")
         close_btn.setProperty("cssClass", "primary")
+        close_btn.setFixedHeight(SZ.BTN_H)
         close_btn.clicked.connect(dlg.accept)
         layout.addWidget(close_btn, alignment=Qt.AlignmentFlag.AlignCenter)
         dlg.exec()

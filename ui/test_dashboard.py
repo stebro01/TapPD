@@ -14,7 +14,8 @@ from PyQt6.QtWidgets import (
 )
 
 from storage.database import Patient
-from ui.theme import PRIMARY, PRIMARY_LIGHT, ACCENT, BORDER, TEXT_SECONDARY
+from ui.theme import (SZ, 
+    PRIMARY, PRIMARY_LIGHT, ACCENT, BORDER, TEXT_SECONDARY)
 
 TESTS = [
     ("finger_tapping", "Finger Tapping", "3.4", False, "Daumen-Zeigefinger"),
@@ -38,27 +39,27 @@ class TestCard(QFrame):
         self._on_click = on_click
         self._completed = {"left": False, "right": False, "both": False}
 
-        self.setFixedSize(165, 165)
+        self.setFixedSize(SZ.CARD, SZ.CARD)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self._apply_card_style()
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(12, 14, 12, 12)
+        layout.setContentsMargins(14, 16, 14, 14)
         layout.setSpacing(4)
         layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         updrs_lbl = QLabel(updrs)
-        updrs_lbl.setStyleSheet(f"font-size: 10px; color: {TEXT_SECONDARY}; font-weight: 600;")
+        updrs_lbl.setStyleSheet(f"font-size: 11px; color: {TEXT_SECONDARY}; font-weight: 600;")
         updrs_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(updrs_lbl)
 
         name_lbl = QLabel(label)
-        name_lbl.setStyleSheet("font-size: 13px; font-weight: 700;")
+        name_lbl.setStyleSheet("font-size: 14px; font-weight: 700;")
         name_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(name_lbl)
 
         desc_lbl = QLabel(description)
-        desc_lbl.setStyleSheet(f"font-size: 10px; color: {TEXT_SECONDARY};")
+        desc_lbl.setStyleSheet(f"font-size: 11px; color: {TEXT_SECONDARY};")
         desc_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(desc_lbl)
 
@@ -83,8 +84,8 @@ class TestCard(QFrame):
     def _make_indicator(self, text: str) -> QLabel:
         lbl = QLabel(text)
         lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        lbl.setFixedHeight(22)
-        lbl.setMinimumWidth(32)
+        lbl.setFixedHeight(SZ.INDICATOR_H)
+        lbl.setMinimumWidth(40)
         self._style_indicator(lbl, False)
         return lbl
 
@@ -93,12 +94,12 @@ class TestCard(QFrame):
         if done:
             lbl.setStyleSheet(
                 f"background-color: {ACCENT}; color: white; border-radius: 6px; "
-                "padding: 2px 8px; font-size: 11px; font-weight: 700;"
+                "padding: 4px 10px; font-size: 12px; font-weight: 700;"
             )
         else:
             lbl.setStyleSheet(
                 f"background-color: #EEEEEE; color: #BDBDBD; border-radius: 6px; "
-                "padding: 2px 8px; font-size: 11px; font-weight: 600;"
+                "padding: 4px 10px; font-size: 12px; font-weight: 600;"
             )
 
     def _apply_card_style(self) -> None:
@@ -160,7 +161,8 @@ class TestDashboard(QWidget):
         self.duration_spin.setRange(5, 60)
         self.duration_spin.setValue(10)
         self.duration_spin.setSuffix(" s")
-        self.duration_spin.setFixedWidth(90)
+        self.duration_spin.setFixedWidth(110)
+        self.duration_spin.setFixedHeight(SZ.INPUT_H)
         dur_row.addWidget(self.duration_spin)
         layout.addLayout(dur_row)
 
@@ -189,11 +191,13 @@ class TestDashboard(QWidget):
 
         back_btn = QPushButton("← Zurueck")
         back_btn.setProperty("cssClass", "flat")
+        back_btn.setFixedHeight(SZ.BTN_H)
         back_btn.clicked.connect(lambda: self.main_window.show_patient_detail())
         btn_row.addWidget(back_btn)
 
         close_btn = QPushButton("Session beenden")
         close_btn.setProperty("cssClass", "primary")
+        close_btn.setFixedHeight(SZ.BTN_H)
         close_btn.clicked.connect(lambda: self.main_window.show_patient_detail())
         btn_row.addWidget(close_btn)
 
@@ -224,23 +228,23 @@ class TestDashboard(QWidget):
     def _show_hand_picker(self, test_key: str) -> None:
         dlg = QDialog(self)
         dlg.setWindowTitle("Hand wählen")
-        dlg.setFixedSize(280, 130)
+        dlg.setFixedSize(360, 200)
         layout = QVBoxLayout(dlg)
-        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setContentsMargins(24, 24, 24, 24)
         layout.setSpacing(16)
 
         lbl = QLabel("Welche Hand?")
         lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        lbl.setStyleSheet("font-size: 14px; font-weight: 600;")
+        lbl.setStyleSheet("font-size: 16px; font-weight: 600;")
         layout.addWidget(lbl)
 
         row = QHBoxLayout()
-        row.setSpacing(12)
+        row.setSpacing(16)
 
         for hand, text in [("left", "Links"), ("right", "Rechts")]:
             btn = QPushButton(text)
             btn.setProperty("cssClass", "primary")
-            btn.setFixedHeight(40)
+            btn.setFixedHeight(SZ.DIALOG_BTN_H)
             btn.clicked.connect(
                 lambda _, h=hand: (
                     dlg.accept(),

@@ -22,7 +22,7 @@ from PyQt6.QtWidgets import (
 
 from storage.database import delete_measurement, get_all_measurements, get_db, Measurement, Patient
 from ui.detail_dialog import DetailDialog
-from ui.theme import TEXT_SECONDARY
+from ui.theme import SZ, TEXT_SECONDARY
 
 
 class DataBrowser(QWidget):
@@ -44,6 +44,7 @@ class DataBrowser(QWidget):
         self.filter_input = QLineEdit()
         self.filter_input.setPlaceholderText("Filtern nach Patient, Test, Datum...")
         self.filter_input.setMaximumWidth(500)
+        self.filter_input.setFixedHeight(SZ.INPUT_H)
         self.filter_input.textChanged.connect(self._apply_filter)
         layout.addWidget(self.filter_input, alignment=Qt.AlignmentFlag.AlignCenter)
 
@@ -58,12 +59,13 @@ class DataBrowser(QWidget):
         self.table.setColumnHidden(7, True)  # hidden ID column
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.table.verticalHeader().setVisible(False)
-        self.table.itemDoubleClicked.connect(self._on_detail)
+        self.table.verticalHeader().setDefaultSectionSize(SZ.ROW_H)
+        self.table.itemClicked.connect(self._on_detail)
         layout.addWidget(self.table)
 
         # Count
         self.count_label = QLabel()
-        self.count_label.setStyleSheet(f"font-size: 11px; color: {TEXT_SECONDARY};")
+        self.count_label.setStyleSheet(f"font-size: 12px; color: {TEXT_SECONDARY};")
         layout.addWidget(self.count_label)
 
         btn_row = QHBoxLayout()
@@ -71,18 +73,22 @@ class DataBrowser(QWidget):
         btn_row.addStretch()
 
         self.delete_btn = QPushButton("Eintrag löschen")
+        self.delete_btn.setFixedHeight(SZ.BTN_H)
         self.delete_btn.clicked.connect(self._on_delete)
         btn_row.addWidget(self.delete_btn)
 
         self.detail_btn = QPushButton("Details")
+        self.detail_btn.setFixedHeight(SZ.BTN_H)
         self.detail_btn.clicked.connect(self._on_detail)
         btn_row.addWidget(self.detail_btn)
 
         self.csv_single_btn = QPushButton("CSV exportieren")
+        self.csv_single_btn.setFixedHeight(SZ.BTN_H)
         self.csv_single_btn.clicked.connect(self._on_export_single_csv)
         btn_row.addWidget(self.csv_single_btn)
 
         self.json_btn = QPushButton("JSON exportieren")
+        self.json_btn.setFixedHeight(SZ.BTN_H)
         self.json_btn.clicked.connect(self._on_export_json)
         btn_row.addWidget(self.json_btn)
 
@@ -91,11 +97,13 @@ class DataBrowser(QWidget):
         self._update_buttons()
 
         csv_all_btn = QPushButton("Alle als CSV")
+        csv_all_btn.setFixedHeight(SZ.BTN_H)
         csv_all_btn.clicked.connect(self._on_export_all)
         btn_row.addWidget(csv_all_btn)
 
         back_btn = QPushButton("Zurück")
         back_btn.setProperty("cssClass", "primary")
+        back_btn.setFixedHeight(SZ.BTN_H)
         back_btn.clicked.connect(lambda: self.main_window.show_patient_screen())
         btn_row.addWidget(back_btn)
 

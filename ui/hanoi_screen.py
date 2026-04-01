@@ -19,7 +19,7 @@ from PyQt6.QtWidgets import (
 from capture.base_capture import HandFrame
 from motor_tests.pinch_detector import PinchDetector, PinchEvent
 from motor_tests.tower_of_hanoi import TowerOfHanoiTest
-from ui.theme import ACCENT, DANGER, PRIMARY, PRIMARY_LIGHT, TEXT_SECONDARY
+from ui.theme import SZ, ACCENT, DANGER, PRIMARY, PRIMARY_LIGHT, TEXT_SECONDARY
 
 log = logging.getLogger(__name__)
 
@@ -313,7 +313,7 @@ class HanoiScreen(QWidget):
         self.hint_label = QLabel(
             "Pinzettengriff zum Greifen  ·  Hand ueber Stab bewegen  ·  Loslassen zum Ablegen"
         )
-        self.hint_label.setStyleSheet(f"font-size: 11px; color: {TEXT_SECONDARY};")
+        self.hint_label.setStyleSheet(f"font-size: 12px; color: {TEXT_SECONDARY};")
         self.hint_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self.hint_label)
 
@@ -321,10 +321,12 @@ class HanoiScreen(QWidget):
         btn_row = QHBoxLayout()
         btn_row.addStretch()
         self.cancel_btn = QPushButton("Abbrechen")
+        self.cancel_btn.setFixedHeight(SZ.BTN_H)
         self.cancel_btn.clicked.connect(self._on_cancel)
         btn_row.addWidget(self.cancel_btn)
         self.giveup_btn = QPushButton("Aufgeben")
         self.giveup_btn.setProperty("cssClass", "danger")
+        self.giveup_btn.setFixedHeight(SZ.BTN_H)
         self.giveup_btn.clicked.connect(self._on_give_up)
         btn_row.addWidget(self.giveup_btn)
         btn_row.addStretch()
@@ -572,7 +574,7 @@ class HanoiScreen(QWidget):
     def _show_success_dialog(self, elapsed: float, n_moves: int, optimal: int) -> None:
         dlg = QDialog(self)
         dlg.setWindowTitle("Aufgabe geloest")
-        dlg.setFixedSize(340, 220)
+        dlg.setFixedSize(400, 280)
         lay = QVBoxLayout(dlg)
         lay.setContentsMargins(24, 20, 24, 20)
         lay.setSpacing(12)
@@ -596,13 +598,13 @@ class HanoiScreen(QWidget):
         btn_row.setSpacing(12)
 
         repeat_btn = QPushButton("Wiederholen")
-        repeat_btn.setFixedHeight(38)
+        repeat_btn.setFixedHeight(SZ.DIALOG_BTN_H)
         repeat_btn.clicked.connect(lambda: (dlg.accept(), self._repeat()))
         btn_row.addWidget(repeat_btn)
 
         save_btn = QPushButton("Speichern")
         save_btn.setProperty("cssClass", "primary")
-        save_btn.setFixedHeight(38)
+        save_btn.setFixedHeight(SZ.DIALOG_BTN_H)
         save_btn.clicked.connect(lambda: (dlg.accept(), self._show_results()))
         btn_row.addWidget(save_btn)
 

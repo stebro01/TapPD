@@ -38,7 +38,7 @@ from analysis.signal_processing import (
     resample_to_uniform,
 )
 from ui.feature_meta import FEATURE_META
-from ui.theme import PRIMARY, TEXT_SECONDARY
+from ui.theme import SZ, PRIMARY, TEXT_SECONDARY
 
 log = logging.getLogger(__name__)
 
@@ -133,7 +133,7 @@ class ResultsScreen(QWidget):
         layout.addWidget(self.title_label)
 
         self.saved_label = QLabel("Automatisch gespeichert")
-        self.saved_label.setStyleSheet(f"font-size: 11px; color: {TEXT_SECONDARY}; font-style: italic;")
+        self.saved_label.setStyleSheet(f"font-size: 13px; color: {TEXT_SECONDARY}; font-style: italic;")
         self.saved_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self.saved_label)
 
@@ -144,6 +144,7 @@ class ResultsScreen(QWidget):
         self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         self.table.setMaximumHeight(280)
         self.table.verticalHeader().setVisible(False)
+        self.table.verticalHeader().setDefaultSectionSize(SZ.ROW_H)
         layout.addWidget(self.table)
 
         # Plots
@@ -153,30 +154,37 @@ class ResultsScreen(QWidget):
 
         # Buttons
         btn_row = QHBoxLayout()
-        btn_row.setSpacing(12)
+        btn_row.setSpacing(16)
         btn_row.addStretch()
 
         discard_btn = QPushButton("Verwerfen")
         discard_btn.setStyleSheet("color: #E53935;")
+        discard_btn.setFixedHeight(SZ.BTN_H)
         discard_btn.clicked.connect(self._on_discard)
         btn_row.addWidget(discard_btn)
 
         retry_btn = QPushButton("Neu aufnehmen")
+        retry_btn.setFixedHeight(SZ.BTN_H)
         retry_btn.clicked.connect(self._on_retry)
         btn_row.addWidget(retry_btn)
 
         csv_btn = QPushButton("CSV Export")
+        csv_btn.setFixedHeight(SZ.BTN_H)
         csv_btn.clicked.connect(self._on_csv_export)
         btn_row.addWidget(csv_btn)
 
         next_btn = QPushButton("Fortfahren")
         next_btn.setProperty("cssClass", "primary")
+        next_btn.setFixedHeight(SZ.BTN_H)
         next_btn.clicked.connect(self._on_next)
         btn_row.addWidget(next_btn)
 
         self.save_raw_cb = QCheckBox("Rohdaten speichern")
         self.save_raw_cb.setChecked(True)
-        self.save_raw_cb.setStyleSheet(f"font-size: 11px; color: {TEXT_SECONDARY};")
+        self.save_raw_cb.setStyleSheet(
+            f"font-size: 13px; color: {TEXT_SECONDARY};"
+            " QCheckBox::indicator { width: 24px; height: 24px; }"
+        )
         btn_row.addWidget(self.save_raw_cb)
 
         btn_row.addStretch()

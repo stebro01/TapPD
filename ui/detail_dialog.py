@@ -32,9 +32,9 @@ from analysis.signal_processing import (
 )
 from storage.database import Measurement, Patient
 from ui.feature_meta import FEATURE_META
-from ui.theme import ACCENT, PRIMARY, TEXT_SECONDARY
+from ui.theme import SZ, ACCENT, PRIMARY, TEXT_SECONDARY
 
-COLOR_RIGHT = QColor(227, 242, 253)
+COLOR_RIGHT = QColor(SZ, 227, 242, 253)
 COLOR_LEFT = QColor(255, 235, 238)
 
 
@@ -64,7 +64,8 @@ class DetailDialog(QDialog):
             lbl.setStyleSheet("font-weight: 600;")
             header_row.addWidget(lbl)
             self._hand_combo = QComboBox()
-            self._hand_combo.setMinimumWidth(120)
+            self._hand_combo.setMinimumWidth(150)
+            self._hand_combo.setFixedHeight(SZ.INPUT_H)
             for m in self._measurements:
                 if is_tmt:
                     part_val = m.features.get("tmt_part", 1.0)
@@ -89,6 +90,7 @@ class DetailDialog(QDialog):
         self._feature_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
         self._feature_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
         self._feature_table.verticalHeader().setVisible(False)
+        self._feature_table.verticalHeader().setDefaultSectionSize(SZ.ROW_H)
         self._feature_table.setMinimumWidth(380)
         self._feature_table.setMaximumWidth(450)
 
