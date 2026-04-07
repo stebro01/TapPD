@@ -29,13 +29,13 @@ COLOR_VISITED = QColor("#43A047")
 COLOR_ERROR = QColor(DANGER)
 COLOR_TRAIL = QColor(ACCENT)
 
-DWELL_TIME_S = 0.30
 MOVEMENT_THRESHOLD = 40.0
+DWELL_TIME_S = 1.0  # seconds to hold in target zone to confirm
 
 
-def _palm_to_screen_norm(frame: HandFrame) -> tuple[float, float]:
-    nx = max(0.0, min(1.0, (frame.palm_position[0] + 200.0) / 400.0))
-    ny = max(0.0, min(1.0, (frame.palm_position[2] + 100.0) / 200.0))
+def _to_screen_norm(frame: HandFrame) -> tuple[float, float]:
+    nx = max(0.0, min(1.0, (frame.palm_position[0] + 150.0) / 300.0))
+    ny = max(0.0, min(1.0, (frame.palm_position[2] + 80.0) / 160.0))
     return nx, ny
 
 
@@ -54,8 +54,7 @@ class TMTPhase(Enum):
 class SegmentState(Enum):
     WAITING = auto()       # waiting at completed target for movement
     MOVING = auto()        # tracking movement to next target
-    IN_TARGET = auto()     # dwelling in correct target
-    WRONG_TARGET = auto()  # dwelling in wrong target (brief error flash)
+    IN_TARGET = auto()     # dwelling in correct target (filling up)
 
 
 class TMTCanvas(QWidget):
@@ -72,6 +71,8 @@ class TMTCanvas(QWidget):
         self.detected_hand: str | None = None
         self.trail_points: list[tuple[float, float]] = []  # visited target positions
         self.error_flash_target: int | None = None  # index of wrong target (brief flash)
+        self.dwell_target_index: int | None = None  # target currently being dwelled on
+        self.dwell_progress: float = 0.0            # 0..1 fill progress
 
     def paintEvent(self, event) -> None:
         p = QPainter(self)
@@ -104,19 +105,29 @@ class TMTCanvas(QWidget):
             r = 22
 
             if t.visited:
-                # Completed — green with checkmark
                 p.setPen(QPen(COLOR_VISITED, 2))
                 p.setBrush(QBrush(QColor(200, 230, 201, 150)))
             elif self.error_flash_target == t.index:
-                # Wrong target — red flash
                 p.setPen(QPen(COLOR_ERROR, 3))
                 p.setBrush(QBrush(QColor(255, 205, 210, 180)))
             else:
-                # Unvisited target — uniform appearance
                 p.setPen(QPen(QColor("#424242"), 1))
                 p.setBrush(QBrush(QColor("#FFFFFF")))
 
             p.drawEllipse(cx - r, cy - r, r * 2, r * 2)
+
+            # Dwell progress — blue arc filling up clockwise
+            if self.dwell_target_index == t.index and self.dwell_progress > 0:
+                prog = max(0.0, min(1.0, self.dwell_progress))
+                span = int(prog * 360 * 16)  # Qt uses 1/16th degree
+                p.setPen(Qt.PenStyle.NoPen)
+                alpha = int(60 + prog * 120)  # gets more opaque as it fills
+                p.setBrush(QBrush(QColor(33, 150, 243, alpha)))  # blue fill
+                p.drawPie(cx - r, cy - r, r * 2, r * 2, 90 * 16, -span)
+                # Redraw border on top
+                p.setPen(QPen(QColor(33, 150, 243), 2))
+                p.setBrush(Qt.BrushStyle.NoBrush)
+                p.drawEllipse(cx - r, cy - r, r * 2, r * 2)
 
             # Label
             if t.visited:
@@ -155,8 +166,8 @@ class TMTCanvas(QWidget):
                 "Verbinden Sie die Zahlen in aufsteigender Reihenfolge:",
                 "1 → 2 → 3 → 4 → ... und so weiter.",
                 "",
-                "Bewegen Sie Ihre Hand zum nächsten Kreis und halten",
-                "Sie dort kurz an, um ihn zu bestätigen.",
+                "Bewegen Sie Ihre Hand zum nächsten Kreis und",
+                "verweilen Sie dort kurz, um ihn zu bestätigen.",
                 "",
                 "Arbeiten Sie so schnell und genau wie möglich.",
             ]
@@ -167,8 +178,8 @@ class TMTCanvas(QWidget):
                 "Verbinden Sie diese abwechselnd in aufsteigender Reihenfolge:",
                 "1 → A → 2 → B → 3 → C → ... und so weiter.",
                 "",
-                "Bewegen Sie Ihre Hand zum nächsten Kreis und halten",
-                "Sie dort kurz an, um ihn zu bestätigen.",
+                "Bewegen Sie Ihre Hand zum nächsten Kreis und",
+                "verweilen Sie dort kurz, um ihn zu bestätigen.",
                 "",
                 "Arbeiten Sie so schnell und genau wie möglich.",
                 "Bei einem Fehler wird der falsche Kreis rot markiert.",
@@ -221,7 +232,7 @@ class TMTCanvas(QWidget):
         p.setFont(QFont("Helvetica Neue", 11))
         p.drawText(QRectF(0, h - 40, w, 25),
                    Qt.AlignmentFlag.AlignCenter,
-                   "Hand flach über den Sensor halten \u2013 startet automatisch")
+                   "Hand flach über den Sensor halten – startet automatisch")
 
 
 class TMTScreen(QWidget):
@@ -239,11 +250,13 @@ class TMTScreen(QWidget):
         self._countdown_value = 3
         self._hand_ok_since: float | None = None
 
+        self._dwell_start: float = 0.0
+        self._dwell_target_idx: int | None = None  # which target we're dwelling on
+
         # Segment tracking
         self._seg_state = SegmentState.WAITING
         self._seg_start: float = 0.0
         self._movement_onset: float = 0.0
-        self._dwell_start: float = 0.0
         self._path_length: float = 0.0
         self._peak_velocity: float = 0.0
         self._prev_pos: tuple[float, float] | None = None
@@ -357,7 +370,7 @@ class TMTScreen(QWidget):
         self.canvas.hand_ok = hand_ok
         self.canvas.detected_hand = chosen
         if frame:
-            nx, ny = _palm_to_screen_norm(frame)
+            nx, ny = _to_screen_norm(frame)
             self.canvas.hand_x = nx
             self.canvas.hand_y = ny
         self.canvas.update()
@@ -437,7 +450,7 @@ class TMTScreen(QWidget):
         with self._lock:
             f = self._last_frame
         if f:
-            self._straight_start = _palm_to_screen_norm(f)
+            self._straight_start = _to_screen_norm(f)
 
     def _update_ui(self) -> None:
         if self._phase != TMTPhase.PLAYING:
@@ -450,7 +463,7 @@ class TMTScreen(QWidget):
             return
 
         now = time.perf_counter()
-        hand_pos = _palm_to_screen_norm(frame)
+        hand_pos = _to_screen_norm(frame)
         self.canvas.hand_x, self.canvas.hand_y = hand_pos
 
         vel = math.sqrt(
@@ -479,7 +492,7 @@ class TMTScreen(QWidget):
                 self._prev_pos = hand_pos
                 self._straight_start = hand_pos
 
-        # Moving
+        # Moving — track path, check for dwell in target zone
         elif self._seg_state == SegmentState.MOVING:
             if self._prev_pos:
                 dx_mm = (hand_pos[0] - self._prev_pos[0]) * 400.0
@@ -489,30 +502,44 @@ class TMTScreen(QWidget):
             if vel > self._peak_velocity:
                 self._peak_velocity = vel
 
-            # Check all target zones
+            # Check if cursor entered any unvisited target zone
             for t in task.targets:
                 if t.visited:
                     continue
                 dist = _dist(hand_pos, (t.x, t.y))
                 if dist < TARGET_ZONE_RADIUS:
+                    self._seg_state = SegmentState.IN_TARGET
+                    self._dwell_start = now
+                    self._dwell_target_idx = t.index
+                    self.canvas.dwell_target_index = t.index
+                    self.canvas.dwell_progress = 0.0
+                    break
+
+        # In target — dwell progress (same for correct and wrong)
+        elif self._seg_state == SegmentState.IN_TARGET:
+            t = task.targets[self._dwell_target_idx]
+            dist = _dist(hand_pos, (t.x, t.y))
+            if dist >= TARGET_ZONE_RADIUS * 1.3:
+                # Left the zone — reset, no error
+                self._seg_state = SegmentState.MOVING
+                self.canvas.dwell_target_index = None
+                self.canvas.dwell_progress = 0.0
+            else:
+                progress = (now - self._dwell_start) / DWELL_TIME_S
+                self.canvas.dwell_progress = progress
+                if progress >= 1.0:
+                    self.canvas.dwell_target_index = None
+                    self.canvas.dwell_progress = 0.0
                     if t.index == task.current_index:
-                        self._seg_state = SegmentState.IN_TARGET
-                        self._dwell_start = now
+                        # Correct target — accept
+                        self._complete_segment(now, hand_pos)
                     else:
-                        # Wrong target
+                        # Wrong target — error
                         self._n_wrong_this_seg += 1
                         task.record_wrong_approach(now - self._start_time, t.index)
                         self.canvas.error_flash_target = t.index
                         self._error_flash_until = now + 0.5
-                    break
-
-        # In correct target — dwelling
-        elif self._seg_state == SegmentState.IN_TARGET:
-            dist = _dist(hand_pos, (current.x, current.y))
-            if dist >= TARGET_ZONE_RADIUS * 1.3:
-                self._seg_state = SegmentState.MOVING
-            elif now - self._dwell_start >= DWELL_TIME_S:
-                self._complete_segment(now, hand_pos)
+                        self._seg_state = SegmentState.MOVING
 
         # Update labels
         elapsed = now - self._start_time

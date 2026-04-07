@@ -37,7 +37,7 @@ MIN_SPACING = 0.15  # minimum distance between targets (normalized)
 
 def _generate_positions(n: int) -> list[tuple[float, float]]:
     """Generate n well-spaced random positions within safe screen area."""
-    margin = 0.12
+    margin = 0.15
     positions: list[tuple[float, float]] = []
     max_attempts = 500
 
