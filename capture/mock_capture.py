@@ -114,6 +114,8 @@ class MockCaptureDevice(BaseCaptureDevice):
             return [self._build_srt_frame(t, timestamp_us)]
         elif self._mode == "trail_making":
             return [self._build_tmt_frame(t, timestamp_us)]
+        elif self._mode == "gesture_lab":
+            return [self._build_gesture_lab_frame(t, timestamp_us)]
         else:
             return [self._build_idle_frame(t, timestamp_us)]
 
@@ -478,6 +480,65 @@ class MockCaptureDevice(BaseCaptureDevice):
             fingers=self._make_fingers((30.0, 200.0, 40.0), (10.0, 200.0, 80.0), 200.0, 60.0),
             pinch_distance=30.0,
             confidence=1.0,
+        )
+
+    # ── Gesture Lab ────────────────────────────────────────────────
+
+    def _build_gesture_lab_frame(self, t: float, timestamp_us: int) -> HandFrame:
+        """Cycle through static hand poses every 4 seconds for gesture lab testing."""
+        # 8 static poses, cycle every 4s
+        pose_idx = int(t / 4.0) % 8
+        noise = np.random.normal(0, 0.3, 3)
+        palm = (noise[0], 200.0 + noise[1], noise[2])
+        palm_y = 200.0
+
+        # Define extension patterns for each battery pose (1-8)
+        ext_patterns = [
+            [True, True, True, True, True],      # 1: Stop-Hand
+            [False, True, False, False, False],   # 2: Zeigegeste
+            [True, False, False, False, False],   # 3: Autostopp (Daumen hoch)
+            [False, False, False, False, False],  # 4: Droh-Faust
+            [True, True, False, False, False],    # 5: L-Form
+            [False, True, True, False, False],    # 6: V-Form
+            [False, True, False, False, True],    # 7: Index + Kleiner
+            [False, True, True, False, True],     # 8: Index + Mittel + Kleiner
+        ]
+        ext = ext_patterns[pose_idx]
+
+        fingers = []
+        base_x = [-40.0, -20.0, 0.0, 20.0, 40.0]
+        lengths = [55.0, 70.0, 80.0, 70.0, 55.0]
+
+        for i in range(5):
+            if ext[i]:
+                tip_z = lengths[i] + np.random.normal(0, 0.5)
+                flex = 0.0
+            else:
+                tip_z = lengths[i] * 0.35 + np.random.normal(0, 0.5)
+                flex = 1.2
+
+            tip = (base_x[i] + noise[0], palm_y, tip_z)
+            base = (base_x[i] * 0.5, palm_y, 5.0)
+            bones = [BoneData(prev_joint=base, next_joint=tip)]
+            fingers.append(FingerData(
+                finger_id=i,
+                tip_position=tip,
+                is_extended=ext[i],
+                bones=bones,
+            ))
+
+        grab = 0.0 if all(ext) else (0.9 if not any(ext) else 0.4)
+
+        return HandFrame(
+            timestamp_us=timestamp_us,
+            hand_type="right",
+            palm_position=palm,
+            palm_velocity=(0.0, 0.0, 0.0),
+            palm_normal=(0.0, -1.0, 0.0),
+            fingers=fingers,
+            pinch_distance=60.0 if ext[0] and ext[1] else 15.0,
+            grab_strength=grab,
+            confidence=0.95,
         )
 
     # ── Helpers ─────────────────────────────────────────────────────

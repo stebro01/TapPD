@@ -41,6 +41,7 @@ from ui.hanoi_screen import HanoiScreen
 from ui.srt_screen import SRTScreen
 from ui.tmt_screen import TMTScreen
 from ui.results_screen import ResultsScreen, save_raw_data
+from ui.gesture_lab_screen import GestureLabScreen
 from ui.log_viewer import LogViewerDialog
 from ui import theme
 from ui.theme import SZ
@@ -126,6 +127,17 @@ class TapPDMainWindow(QMainWindow):
         self._sensor_widget.mousePressEvent = lambda e: self._check_sensor_status()
         self._sensor_widget.setToolTip("Klicken um Sensor-Status zu prüfen")
         self._status_bar.addWidget(self._sensor_widget, 1)  # left side, stretch
+
+        # Reset Leap button (right side, before Log)
+        self._reset_btn = QPushButton("Reset Leap")
+        self._reset_btn.setStyleSheet(
+            "QPushButton { background: transparent; color: #757575; border: 1px solid #E0E0E0; "
+            "border-radius: 4px; padding: 8px 12px; font-size: 12px; min-height: 36px; }"
+            "QPushButton:hover { background: #FFF3E0; color: #E65100; border-color: #E65100; }"
+        )
+        self._reset_btn.setToolTip("Leap Motion Controller zurücksetzen und neu verbinden")
+        self._reset_btn.clicked.connect(self._reset_leap)
+        self._status_bar.addPermanentWidget(self._reset_btn)
 
         # Log button (right side)
         self._log_btn = QPushButton("  Log  ")
@@ -236,6 +248,52 @@ class TapPDMainWindow(QMainWindow):
             self._show_sensor_diagnostics(issues, error)
             self._update_status_bar()
 
+    def _reset_leap(self) -> None:
+        """Disconnect and reconnect the Leap Motion Controller."""
+        log.info("Leap Motion Reset angefordert")
+        self._set_sensor_indicator(False, "Resette Leap Motion...")
+        from PyQt6.QtWidgets import QApplication
+        QApplication.processEvents()
+
+        # Step 1: Disconnect
+        try:
+            self.capture_device.disconnect()
+            log.info("Leap Motion getrennt")
+        except Exception as e:
+            log.warning("Disconnect fehlgeschlagen: %s", e)
+
+        # Step 2: Reconnect
+        try:
+            self.capture_device.connect()
+            self._update_status_bar()
+            log.info("Leap Motion Reset erfolgreich")
+            QMessageBox.information(
+                self, "Reset erfolgreich",
+                "Leap Motion Controller wurde zurückgesetzt und neu verbunden."
+            )
+        except Exception as e1:
+            log.warning("Reconnect fehlgeschlagen (%s), erstelle neues Device...", e1)
+            # Step 3: Fresh device as fallback
+            try:
+                from capture.leap_capture import LeapCaptureDevice
+                new_device = LeapCaptureDevice()
+                new_device.connect()
+                self.capture_device = new_device
+                self._update_status_bar()
+                log.info("Neues LeapCaptureDevice erstellt und verbunden")
+                QMessageBox.information(
+                    self, "Reset erfolgreich",
+                    "Leap Motion Controller wurde neu initialisiert."
+                )
+            except Exception as e2:
+                log.error("Leap Motion Reset komplett fehlgeschlagen: %s", e2)
+                self._set_sensor_indicator(False, "Reset fehlgeschlagen")
+                self._update_status_bar()
+                QMessageBox.warning(
+                    self, "Reset fehlgeschlagen",
+                    f"Leap Motion Controller konnte nicht verbunden werden.\n\n{e2}"
+                )
+
     def _show_sensor_diagnostics(self, issues: list[str], error: str) -> None:
         """Show a detailed sensor diagnostic dialog."""
         log.info("Zeige Sensor-Diagnose (%d Probleme gefunden)", len(issues))
@@ -324,6 +382,7 @@ class TapPDMainWindow(QMainWindow):
         self.hanoi_screen = HanoiScreen(self)
         self.srt_screen = SRTScreen(self)
         self.tmt_screen = TMTScreen(self)
+        self.gesture_lab_screen = GestureLabScreen(self)
 
         self.stack.addWidget(self.patient_screen)
         self.stack.addWidget(self.patient_detail)
@@ -333,6 +392,7 @@ class TapPDMainWindow(QMainWindow):
         self.stack.addWidget(self.hanoi_screen)
         self.stack.addWidget(self.srt_screen)
         self.stack.addWidget(self.tmt_screen)
+        self.stack.addWidget(self.gesture_lab_screen)
 
     def toggle_ui_mode(self) -> None:
         """Switch between dense and touch UI mode, rebuild all screens."""
@@ -382,6 +442,9 @@ class TapPDMainWindow(QMainWindow):
         self.current_session = None
         self.patient_screen.refresh_list()
         self.stack.setCurrentWidget(self.patient_screen)
+
+    def show_gesture_lab(self) -> None:
+        self.stack.setCurrentWidget(self.gesture_lab_screen)
 
     def start_new_session(self) -> None:
         """Create a new session and open the test dashboard."""

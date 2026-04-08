@@ -198,10 +198,22 @@ class PatientScreen(QWidget):
 
         layout.addStretch(1)
 
-        # Copyright
+        # Bottom bar: LAB button (left) + copyright (right)
+        bottom_bar = QHBoxLayout()
+        lab_btn = QPushButton("LAB")
+        lab_btn.setProperty("cssClass", "flat")
+        lab_btn.setFixedWidth(80)
+        lab_btn.setFixedHeight(SZ.BTN_H)
+        lab_btn.setToolTip("Gesture Lab – Gesten-Erkennung")
+        lab_btn.clicked.connect(lambda: self.main_window.show_gesture_lab())
+        bottom_bar.addWidget(lab_btn)
+
+        bottom_bar.addStretch()
+
         copy_label = QLabel("\u00a9 Stefan Brodoehl 2026")
         copy_label.setStyleSheet("font-size: 10px; color: #BDBDBD;")
-        layout.addWidget(copy_label, alignment=Qt.AlignmentFlag.AlignRight)
+        bottom_bar.addWidget(copy_label)
+        layout.addLayout(bottom_bar)
 
         self.refresh_list()
 
