@@ -113,4 +113,4 @@ def setup_logging(level: int = logging.DEBUG) -> None:
     logging.getLogger("matplotlib").setLevel(logging.WARNING)
     logging.getLogger("PIL").setLevel(logging.WARNING)
 
-    logging.info("TapPD Logging initialisiert – Log-Verzeichnis: %s", LOG_DIR)
+    logging.info("Motryx Logging initialisiert – Log-Verzeichnis: %s", LOG_DIR)

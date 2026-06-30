@@ -4,6 +4,7 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
     QDialog,
     QFrame,
+    QGraphicsOpacityEffect,
     QGridLayout,
     QHBoxLayout,
     QLabel,
@@ -14,20 +15,13 @@ from PyQt6.QtWidgets import (
 )
 
 from storage.database import Patient
-from ui.theme import (SZ, 
+from ui.theme import (SZ,
     PRIMARY, PRIMARY_LIGHT, ACCENT, BORDER, TEXT_SECONDARY)
 
-TESTS = [
-    ("finger_tapping", "Finger Tapping", "3.4", False, "Daumen-Zeigefinger"),
-    ("hand_open_close", "Hand Öffnen/\nSchließen", "3.5", False, "Öffnen & Schließen"),
-    ("pronation_supination", "Pronation/\nSupination", "3.6", False, "Unterarm drehen"),
-    ("postural_tremor", "Posturaler\nTremor", "3.15", True, "Hände vorgestreckt"),
-    ("rest_tremor", "Ruhetremor", "3.17", True, "Hände entspannt"),
-    ("tower_of_hanoi", "Türme von\nHanoi", "Kogn.", False, "Scheiben verschieben"),
-    ("spatial_srt", "Räumliche\nReaktionszeit", "Kogn.", False, "Sequenz-Lernen"),
-    ("trail_making_a", "Trail Making\nTeil A", "Kogn.", False, "Zahlen verbinden"),
-    ("trail_making_b", "Trail Making\nTeil B", "Kogn.", False, "Zahlen & Buchstaben"),
-]
+from motor_tests.registry import PARADIGMS
+
+# (key, label, updrs, bilateral, description) — single source of truth: registry.
+TESTS = [(p.key, p.label, p.updrs, p.bilateral, p.description) for p in PARADIGMS]
 
 
 class TestCard(QFrame):
@@ -38,6 +32,8 @@ class TestCard(QFrame):
         self.bilateral = bilateral
         self._on_click = on_click
         self._completed = {"left": False, "right": False, "both": False}
+        self._supported = True
+        self._unsupported_reason = ""
 
         self.setFixedSize(SZ.CARD, SZ.CARD)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -131,7 +127,33 @@ class TestCard(QFrame):
             self._style_indicator(self.right_ind, True)
         self._apply_card_style()
 
+    def set_supported(self, supported: bool, reason: str = "") -> None:
+        """Enable/disable the card for the current tracking source."""
+        self._supported = supported
+        self._unsupported_reason = reason
+        effect = self.graphicsEffect()
+        if supported:
+            self.setCursor(Qt.CursorShape.PointingHandCursor)
+            self.setToolTip("")
+            if effect is not None:
+                effect.setEnabled(False)
+            self._apply_card_style()
+        else:
+            self.setCursor(Qt.CursorShape.ForbiddenCursor)
+            self.setToolTip(reason)
+            if not isinstance(effect, QGraphicsOpacityEffect):
+                effect = QGraphicsOpacityEffect(self)
+                self.setGraphicsEffect(effect)
+            effect.setOpacity(0.4)
+            effect.setEnabled(True)
+            self.setStyleSheet(
+                "TestCard { background: #F5F5F5; border: 2px dashed #CFD8DC; "
+                "border-radius: 12px; }"
+            )
+
     def mousePressEvent(self, event) -> None:
+        if not self._supported:
+            return  # gated for the current source — tooltip explains why
         self._on_click(self.test_key, self.bilateral)
 
 
@@ -215,12 +237,33 @@ class TestDashboard(QWidget):
                 card._style_indicator(card.left_ind, False)
                 card._style_indicator(card.right_ind, False)
             card._apply_card_style()
+        self.update_source_availability()
+
+    def update_source_availability(self) -> None:
+        """Gate cards whose required regions the active tracking source can't deliver."""
+        from capture.source import source_kind, CAP_LABELS
+        from motor_tests.config import get_unmet_capabilities
+
+        kind = source_kind(self.main_window.capture_device)
+        source_name = {"webcam": "Webcam", "leap": "Leap Motion", "mock": "Simulation"}.get(kind, kind)
+        for key, card in self.cards.items():
+            unmet = get_unmet_capabilities(key, kind)
+            if unmet:
+                missing = ", ".join(CAP_LABELS.get(c, c) for c in sorted(unmet))
+                card.set_supported(
+                    False,
+                    f"Mit {source_name} nicht möglich – benötigt: {missing}.\n"
+                    "Quelle über „Tracking“ wechseln (z. B. Leap Motion).",
+                )
+            else:
+                card.set_supported(True)
 
     def _on_test_click(self, test_key: str, bilateral: bool) -> None:
+        from motor_tests.registry import is_spatial
         if bilateral:
             self.main_window.start_test(test_key, "both", self.duration_spin.value())
-        elif test_key in ("tower_of_hanoi", "spatial_srt", "trail_making_a", "trail_making_b"):
-            # Hand is auto-detected during positioning phase
+        elif is_spatial(test_key):
+            # Spatial/cognitive: hand is auto-detected during the readiness gate.
             self.main_window.start_test(test_key, "right", self.duration_spin.value())
         else:
             self._show_hand_picker(test_key)

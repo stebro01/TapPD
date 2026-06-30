@@ -122,6 +122,7 @@ class Measurement:
     features_json: str = "{}"
     recorded_at: str = ""
     raw_data_path: str = ""
+    source_kind: str = ""  # capture source: "leap" | "webcam" | "mock" (provenance)
 
     @property
     def features(self) -> dict:
@@ -147,22 +148,26 @@ def _unmarshal_patient_blob(blob: str | None) -> dict:
         return {"first_name": "", "last_name": "", "notes": ""}
 
 
-def _marshal_observation_blob(hand: str, duration_s: float, raw_data_path: str, features: dict) -> str:
+def _marshal_observation_blob(hand: str, duration_s: float, raw_data_path: str,
+                              features: dict, source_kind: str = "") -> str:
     return json.dumps({
         "hand": hand,
         "duration_s": duration_s,
         "raw_data_path": raw_data_path,
+        "source_kind": source_kind,
         "features": features,
     }, default=str)
 
 
 def _unmarshal_observation_blob(blob: str | None) -> dict:
+    default = {"hand": "", "duration_s": 0.0, "raw_data_path": "",
+               "source_kind": "", "features": {}}
     if not blob:
-        return {"hand": "", "duration_s": 0.0, "raw_data_path": "", "features": {}}
+        return default
     try:
-        return json.loads(blob)
+        return {**default, **json.loads(blob)}
     except (json.JSONDecodeError, TypeError):
-        return {"hand": "", "duration_s": 0.0, "raw_data_path": "", "features": {}}
+        return default
 
 
 def _test_type_to_concept_cd(test_type: str) -> str:
@@ -176,9 +181,8 @@ def _concept_cd_to_test_type(concept_cd: str) -> str:
 
 
 def _category_for_test(test_type: str) -> str:
-    if test_type in ("tower_of_hanoi", "spatial_srt", "trail_making_a", "trail_making_b"):
-        return "COGNITIVE_TEST"
-    return "MOTOR_TEST"
+    from motor_tests.registry import category_str
+    return category_str(test_type)
 
 
 # ── Database connection ────────────────────────────────────────────
@@ -504,6 +508,7 @@ def _row_to_measurement(r) -> Measurement:
         features_json=json.dumps(features, default=str),
         recorded_at=d.get("START_DATE") or "",
         raw_data_path=blob.get("raw_data_path", ""),
+        source_kind=blob.get("source_kind", ""),
     )
 
 
@@ -618,7 +623,8 @@ def save_measurement(conn: sqlite3.Connection, m: Measurement) -> Measurement:
     concept_cd = _test_type_to_concept_cd(m.test_type)
     category = _category_for_test(m.test_type)
     features = m.features
-    obs_blob = _marshal_observation_blob(m.hand, m.duration_s, m.raw_data_path, features)
+    obs_blob = _marshal_observation_blob(m.hand, m.duration_s, m.raw_data_path,
+                                         features, m.source_kind)
     mpi = features.get("mpi")
 
     cur = conn.execute(
@@ -715,7 +721,8 @@ def update_raw_data_path(conn: sqlite3.Connection, observation_id: int, path: st
             log.warning("OBSERVATION_BLOB korrupt für ID %d; raw_data_path wird nicht aktualisiert", observation_id)
             return
     else:
-        blob = {"hand": "", "duration_s": 0.0, "raw_data_path": "", "features": {}}
+        blob = {"hand": "", "duration_s": 0.0, "raw_data_path": "",
+                "source_kind": "", "features": {}}
 
     blob["raw_data_path"] = path
     conn.execute(

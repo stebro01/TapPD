@@ -99,7 +99,7 @@ class PatientScreen(QWidget):
         layout.setContentsMargins(50, 24, 50, 24)
         layout.setSpacing(0)
 
-        # ── Top bar: Beenden (left) + Über TapPD (right) ──
+        # ── Top bar: Beenden (left) + Über Motryx (right) ──
         top_bar = QHBoxLayout()
         quit_btn = QPushButton("Beenden")
         quit_btn.setFixedWidth(120)
@@ -117,7 +117,7 @@ class PatientScreen(QWidget):
         self.mode_btn.clicked.connect(self.main_window.toggle_ui_mode)
         top_bar.addWidget(self.mode_btn)
 
-        about_btn = QPushButton("Über TapPD")
+        about_btn = QPushButton("Über Motryx")
         about_btn.setFixedWidth(160)
         about_btn.setFixedHeight(SZ.BTN_H)
         about_btn.clicked.connect(self._on_about)
@@ -127,12 +127,12 @@ class PatientScreen(QWidget):
         # ── Upper 1/3: Title + subtitle ──
         layout.addStretch(1)
 
-        title = QLabel("TapPD")
+        title = QLabel("Motryx")
         title.setProperty("cssClass", "title")
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(title)
 
-        subtitle = QLabel("Kontaktlose Motorik-Analyse")
+        subtitle = QLabel("Movement Lab – Kontaktlose Bewegungsanalyse")
         subtitle.setProperty("cssClass", "subtitle")
         subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(subtitle)
@@ -198,10 +198,22 @@ class PatientScreen(QWidget):
 
         layout.addStretch(1)
 
-        # Copyright
+        # Bottom bar: LAB button (left) + copyright (right)
+        bottom_bar = QHBoxLayout()
+        lab_btn = QPushButton("LAB")
+        lab_btn.setProperty("cssClass", "flat")
+        lab_btn.setFixedWidth(80)
+        lab_btn.setFixedHeight(SZ.BTN_H)
+        lab_btn.setToolTip("Gesture Lab – Gesten-Erkennung")
+        lab_btn.clicked.connect(lambda: self.main_window.show_gesture_lab())
+        bottom_bar.addWidget(lab_btn)
+
+        bottom_bar.addStretch()
+
         copy_label = QLabel("\u00a9 Stefan Brodoehl 2026")
         copy_label.setStyleSheet("font-size: 10px; color: #BDBDBD;")
-        layout.addWidget(copy_label, alignment=Qt.AlignmentFlag.AlignRight)
+        bottom_bar.addWidget(copy_label)
+        layout.addLayout(bottom_bar)
 
         self.refresh_list()
 
@@ -271,10 +283,10 @@ class PatientScreen(QWidget):
         try:
             md_text = about_path.read_text(encoding="utf-8")
         except FileNotFoundError:
-            md_text = "# TapPD\n\nKontaktlose Motorik-Analyse"
+            md_text = "# Motryx\n\nMovement Lab – Kontaktlose Bewegungsanalyse"
 
         dlg = QDialog(self)
-        dlg.setWindowTitle("Über TapPD")
+        dlg.setWindowTitle("Über Motryx")
         dlg.setMinimumSize(560, 480)
         layout = QVBoxLayout(dlg)
         layout.setContentsMargins(24, 24, 24, 24)

@@ -17,8 +17,11 @@ from PyQt6.QtWidgets import (
 )
 
 from capture.base_capture import HandFrame
+from capture.source import profile_for
 from motor_tests.srt_logic import SRTTaskState, SRTTrialResult, TARGET_POSITIONS, TARGET_ZONE_RADIUS
 from motor_tests.spatial_srt import SpatialSRTTest
+from ui.hand_visualization import HandVisualizationWidget
+from ui.pretest_gate import ReadinessGate
 from ui.theme import SZ, ACCENT, DANGER, PRIMARY, TEXT_SECONDARY
 
 log = logging.getLogger(__name__)
@@ -301,10 +304,14 @@ class SRTScreen(QWidget):
         # Timers
         self._ui_timer = QTimer()
         self._ui_timer.timeout.connect(self._update_ui)
-        self._countdown_timer = QTimer()
-        self._countdown_timer.timeout.connect(self._countdown_tick)
-        self._position_timer = QTimer()
-        self._position_timer.timeout.connect(self._position_tick)
+
+        # Unified pre-test gate + small live hand window over the canvas
+        self.readiness_gate = ReadinessGate(self)
+        self.readiness_gate.ready.connect(self._on_gate_ready)
+        self.readiness_gate.cancelled.connect(self._on_gate_cancelled)
+        self.live_hand = HandVisualizationWidget(self.canvas)
+        self.live_hand.setFixedSize(150, 160)
+        self.live_hand.setVisible(False)
 
     # ── Start ──────────────────────────────────────────────────────
 
@@ -313,11 +320,9 @@ class SRTScreen(QWidget):
         self._patient_code = patient_code
         self._last_frame = None
         self._active_hand = "right"
-        self._last_right_pos = None
-        self._last_left_pos = None
 
         self.canvas.active_target = None
-        self.canvas.show_positioning = True
+        self.canvas.show_positioning = False
         self.canvas.hand_ok = False
         self.canvas.detected_hand = None
         self.canvas.show_isi = False
@@ -328,82 +333,21 @@ class SRTScreen(QWidget):
         self.cancel_btn.setEnabled(True)
         self.countdown_label.setVisible(False)
         self.hint_label.setVisible(False)
-        self.status_label.setText("Hand positionieren")
+        self.status_label.setText("")
         self.status_label.setStyleSheet("font-size: 16px; font-weight: 700;")
 
         self._phase = SRTPhase.POSITIONING
-        self._hand_ok_since = None
+        profile = profile_for(test.capture)
+        self.readiness_gate.begin(test.capture, profile, require_hand=None)
 
-        def pos_callback(frame: HandFrame) -> None:
-            with self._lock:
-                if frame.hand_type == "right":
-                    self._last_right_pos = frame
-                elif frame.hand_type == "left":
-                    self._last_left_pos = frame
+    def _on_gate_ready(self, hand: str) -> None:
+        self._active_hand = hand
+        self.test.hand = hand
+        self.canvas.show_positioning = False
+        self._start_task()
 
-        self.test.capture.start_recording(pos_callback)
-        self._position_timer.start(100)
-
-    def _position_tick(self) -> None:
-        if self._phase != SRTPhase.POSITIONING:
-            return
-        with self._lock:
-            right = self._last_right_pos
-            left = self._last_left_pos
-
-        r_ok = right is not None and right.palm_position[1] > 120 and right.confidence > 0
-        l_ok = left is not None and left.palm_position[1] > 120 and left.confidence > 0
-
-        if r_ok and l_ok:
-            chosen, frame = "right", right
-        elif r_ok:
-            chosen, frame = "right", right
-        elif l_ok:
-            chosen, frame = "left", left
-        else:
-            chosen, frame = None, None
-
-        hand_ok = chosen is not None
-        self.canvas.hand_ok = hand_ok
-        self.canvas.detected_hand = chosen
-        if frame:
-            nx, ny = _palm_to_screen_norm(frame)
-            self.canvas.hand_x = nx
-            self.canvas.hand_y = ny
-        self.canvas.update()
-
-        if hand_ok:
-            if self._hand_ok_since is None:
-                self._hand_ok_since = time.perf_counter()
-                self._active_hand = chosen
-            elif time.perf_counter() - self._hand_ok_since > 1.0:
-                self._active_hand = chosen
-                self._position_timer.stop()
-                self.test.capture.stop_recording()
-                self.canvas.show_positioning = False
-                self.test.hand = self._active_hand
-                self._start_countdown()
-        else:
-            self._hand_ok_since = None
-
-    # ── Countdown ──────────────────────────────────────────────────
-
-    def _start_countdown(self) -> None:
-        self._phase = SRTPhase.COUNTDOWN
-        self._countdown_value = 3
-        self.countdown_label.setVisible(True)
-        self.countdown_label.setText(str(self._countdown_value))
-        self.status_label.setText("Vorbereitung...")
-        self._countdown_timer.start(1000)
-
-    def _countdown_tick(self) -> None:
-        self._countdown_value -= 1
-        if self._countdown_value > 0:
-            self.countdown_label.setText(str(self._countdown_value))
-        else:
-            self._countdown_timer.stop()
-            self.countdown_label.setVisible(False)
-            self._start_task()
+    def _on_gate_cancelled(self) -> None:
+        self.main_window.show_start()
 
     # ── Task ───────────────────────────────────────────────────────
 
@@ -413,6 +357,9 @@ class SRTScreen(QWidget):
         self.test._start_time_s = self._start_time
         self.status_label.setText("Aufgabe läuft")
         self.hint_label.setVisible(True)
+        self.live_hand.move(8, 8)
+        self.live_hand.setVisible(True)
+        self.live_hand.raise_()
         self.canvas.update()
 
         active = self._active_hand
@@ -473,6 +420,7 @@ class SRTScreen(QWidget):
         with self._lock:
             frame = self._last_frame
 
+        self.live_hand.update_frame(frame)
         if frame is None:
             return
 
@@ -598,6 +546,7 @@ class SRTScreen(QWidget):
     def _on_complete(self) -> None:
         self._phase = SRTPhase.DONE
         self._ui_timer.stop()
+        self.live_hand.setVisible(False)
         self.test.capture.stop_recording()
         self.test.mark_completed(time.perf_counter())
 
@@ -612,9 +561,9 @@ class SRTScreen(QWidget):
         QTimer.singleShot(1000, self._show_results)
 
     def _on_cancel(self) -> None:
-        self._countdown_timer.stop()
+        self.readiness_gate.cancel()
         self._ui_timer.stop()
-        self._position_timer.stop()
+        self.live_hand.setVisible(False)
         if self._phase in (SRTPhase.PLAYING, SRTPhase.POSITIONING):
             self.test.capture.stop_recording()
         self._phase = SRTPhase.ABORTED

@@ -1,0 +1,176 @@
+# Gesture Lab Configuration
+# All gesture definitions, scoring parameters, and evaluation thresholds.
+# Edit this file to add/modify gestures or tune scoring without touching Python code.
+
+# ── Global Scoring Parameters ────────────────────────────────────
+scoring:
+  thresholds:
+    good: 0.85          # >= this = KORREKT
+    partial: 0.60       # >= this = TEILWEISE, below = FALSCH
+
+  orient_weight_default: 0.3   # how much palm orientation contributes to total score
+
+  extension_violation_penalty: 0.25   # subtracted from total per wrong finger extension
+
+  finger_scoring:
+    angle_weight: 0.7              # joint angle contribution to per-finger score
+    tip_distance_weight: 0.3       # tip distance contribution to per-finger score
+    angle_normalization: 3.0       # max expected angle diff (rad) across 4 joints
+    tip_distance_normalization: 1.0  # max expected normalized tip distance diff
+
+  error_analysis:
+    extension_threshold: 0.4       # mean joint angle to distinguish extended vs flexed
+    position_threshold: 0.5        # normalized distance for positional deviation
+    orientation_threshold: 0.6     # radians for palm orientation error
+
+# ── Dynamic Gesture Parameters ───────────────────────────────────
+dynamic:
+  sakoe_chiba_band_ratio: 0.2     # DTW band width as fraction of sequence length
+  sample_rate_hz: 50.0            # target resample rate for dynamic templates
+
+# ── 12-Pose Battery ──────────────────────────────────────────────
+# Sources:
+#   TULIA: Test of Upper Limb Apraxia (Vanbellingen et al. 2010)
+#   AST:   Apraxia Screen of TULIA (Vanbellingen et al. 2011)
+#   Goldenberg: Finger/hand configuration paradigms (Goldenberg 1996, 1999)
+
+poses:
+  # ── Static Poses (1-8) ───────────────────────────────────────
+
+  1:
+    name: "Stop-Hand"
+    description: "Offene Handfläche frontal, alle Finger gestreckt und gespreizt"
+    clinical_source: "TULIA"
+    reference: "Vanbellingen 2010, doi:10.1111/j.1468-1331.2009.02741.x, Imitation-Intransitiv Item 6"
+    gesture_type: "static"
+    expected_extensions: [true, true, true, true, true]
+    finger_weights: [0.8, 1.0, 1.0, 1.0, 1.0]
+    scoring_criteria: "PalmNormal frontal, alle Finger Extension, GrabStrength nahe 0"
+    trial_duration_s: 6
+
+  2:
+    name: "Zeigegeste"
+    description: "Zeigefinger gestreckt, übrige Finger gebeugt"
+    clinical_source: "TULIA"
+    reference: "Vanbellingen 2010, Imitation-Intransitiv Item 8"
+    gesture_type: "static"
+    expected_extensions: [false, true, false, false, false]
+    finger_weights: [0.6, 1.0, 0.8, 0.8, 0.6]
+    scoring_criteria: "Index-Extension hoch, andere niedrig, Daumen-Abduktion optional"
+    trial_duration_s: 6
+
+  3:
+    name: "Autostopp"
+    description: "Faust mit Daumen gestreckt nach oben"
+    clinical_source: "TULIA"
+    reference: "Vanbellingen 2010, Imitation-Intransitiv Item 5"
+    gesture_type: "static"
+    expected_extensions: [true, false, false, false, false]
+    finger_weights: [1.0, 0.8, 0.6, 0.6, 0.6]
+    scoring_criteria: "Daumen-Extension/Abduktion, GrabStrength hoch, Palm-Rotation"
+    trial_duration_s: 6
+
+  4:
+    name: "Droh-Faust"
+    description: "Erhobene Faust, alle Finger geschlossen"
+    clinical_source: "AST/TULIA"
+    reference: "Vanbellingen 2011, doi:10.1136/jnnp.2010.213371, Pantomime Item 9"
+    gesture_type: "static"
+    expected_extensions: [false, false, false, false, false]
+    finger_weights: [0.8, 0.8, 0.8, 0.8, 0.8]
+    scoring_criteria: "GrabStrength hoch, alle Finger-Flexion hoch, Daumenposition"
+    trial_duration_s: 6
+
+  5:
+    name: "L-Form"
+    description: "Daumen und Zeigefinger gestreckt (L-Form), andere gebeugt"
+    clinical_source: "Goldenberg"
+    reference: "Goldenberg 1996, doi:10.1136/jnnp.61.2.176"
+    gesture_type: "static"
+    expected_extensions: [true, true, false, false, false]
+    finger_weights: [1.0, 1.0, 0.8, 0.6, 0.6]
+    scoring_criteria: "Daumen-Abduktion + Index-Extension, übrige Flexion"
+    trial_duration_s: 6
+
+  6:
+    name: "V-Form"
+    description: "Zeige- und Mittelfinger gestreckt/gespreizt, Ring + Kleiner gebeugt"
+    clinical_source: "Goldenberg"
+    reference: "Goldenberg 1996, doi:10.1136/jnnp.61.2.176"
+    gesture_type: "static"
+    expected_extensions: [false, true, true, false, false]
+    finger_weights: [0.6, 1.0, 1.0, 0.8, 0.6]
+    scoring_criteria: "Index/Mittel-Extension + Splay-Winkel, Ring/Kleiner-Flexion"
+    trial_duration_s: 6
+
+  7:
+    name: "Index + Kleiner"
+    description: "Zeige- und kleiner Finger gestreckt, Mittel/Ring gebeugt"
+    clinical_source: "Goldenberg"
+    reference: "Goldenberg 1996, doi:10.1136/jnnp.61.2.176"
+    gesture_type: "static"
+    expected_extensions: [false, true, false, false, true]
+    finger_weights: [0.6, 1.0, 0.8, 0.8, 1.0]
+    scoring_criteria: "Extension-Pattern Index+Kleiner, Ring/Mittel-Flexion"
+    trial_duration_s: 8
+
+  8:
+    name: "Index + Mittel + Kleiner"
+    description: "Zeige-, Mittel- und kleiner Finger gestreckt; Ring gebeugt"
+    clinical_source: "Goldenberg"
+    reference: "Goldenberg 1996, doi:10.1136/jnnp.61.2.176"
+    gesture_type: "static"
+    expected_extensions: [false, true, true, false, true]
+    finger_weights: [0.6, 1.0, 1.0, 1.0, 1.0]
+    scoring_criteria: "3-Finger-Extension, Ring-Flexion, Splay-Winkel"
+    trial_duration_s: 8
+
+  # ── Dynamic Gestures (9-12) ──────────────────────────────────
+
+  9:
+    name: "Schere"
+    description: "Zeige+Mittelfinger als Klingen, 2-3 Öffnen/Schließen"
+    clinical_source: "AST/TULIA"
+    reference: "Vanbellingen 2011, AST Imitation Item 6; TULIA Imitation-Transitiv Item 7"
+    gesture_type: "dynamic"
+    expected_extensions: [false, true, true, false, false]
+    finger_weights: [0.4, 1.0, 1.0, 0.6, 0.4]
+    scoring_criteria: "Index-Mittel Distanz-Oszillation, Frequenz/Zyklen"
+    dynamic_duration_s: 5.0
+    trial_duration_s: 10
+
+  10:
+    name: "Schlüsselgriff"
+    description: "Pinch-Griff (Daumen/Index) + kleine rotierende Vierteldrehung"
+    clinical_source: "TULIA"
+    reference: "Vanbellingen 2010, TULIA Imitation-Transitiv Item 6"
+    gesture_type: "dynamic"
+    expected_extensions: [true, true, false, false, false]
+    finger_weights: [1.0, 1.0, 0.6, 0.4, 0.4]
+    scoring_criteria: "PinchDistance niedrig + Hand-Rotation (roll/yaw)"
+    dynamic_duration_s: 5.0
+    trial_duration_s: 10
+
+  11:
+    name: "Schraubenzieher"
+    description: "Werkzeuggriff + kurze Drehbewegung"
+    clinical_source: "AST/TULIA"
+    reference: "Vanbellingen 2011, AST Pantomime Item 12; TULIA Pantomime-Transitiv Item 5"
+    gesture_type: "dynamic"
+    expected_extensions: [false, false, false, false, false]
+    finger_weights: [0.8, 0.8, 0.8, 0.8, 0.8]
+    scoring_criteria: "GrabStrength moderat + Hand-Rotation (roll/yaw)"
+    dynamic_duration_s: 6.0
+    trial_duration_s: 12
+
+  12:
+    name: "Hammer"
+    description: "Hammergriff (Faust) + 2 kurze vertikale Impulse"
+    clinical_source: "AST/TULIA"
+    reference: "Vanbellingen 2011, AST Imitation Item 5; TULIA Imitation-Transitiv Item 5"
+    gesture_type: "dynamic"
+    expected_extensions: [false, false, false, false, false]
+    finger_weights: [0.8, 0.8, 0.8, 0.8, 0.8]
+    scoring_criteria: "GrabStrength hoch + PalmPosition-Z Impulse (2 Peaks)"
+    dynamic_duration_s: 6.0
+    trial_duration_s: 12

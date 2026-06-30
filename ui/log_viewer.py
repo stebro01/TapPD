@@ -50,7 +50,7 @@ class LogViewerDialog(QDialog):
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
-        self.setWindowTitle("TapPD – Log Viewer")
+        self.setWindowTitle("Motryx – Log Viewer")
         self.setMinimumSize(820, 520)
         self.resize(920, 580)
         self.setWindowFlags(

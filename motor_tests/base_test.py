@@ -35,9 +35,13 @@ class BaseMotorTest(ABC):
         self.left_frames: list[HandFrame] = []
         self.right_frames: list[HandFrame] = []
         self._lock = threading.Lock()
+        # Per-source frame re-mapping seam (identity today; webcam proxy later).
+        from capture.source import profile_for
+        self._profile = profile_for(capture)
 
     def _on_frame(self, frame: HandFrame) -> None:
         """Callback invoked by capture device for each frame."""
+        frame = self._profile.adapt_frame(frame)
         if self.bilateral:
             with self._lock:
                 if frame.hand_type == "left":
