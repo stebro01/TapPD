@@ -97,6 +97,7 @@ def static_similarity(
         compare_vec, t_vec, fw, ow,
         expected_ext=template.expected_extensions,
         live_ext=live_extensions,
+        finger_tolerances=template.finger_tolerances,
     )
     return detail["total"]
 
@@ -110,6 +111,7 @@ def compute_parameter_scores(
     tmpl_hand: str | None = None,
     expected_ext: list[bool] | None = None,
     live_ext: list[bool] | None = None,
+    finger_tolerances: list[float] | None = None,
 ) -> dict[str, float]:
     """Compute per-parameter similarity scores.
 
@@ -139,6 +141,8 @@ def compute_parameter_scores(
     a_weight = fs["angle_weight"]
     td_weight = fs["tip_distance_weight"]
 
+    ft = finger_tolerances if finger_tolerances and len(finger_tolerances) == 5 else [0.0] * 5
+
     finger_sims: list[float] = []
     for i in range(5):
         a_start = i * 4
@@ -146,6 +150,8 @@ def compute_parameter_scores(
         live_a = compare[a_start:a_end]
         tmpl_a = tmpl_vec[a_start:a_end]
         angle_diff = float(np.linalg.norm(live_a - tmpl_a))
+        # Apply per-finger tolerance: diffs within tolerance score 100%
+        angle_diff = max(0.0, angle_diff - ft[i])
         angle_sim = max(0.0, 1.0 - angle_diff / angle_norm)
 
         td_idx = N_JOINT_ANGLES + N_ABDUCTION + i
@@ -199,8 +205,60 @@ def compute_parameter_scores(
         total -= n_violations * penalty
 
     scores["total"] = float(np.clip(total, 0.0, 1.0))
+    scores["geo_mean"] = geo_score
+    scores["n_violations"] = float(n_violations if expected_ext and live_ext else 0)
+    scores["orient_weight_used"] = orient_weight
 
     return scores
+
+
+def format_score_breakdown(
+    scores: dict[str, float],
+    finger_weights: list[float],
+    finger_names: list[str] | None = None,
+    expected_ext: list[bool] | None = None,
+    live_ext: list[bool] | None = None,
+) -> str:
+    """Generate a human-readable score breakdown string."""
+    from gesture_lab.config import get_scoring_config
+    sc = get_scoring_config()
+    fn = finger_names or ["Daumen", "Zeigef.", "Mittelf.", "Ringf.", "Kleiner"]
+    fw = finger_weights if len(finger_weights) == 5 else [1.0] * 5
+    ow = scores.get("orient_weight_used", sc["orient_weight_default"])
+    geo = scores.get("geo_mean", 0.0)
+    orient = scores.get("orientation", 0.0)
+    total = scores.get("total", 0.0)
+    n_viol = int(scores.get("n_violations", 0))
+    penalty = sc["extension_violation_penalty"]
+
+    pct = int(total * 100)
+    result = "KORREKT" if total >= sc["thresholds"]["good"] else (
+        "TEILWEISE" if total >= sc["thresholds"]["partial"] else "FALSCH"
+    )
+
+    lines = [f"SCORE: {pct}% → {result}"]
+    lines.append(f"= ({1 - ow:.2f}) × geo({geo:.2f}) + {ow:.2f} × orient({orient:.2f})")
+    if n_viol > 0:
+        lines.append(f"  − {n_viol} × {penalty} Extension-Penalty")
+
+    # Geo breakdown
+    active = sum(fw)
+    if active > 0:
+        parts = []
+        for i in range(5):
+            fs = scores.get(f"finger_{i}", 0.0)
+            parts.append(f"{fw[i]:.1f}×{fs:.2f}")
+        lines.append(f"  geo = ({' + '.join(parts)}) / {active:.1f}")
+
+    # Violations detail
+    if n_viol > 0 and expected_ext and live_ext:
+        for i in range(min(5, len(expected_ext), len(live_ext))):
+            if expected_ext[i] != live_ext[i] and fw[i] > 0:
+                soll = "gestreckt" if expected_ext[i] else "gebeugt"
+                ist = "gestreckt" if live_ext[i] else "gebeugt"
+                lines.append(f"  ⚠ {fn[i]}: soll {soll}, ist {ist}")
+
+    return "\n".join(lines)
 
 
 def compute_mean_template(templates: list[GestureTemplate]) -> GestureTemplate | None:
@@ -236,6 +294,8 @@ def compute_mean_template(templates: list[GestureTemplate]) -> GestureTemplate |
         pose_vector=mean_vec.tolist(),
         pose_variance=var_vec.tolist(),
         finger_weights=base.finger_weights[:],
+        finger_tolerances=base.finger_tolerances[:],
+        param_enabled=base.param_enabled[:],
         expected_extensions=base.expected_extensions[:],
         threshold_good=base.threshold_good,
         threshold_partial=base.threshold_partial,

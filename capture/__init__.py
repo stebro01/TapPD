@@ -6,7 +6,7 @@ import sys
 import subprocess
 import shutil
 
-from capture.base_capture import BaseCaptureDevice
+from capture.base_capture import MotionSource, BaseCaptureDevice
 
 log = logging.getLogger(__name__)
 
@@ -102,22 +102,51 @@ def diagnose_sensor() -> list[str]:
     return issues
 
 
-def create_capture_device(mode: str = "auto") -> BaseCaptureDevice:
-    """Create a capture device.
+# Canonical source-kind strings, with accepted aliases normalized to them.
+_KIND_ALIASES = {
+    "mediapipe": "webcam",
+    "sim": "mock",
+    "simulation": "mock",
+}
+
+
+def normalize_source_kind(kind: str) -> str:
+    """Map accepted aliases to canonical kind strings (webcam/leap/mock/auto/websocket)."""
+    return _KIND_ALIASES.get(kind, kind)
+
+
+def create_source(kind: str = "auto", camera_index: int = 0,
+                  flip_handedness: bool = False, clip_path: str = "") -> "MotionSource":
+    """Create a motion-tracking source.
 
     Args:
-        mode: "mock", "leap", "websocket", or "auto" (tries leap -> websocket -> mock).
+        kind: "leap", "webcam" (alias "mediapipe"), "mock" (alias "sim"),
+            "websocket", or "auto" (tries leap -> mock).
+        camera_index: webcam index for the "webcam" kind.
+        flip_handedness: swap left/right for "webcam" (webcams mirror).
 
     Returns:
-        BaseCaptureDevice instance.
+        MotionSource instance.
 
     Raises:
-        SensorError: When mode is "auto" and no sensor is found (contains diagnostic info).
+        SensorError: When kind is "auto" and no source is found (contains diagnostics).
     """
+    mode = normalize_source_kind(kind)
+    if mode == "replay":
+        log.info("Replay-Modus angefordert (%s)", clip_path)
+        from capture.replay_source import ReplaySource
+        return ReplaySource(clip_path)
+
     if mode == "mock":
         log.info("Mock-Modus angefordert")
         from capture.mock_capture import MockCaptureDevice
         return MockCaptureDevice()
+
+    if mode == "webcam":
+        log.info("Webcam-Modus angefordert (Kamera %d)", camera_index)
+        from capture.mediapipe_capture import MediaPipeCaptureDevice
+        return MediaPipeCaptureDevice(camera_index=camera_index,
+                                      flip_handedness=flip_handedness)
 
     if mode == "leap":
         log.info("Leap-Modus angefordert")
@@ -149,3 +178,7 @@ def create_capture_device(mode: str = "auto") -> BaseCaptureDevice:
     device._sensor_issues = issues  # attach diagnostics for the UI to display
     log.info("Fallback auf Simulationsmodus (MockCaptureDevice)")
     return device
+
+
+# Backward-compatible alias (pre-consolidation name). Stage 2 removes it.
+create_capture_device = create_source

@@ -476,6 +476,13 @@ hand_detection:
   poll_interval_ms: 100                    # how often to check for hands
   min_confidence: 0.5                      # minimum tracking confidence to accept
   require_stable_frames: 10               # consecutive good frames before accepting
+  # Default prompts assume a Leap Motion sensor on the desk (hands held *over* it).
   message_waiting: "Bitte Haende ueber den Sensor halten..."
   message_detected: "Haende erkannt!"
   message_timeout: "Keine Haende erkannt. Bitte pruefen Sie die Sensorposition."
+
+  # Per-source overrides — selected via capture.source.source_kind(device).
+  webcam:
+    message_waiting: "Bitte Hand vor die Kamera halten..."
+    message_detected: "Hand erkannt!"
+    message_timeout: "Keine Hand erkannt. Bitte halten Sie die Hand vor die Kamera."

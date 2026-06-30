@@ -44,7 +44,13 @@ class FingerData:
 
 
 @dataclass
-class HandFrame:
+class HandPose:
+    """One hand at one timestamp. Canonical name; ``HandFrame`` is an alias.
+
+    Stage-2 note: a multimodal ``TrackingFrame`` envelope (below) carries a list
+    of these plus optional face/gaze, so paradigms can consume any modality
+    through one callback. The per-hand callback is still used today.
+    """
     timestamp_us: int
     hand_type: str  # "left" / "right"
     palm_position: tuple[float, float, float]
@@ -69,7 +75,7 @@ class HandFrame:
         }
 
     @classmethod
-    def from_dict(cls, d: dict) -> "HandFrame":
+    def from_dict(cls, d: dict) -> "HandPose":
         return cls(
             timestamp_us=d["ts"],
             hand_type=d["ht"],
@@ -83,7 +89,57 @@ class HandFrame:
         )
 
 
-class BaseCaptureDevice(ABC):
+# Backward-compatible alias (pre-consolidation name). Stage 2 finishes migration.
+HandFrame = HandPose
+
+
+@dataclass
+class TrackingFrame:
+    """Multimodal envelope for one timestamp: the unit a future multimodal
+    callback delivers. Today sources still push per-hand ``HandPose`` objects;
+    this type is the target that makes hands/face/gaze uniform (see ARCHITECTURE.md).
+    """
+    timestamp_us: int
+    hands: list[HandPose] = field(default_factory=list)
+    face: object | None = None   # Stage-2: FacePose
+    gaze: object | None = None   # Stage-2: GazePose
+
+    @property
+    def left(self) -> HandPose | None:
+        return next((h for h in self.hands if h.hand_type == "left"), None)
+
+    @property
+    def right(self) -> HandPose | None:
+        return next((h for h in self.hands if h.hand_type == "right"), None)
+
+    def to_dict(self) -> dict:
+        return {"ts": self.timestamp_us, "hands": [h.to_dict() for h in self.hands]}
+
+    @classmethod
+    def from_dict(cls, d: dict) -> "TrackingFrame":
+        return cls(timestamp_us=d.get("ts", 0),
+                   hands=[HandPose.from_dict(h) for h in d.get("hands", [])])
+
+
+class MotionSource(ABC):
+    """Abstract motion-tracking source (Leap, webcam, simulation, …).
+
+    Contract:
+      * ``connect()`` establishes the underlying connection (may block on device
+        discovery / sidecar spawn); ``disconnect()`` tears it down and stops any
+        background threads. ``is_connected()`` is a cheap health check.
+      * ``start_recording(callback)`` begins streaming; ``callback`` is invoked
+        **once per hand per frame** on a background thread — consumers must be
+        thread-safe (stash + poll from a QTimer, as the UI does). One frame today
+        carries a single hand; bilateral tests receive two callbacks per tick.
+      * ``stop_recording()`` halts the stream. ``sample_rate`` is the live Hz.
+
+    Naming note: this is the canonical name; ``BaseCaptureDevice`` is a
+    backward-compatible alias. The hand-only callback signature is the Stage-2
+    migration point toward a multimodal ``TrackingFrame`` envelope (see
+    ARCHITECTURE.md).
+    """
+
     @abstractmethod
     def connect(self) -> None: ...
 
@@ -102,3 +158,7 @@ class BaseCaptureDevice(ABC):
     @property
     @abstractmethod
     def sample_rate(self) -> float: ...
+
+
+# Backward-compatible alias (pre-consolidation name). Stage 2 removes it.
+BaseCaptureDevice = MotionSource

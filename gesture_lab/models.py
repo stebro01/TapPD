@@ -50,6 +50,12 @@ class GestureTemplate:
     # Per-finger importance weights (len 5)
     finger_weights: list[float] = field(default_factory=lambda: [1.0] * 5)
 
+    # Per-finger angle tolerance (rad) – diffs within tolerance score 100%
+    finger_tolerances: list[float] = field(default_factory=lambda: [0.0] * 5)
+
+    # Per-parameter enable flags (5 fingers + orientation = 6)
+    param_enabled: list[bool] = field(default_factory=lambda: [True] * 6)
+
     # Expected extension pattern (len 5, True = extended)
     expected_extensions: list[bool] = field(default_factory=lambda: [True] * 5)
 

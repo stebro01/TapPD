@@ -56,6 +56,8 @@ def save_raw_data(test: BaseMotorTest, patient_id: str, features: dict | None = 
         filename = f"{patient_id}_{test.test_type()}_{test.hand}_{ts}.json"
         filepath = SAMPLES_DIR / filename
 
+        from capture.source import source_kind, source_capabilities
+        src = source_kind(test.capture)
         data = {
             "patient_id": patient_id,
             "test_type": test.test_type(),
@@ -63,6 +65,11 @@ def save_raw_data(test: BaseMotorTest, patient_id: str, features: dict | None = 
             "duration_s": test.duration,
             "sample_rate": test.capture.sample_rate,
             "recorded_at": datetime.now().isoformat(),
+            # Capture-source provenance — fidelity differs a lot per source, and
+            # "mock" (simulation) data must never be mistaken for a real patient.
+            "source_kind": src,
+            "source_capabilities": sorted(source_capabilities(src)),
+            "is_simulated": src == "mock",
             "features": features or {},
         }
 
@@ -200,7 +207,16 @@ class ResultsScreen(QWidget):
         self._measurement_id = measurement_id
         self._raw_file_path: Path | None = None
 
-        self.saved_label.setText("In Datenbank gespeichert" if measurement_id else "")
+        from capture.source import source_kind
+        _src = source_kind(test.capture)
+        _src_label = {"leap": "Leap Motion", "webcam": "Webcam", "mock": "⚠ SIMULATION"}.get(_src, _src)
+        _saved = "In Datenbank gespeichert" if measurement_id else ""
+        _prov = f"Quelle: {_src_label}"
+        self.saved_label.setText(f"{_saved}  ·  {_prov}" if _saved else _prov)
+        if _src == "mock":
+            self.saved_label.setStyleSheet("color: #E65100; font-weight: 700;")
+        else:
+            self.saved_label.setStyleSheet("")
 
         if features is None:
             features = test.compute_features()

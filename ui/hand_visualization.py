@@ -46,6 +46,7 @@ class HandVisualizationWidget(QWidget):
         self._frame: HandFrame | None = None
         self._ghost_frame: HandFrame | None = None
         self._ghost_template: GestureTemplate | None = None
+        self._projection: str = "topdown"  # or "frontal" (webcam)
 
         # Per-finger error highlight (finger_id -> color)
         self._finger_highlights: dict[int, QColor] = {}
@@ -79,26 +80,42 @@ class HandVisualizationWidget(QWidget):
 
     def _map_point(self, x_mm: float, y_mm: float, z_mm: float,
                    w: int, h: int) -> QPointF:
-        """Map Leap Motion 3D coordinates to widget 2D coordinates.
+        """Map 3D hand coordinates to widget 2D, auto-centered on the palm.
 
-        Dorsal view (looking down): X → horizontal, Z → vertical (inverted).
-        Y (height above sensor) is ignored for 2D projection.
-
-        Leap coordinate system:
-        - X: left-right (mm), typically -150 to +150
-        - Y: up (mm), typically 100-400
-        - Z: toward user (mm), typically -100 to +100
+        Projection:
+          * "topdown" (Leap): hand held *over* a flat sensor → X-Z plane.
+          * "frontal" (webcam): hand held *facing* the camera → X-Y plane, so a
+            stop-hand renders upright/facing as it actually appears.
         """
-        # Normalize to widget space with margins
-        margin = 40
-        usable_w = w - 2 * margin
-        usable_h = h - 2 * margin
+        rx = x_mm - self._center_x
 
-        # Center on (0, 0) in Leap X/Z space, scale to fit
-        scale = min(usable_w, usable_h) / 300.0  # 300mm range
-        px = w / 2 + x_mm * scale
-        py = h / 2 + z_mm * scale  # Z not inverted – fingers point downward
+        margin = 20
+        usable = min(w - 2 * margin, h - 2 * margin)
+        scale = usable / 180.0  # 180mm range → hand fills widget
+
+        if self._projection == "frontal":
+            rb = y_mm - self._center_y
+            # Mirror X so it reads like a selfie/mirror view (webcams are mirrored),
+            # which is the intuitive orientation when facing the camera.
+            px = w / 2 - rx * scale
+            # Anchor the palm below centre: fingers point up, so this keeps the
+            # fingertips in frame and uses the empty space below the wrist.
+            py = h * 0.62 + rb * scale
+        else:
+            rb = z_mm - self._center_z
+            px = w / 2 + rx * scale
+            py = h / 2 + rb * scale
         return QPointF(px, py)
+
+    def set_projection(self, mode: str) -> None:
+        """'topdown' (Leap, X-Z) or 'frontal' (webcam, X-Y)."""
+        self._projection = mode
+        self.update()
+
+    # Palm center for auto-centering (updated per draw call)
+    _center_x: float = 0.0
+    _center_y: float = 0.0
+    _center_z: float = 0.0
 
     # ── Paint ─────────────────────────────────────────────────────
 
@@ -144,6 +161,11 @@ class HandVisualizationWidget(QWidget):
     def _draw_hand(self, p: QPainter, frame: HandFrame, w: int, h: int,
                    ghost: bool = False) -> None:
         alpha = GHOST_ALPHA if ghost else 255
+
+        # Center on palm position
+        self._center_x = frame.palm_position[0]
+        self._center_y = frame.palm_position[1]
+        self._center_z = frame.palm_position[2]
 
         palm_pt = self._map_point(*frame.palm_position, w, h)
 
@@ -213,13 +235,13 @@ class HandVisualizationWidget(QWidget):
                     jc = QColor(color)
                     p.setPen(Qt.PenStyle.NoPen)
                     p.setBrush(QBrush(jc))
-                    r = 4 if not ghost else 3
+                    r = 3 if not ghost else 2
                     p.drawEllipse(p1, r, r)
 
-            # Draw tip as larger circle
+            # Draw tip circle
             tip_pt = self._map_point(*finger.tip_position, w, h)
-            tip_r = 7 if not ghost else 5
-            p.setPen(QPen(color.darker(120), 1.5))
+            tip_r = 5 if not ghost else 3
+            p.setPen(QPen(color.darker(120), 1.0))
             p.setBrush(QBrush(light if finger.is_extended else color))
             p.drawEllipse(tip_pt, tip_r, tip_r)
 

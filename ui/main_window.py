@@ -20,15 +20,8 @@ log = logging.getLogger(__name__)
 
 from capture.base_capture import BaseCaptureDevice
 from capture.mock_capture import MockCaptureDevice
+from capture.mediapipe_capture import MediaPipeCaptureDevice
 from motor_tests.base_test import BaseMotorTest
-from motor_tests.finger_tapping import FingerTappingTest
-from motor_tests.hand_open_close import HandOpenCloseTest
-from motor_tests.pronation_supination import PronationSupinationTest
-from motor_tests.tremor import PosturalTremorTest
-from motor_tests.rest_tremor import RestTremorTest
-from motor_tests.tower_of_hanoi import TowerOfHanoiTest
-from motor_tests.spatial_srt import SpatialSRTTest
-from motor_tests.trail_making import TrailMakingTest
 from storage.database import (
     Measurement, Patient, Session,
     create_session, get_db, save_measurement, update_raw_data_path,
@@ -42,6 +35,7 @@ from ui.srt_screen import SRTScreen
 from ui.tmt_screen import TMTScreen
 from ui.results_screen import ResultsScreen, save_raw_data
 from ui.gesture_lab_screen import GestureLabScreen
+from ui.tracking_screen import TrackingScreen
 from ui.log_viewer import LogViewerDialog
 from ui import theme
 from ui.theme import SZ
@@ -66,39 +60,18 @@ class _SensorCheckWorker(QThread):
             self.finished.emit(False, str(e))
 
 
-TEST_CLASSES = {
-    "finger_tapping": FingerTappingTest,
-    "hand_open_close": HandOpenCloseTest,
-    "pronation_supination": PronationSupinationTest,
-    "postural_tremor": PosturalTremorTest,
-    "rest_tremor": RestTremorTest,
-    "tower_of_hanoi": TowerOfHanoiTest,
-    "spatial_srt": SpatialSRTTest,
-    "trail_making_a": TrailMakingTest,
-    "trail_making_b": TrailMakingTest,
-}
-
-MOCK_MODES = {
-    "finger_tapping": "tapping",
-    "hand_open_close": "open_close",
-    "pronation_supination": "pronation_supination",
-    "postural_tremor": "postural_tremor",
-    "rest_tremor": "rest_tremor",
-    "tower_of_hanoi": "tower_of_hanoi",
-    "spatial_srt": "spatial_srt",
-    "trail_making_a": "trail_making",
-    "trail_making_b": "trail_making",
-}
 
 
-class TapPDMainWindow(QMainWindow):
+class MotryxMainWindow(QMainWindow):
     def __init__(self, capture_device: BaseCaptureDevice) -> None:
         super().__init__()
         self.capture_device = capture_device
         self.current_patient: Patient | None = None
         self.current_session: Session | None = None
-        self.setWindowTitle("TapPD – Motorik-Analyse")
+        from app_settings import APP_TITLE
+        self.setWindowTitle(APP_TITLE)
         self.setMinimumSize(950, 720)
+        self.resize(1280, 820)
 
         self.stack = QStackedWidget()
         self.setCentralWidget(self.stack)
@@ -128,6 +101,21 @@ class TapPDMainWindow(QMainWindow):
         self._sensor_widget.setToolTip("Klicken um Sensor-Status zu prüfen")
         self._status_bar.addWidget(self._sensor_widget, 1)  # left side, stretch
 
+        # Input-source button (right side) — opens the Tracking screen.
+        # "◉" reads as a sensor/lens, i.e. the input source (Leap or webcam).
+        self._tracking_btn = QPushButton("◉  Eingabequelle")
+        self._tracking_btn.setStyleSheet(
+            "QPushButton { background: transparent; color: #757575; border: 1px solid #E0E0E0; "
+            "border-radius: 4px; padding: 8px 12px; font-size: 12px; min-height: 36px; }"
+            "QPushButton:hover { background: #E3F2FD; color: #1976D2; border-color: #1976D2; }"
+        )
+        self._tracking_btn.setToolTip("Eingabequelle wählen (Leap Motion / Webcam) + Vorschau")
+        self._tracking_btn.clicked.connect(self.show_tracking_screen)
+        self._status_bar.addPermanentWidget(self._tracking_btn)
+        # The "Eingabequelle" footer button belongs to the start page only.
+        self.stack.currentChanged.connect(self._update_tracking_btn_visibility)
+        self._update_tracking_btn_visibility()
+
         # Reset Leap button (right side, before Log)
         self._reset_btn = QPushButton("Reset Leap")
         self._reset_btn.setStyleSheet(
@@ -156,20 +144,35 @@ class TapPDMainWindow(QMainWindow):
         self._check_sensor_on_start()
 
     def _update_status_bar(self) -> None:
-        is_mock = isinstance(self.capture_device, MockCaptureDevice)
-        if is_mock:
+        from capture.source import source_kind
+        kind = source_kind(self.capture_device)
+        # "Reset Leap" only makes sense when the Leap is the active source.
+        self._reset_btn.setVisible(kind == "leap")
+
+        if kind == "mock":
             issues = getattr(self.capture_device, "_sensor_issues", None)
             if issues:
                 self._set_sensor_indicator(False, "Sensor nicht verbunden – Simulationsmodus")
             else:
                 self._set_sensor_indicator(False, "Simulationsmodus (--mock)")
+            return
+
+        connected = self.capture_device.is_connected()
+        if kind == "webcam":
+            name = self._webcam_name(self.capture_device)
+            source = f"Webcam-Tracking ({name})" if name else "Webcam-Tracking"
         else:
-            connected = self.capture_device.is_connected()
-            device_name = type(self.capture_device).__name__
-            if connected:
-                self._set_sensor_indicator(True, f"Leap Motion Controller verbunden")
-            else:
-                self._set_sensor_indicator(False, f"Leap Motion Controller getrennt")
+            source = "Leap Motion Controller"
+        suffix = "verbunden" if connected else "getrennt"
+        self._set_sensor_indicator(connected, f"{source} {suffix}")
+
+    @staticmethod
+    def _webcam_name(device: "MediaPipeCaptureDevice") -> str:
+        """Best-effort friendly name of the active webcam."""
+        for idx, nm in getattr(device, "_cameras", []) or []:
+            if idx == device.camera_index:
+                return nm.strip()
+        return ""
 
     def _set_sensor_indicator(self, connected: bool, label: str) -> None:
         color = "#43A047" if connected else "#E53935"
@@ -181,6 +184,21 @@ class TapPDMainWindow(QMainWindow):
     def _check_sensor_status(self) -> None:
         """Re-check sensor connection and show detailed diagnostics on click."""
         log.info("Sensor-Status wird geprüft...")
+
+        # Webcam tracking: don't run Leap-specific diagnostics/reconnect.
+        if isinstance(self.capture_device, MediaPipeCaptureDevice):
+            connected = self.capture_device.is_connected()
+            name = self._webcam_name(self.capture_device)
+            QMessageBox.information(
+                self, "Tracking-Status",
+                ("Webcam-Tracking aktiv" + (f" ({name})" if name else "") + ".")
+                if connected else
+                "Webcam-Tracking ist nicht verbunden.\n"
+                "Quelle über die Schaltfläche „Tracking“ neu wählen.",
+            )
+            self._update_status_bar()
+            return
+
         is_mock = isinstance(self.capture_device, MockCaptureDevice)
 
         if is_mock:
@@ -199,12 +217,15 @@ class TapPDMainWindow(QMainWindow):
                 )
                 return
             except Exception as e:
-                log.warning("Sensor-Check: Leap nicht verfügbar (%s)", e)
+                # NB: ``e`` is unbound after the except block in Python 3 —
+                # capture the message now for use in the diagnostics dialog.
+                err_msg = str(e)
+                log.warning("Sensor-Check: Leap nicht verfügbar (%s)", err_msg)
 
             # Show detailed diagnostics
             from capture import diagnose_sensor
             issues = diagnose_sensor()
-            self._show_sensor_diagnostics(issues, str(e))
+            self._show_sensor_diagnostics(issues, err_msg)
             self._update_status_bar()
             return
 
@@ -249,8 +270,27 @@ class TapPDMainWindow(QMainWindow):
             self._update_status_bar()
 
     def _reset_leap(self) -> None:
-        """Disconnect and reconnect the Leap Motion Controller."""
-        log.info("Leap Motion Reset angefordert")
+        """Disconnect and reconnect the active capture device."""
+        log.info("Reset angefordert")
+
+        # Webcam tracking: reconnect the sidecar generically, no Leap dialogs.
+        if isinstance(self.capture_device, MediaPipeCaptureDevice):
+            self._set_sensor_indicator(False, "Webcam-Tracking wird neu gestartet...")
+            from PyQt6.QtWidgets import QApplication
+            QApplication.processEvents()
+            try:
+                self.capture_device.disconnect()
+                self.capture_device.connect()
+                self._update_status_bar()
+                QMessageBox.information(self, "Neu gestartet",
+                                        "Webcam-Tracking wurde neu verbunden.")
+            except Exception as e:
+                log.error("Webcam-Reset fehlgeschlagen: %s", e)
+                self._update_status_bar()
+                QMessageBox.warning(self, "Reset fehlgeschlagen",
+                                    f"Webcam-Tracking konnte nicht verbunden werden.\n\n{e}")
+            return
+
         self._set_sensor_indicator(False, "Resette Leap Motion...")
         from PyQt6.QtWidgets import QApplication
         QApplication.processEvents()
@@ -383,6 +423,7 @@ class TapPDMainWindow(QMainWindow):
         self.srt_screen = SRTScreen(self)
         self.tmt_screen = TMTScreen(self)
         self.gesture_lab_screen = GestureLabScreen(self)
+        self.tracking_screen = TrackingScreen(self)
 
         self.stack.addWidget(self.patient_screen)
         self.stack.addWidget(self.patient_detail)
@@ -393,6 +434,10 @@ class TapPDMainWindow(QMainWindow):
         self.stack.addWidget(self.srt_screen)
         self.stack.addWidget(self.tmt_screen)
         self.stack.addWidget(self.gesture_lab_screen)
+        self.stack.addWidget(self.tracking_screen)
+
+    def _update_tracking_btn_visibility(self, *_args) -> None:
+        self._tracking_btn.setVisible(self.stack.currentWidget() is self.patient_screen)
 
     def toggle_ui_mode(self) -> None:
         """Switch between dense and touch UI mode, rebuild all screens."""
@@ -401,7 +446,8 @@ class TapPDMainWindow(QMainWindow):
         new_mode = "dense" if theme.current_ui_mode() == "touch" else "touch"
         theme.set_ui_mode(new_mode)
         QApplication.instance().setStyleSheet(theme.APP_STYLESHEET)
-        QSettings("TapPD", "TapPD").setValue("ui_mode", new_mode)
+        from app_settings import app_settings
+        app_settings().setValue("ui_mode", new_mode)
 
         # Remove old screens
         while self.stack.count():
@@ -446,6 +492,70 @@ class TapPDMainWindow(QMainWindow):
     def show_gesture_lab(self) -> None:
         self.stack.setCurrentWidget(self.gesture_lab_screen)
 
+    def show_tracking_screen(self) -> None:
+        self._return_after_tracking = self.stack.currentWidget()
+        self.tracking_screen.on_enter()
+        self.stack.setCurrentWidget(self.tracking_screen)
+
+    def close_tracking_screen(self) -> None:
+        target = getattr(self, "_return_after_tracking", None) or self.patient_screen
+        self.stack.setCurrentWidget(target)
+
+    def switch_capture_device(self, mode: str, camera_index: int = 0,
+                              flip_handedness: bool = False,
+                              device: BaseCaptureDevice | None = None) -> bool:
+        """Swap the active capture device at runtime.
+
+        ``device`` may be an already-connected device (e.g. the Tracking
+        screen's live preview device) to adopt directly instead of building a
+        fresh one.  Persists the choice to QSettings.  Returns True on success.
+        """
+        from PyQt6.QtCore import QSettings
+        from capture import create_capture_device
+
+        old = self.capture_device
+        if old is not None and old is not device:
+            try:
+                old.stop_recording()
+            except Exception:
+                pass
+            try:
+                old.disconnect()
+            except Exception:
+                pass
+
+        try:
+            if device is not None:
+                new = device
+                # An adopted device must actually be live; reconnect if it died
+                # between preview and adoption.
+                if not new.is_connected():
+                    new.connect()
+            else:
+                new = create_capture_device(mode, camera_index=camera_index,
+                                            flip_handedness=flip_handedness)
+                new.connect()
+        except Exception as e:
+            log.error("Wechsel auf %s fehlgeschlagen: %s", mode, e)
+            QMessageBox.warning(
+                self, "Tracking-Wechsel fehlgeschlagen",
+                f"Konnte nicht auf '{mode}' wechseln:\n{e}\n\nSimulationsmodus aktiv.",
+            )
+            self.capture_device = MockCaptureDevice()
+            self._update_status_bar()
+            return False
+
+        self.capture_device = new
+        self._update_status_bar()
+
+        from app_settings import app_settings
+        s = app_settings()
+        s.setValue("capture_mode", mode)
+        s.setValue("camera_index", camera_index)
+        s.setValue("flip_handedness", flip_handedness)
+        log.info("Capture-Device gewechselt auf %s (%s)", mode, type(new).__name__)
+        return True
+
     def start_new_session(self) -> None:
         """Create a new session and open the test dashboard."""
         if not self.current_patient or not self.current_patient.id:
@@ -459,46 +569,40 @@ class TapPDMainWindow(QMainWindow):
         self.stack.setCurrentWidget(self.dashboard)
 
     def start_test(self, test_key: str, hand: str, duration: int) -> None:
-        """Start a motor test from the dashboard."""
+        """Start a paradigm from the dashboard (everything via the registry)."""
+        from motor_tests import registry
         log.info("Test gestartet: %s (Hand: %s, Dauer: %ds)", test_key, hand, duration)
-        test_cls = TEST_CLASSES[test_key]
+        spec = registry.get(test_key)
 
-        # Set mock mode
+        # Set the simulation scenario when running on the simulation source.
         if isinstance(self.capture_device, MockCaptureDevice):
-            self.capture_device.mode = MOCK_MODES.get(test_key, "idle")
+            self.capture_device.mode = spec.sim_scenario
 
-        # Pass part parameter for TMT
-        if test_key == "trail_making_a":
-            test = test_cls(self.capture_device, duration=float(duration), hand=hand, part="A")
-        elif test_key == "trail_making_b":
-            test = test_cls(self.capture_device, duration=float(duration), hand=hand, part="B")
-        else:
-            test = test_cls(self.capture_device, duration=float(duration), hand=hand)
+        test = spec.load_class()(self.capture_device, duration=float(duration),
+                                 hand=hand, **spec.cls_kwargs)
 
-        if test_key == "tower_of_hanoi":
-            self.hanoi_screen.start_test(test, self.current_patient.patient_code)
-            self.stack.setCurrentWidget(self.hanoi_screen)
-        elif test_key == "spatial_srt":
-            self.srt_screen.start_test(test, self.current_patient.patient_code)
-            self.stack.setCurrentWidget(self.srt_screen)
-        elif test_key in ("trail_making_a", "trail_making_b"):
-            self.tmt_screen.start_test(test, self.current_patient.patient_code)
-            self.stack.setCurrentWidget(self.tmt_screen)
-        else:
-            self.test_screen.start_test(test, self.current_patient.patient_code)
-            self.stack.setCurrentWidget(self.test_screen)
+        screen = {
+            registry.SCREEN_HANOI: self.hanoi_screen,
+            registry.SCREEN_SRT: self.srt_screen,
+            registry.SCREEN_TMT: self.tmt_screen,
+            registry.SCREEN_METRIC: self.test_screen,
+        }[spec.screen]
+        screen.start_test(test, self.current_patient.patient_code)
+        self.stack.setCurrentWidget(screen)
 
     def show_results_silent(self, test: BaseMotorTest, patient_code: str) -> None:
         """Save results + raw data to database without navigating to results screen."""
         features = test.compute_features()
         measurement_id = None
         if self.current_patient and self.current_patient.id:
+            from capture.source import source_kind as _source_kind
             m = Measurement(
                 patient_id=self.current_patient.id,
                 session_id=self.current_session.id if self.current_session else None,
                 test_type=test.test_type(),
                 hand=test.hand,
                 duration_s=test.duration,
+                source_kind=_source_kind(test.capture),
             )
             m.features = features
             conn = get_db()
@@ -530,12 +634,14 @@ class TapPDMainWindow(QMainWindow):
         # Auto-save to database
         measurement_id = None
         if self.current_patient and self.current_patient.id:
+            from capture.source import source_kind as _source_kind
             m = Measurement(
                 patient_id=self.current_patient.id,
                 session_id=self.current_session.id if self.current_session else None,
                 test_type=test.test_type(),
                 hand=test.hand,
                 duration_s=test.duration,
+                source_kind=_source_kind(test.capture),
             )
             m.features = features
             conn = get_db()
@@ -574,6 +680,12 @@ class TapPDMainWindow(QMainWindow):
 
     def closeEvent(self, event) -> None:
         log.info("Anwendung wird geschlossen")
+        # The Tracking screen may own preview/face sidecars (not the active
+        # device) — tear them down so no subprocess is orphaned on hard close.
+        try:
+            self.tracking_screen._teardown_candidate()
+        except Exception:
+            pass
         if self.capture_device.is_connected():
             self.capture_device.disconnect()
         event.accept()

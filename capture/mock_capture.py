@@ -13,14 +13,21 @@ log = logging.getLogger(__name__)
 from capture.base_capture import BaseCaptureDevice, BoneData, FingerData, HandFrame
 
 
-class MockCaptureDevice(BaseCaptureDevice):
-    """Generates simulated HandFrame data in a background thread.
+class SimulationSource(BaseCaptureDevice):
+    """First-class simulation source: synthesises HandFrames in a background
+    thread, with a scripted scenario per paradigm (selected via ``mode``, which
+    the registry sets from each ParadigmSpec.sim_scenario).
 
-    Modes: "tapping", "open_close", "pronation_supination",
-           "postural_tremor", "rest_tremor", "idle"
+    It implements the full MotionSource contract, so it is a drop-in for Leap /
+    webcam — used both as the dev fallback and to drive the automated
+    end-to-end paradigm contract tests.
 
-    Bilateral modes (postural_tremor, rest_tremor) emit frames
-    for BOTH left and right hands each tick.
+    Scenarios: "tapping", "open_close", "pronation_supination",
+           "postural_tremor", "rest_tremor", "tower_of_hanoi", "spatial_srt",
+           "trail_making", "gesture_lab", "idle".
+
+    Bilateral scenarios (postural_tremor, rest_tremor) emit frames for BOTH
+    left and right hands each tick.
     """
 
     SAMPLE_RATE = 120.0
@@ -563,3 +570,7 @@ class MockCaptureDevice(BaseCaptureDevice):
             bones = [BoneData(prev_joint=(0.0, palm_y, 0.0), next_joint=tip)]
             fingers.append(FingerData(finger_id=i, tip_position=tip, is_extended=is_extended, bones=bones))
         return fingers
+
+
+# Backward-compatible alias (pre-consolidation name). Stage 2 removes it.
+MockCaptureDevice = SimulationSource

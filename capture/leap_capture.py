@@ -23,8 +23,8 @@ else:
 from _leapc_cffi import ffi, lib as libleapc  # noqa: E402
 
 
-class LeapCaptureDevice(BaseCaptureDevice):
-    """Capture device using the native LeapC API (Ultraleap Gemini V5)."""
+class LeapSource(BaseCaptureDevice):
+    """Leap Motion source using the native LeapC API (Ultraleap Gemini V5)."""
 
     def __init__(self) -> None:
         self._conn = None
@@ -201,3 +201,7 @@ class LeapCaptureDevice(BaseCaptureDevice):
             grab_strength=hand.grab_strength,
             confidence=hand.confidence,
         )
+
+
+# Backward-compatible alias (pre-consolidation name). Stage 2 finishes migration.
+LeapCaptureDevice = LeapSource

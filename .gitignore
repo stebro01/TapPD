@@ -8,8 +8,11 @@ dist/
 build/
 data/sessions/
 data/samples/
+data/clips/
 data/logs/
 data/*.db
 leapc_cffi/
+mediapipe_sidecar/models/*.task
 .DS_Store
+._*
 .claude/

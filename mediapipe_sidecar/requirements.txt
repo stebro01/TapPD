@@ -1,0 +1,4 @@
+mediapipe>=0.10.21
+opencv-python>=4.9
+cv2-enumerate-cameras>=1.1
+numpy>=1.26

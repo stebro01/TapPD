@@ -56,7 +56,7 @@ class TestObservationBlobContract:
     Every code path that creates or modifies it must produce the same
     4-field JSON structure: hand, duration_s, raw_data_path, features."""
 
-    REQUIRED_KEYS = {"hand", "duration_s", "raw_data_path", "features"}
+    REQUIRED_KEYS = {"hand", "duration_s", "raw_data_path", "source_kind", "features"}
 
     def test_marshal_produces_all_required_keys(self):
         blob = _marshal_observation_blob("right", 10.0, "/path.json", {"mpi": 0.5})
@@ -131,6 +131,7 @@ class TestObservationBlobContract:
                      ELSE json_extract(m.features_json, '$.mpi') END,
                 json_object('hand', m.hand, 'duration_s', m.duration_s,
                     'raw_data_path', COALESCE(m.raw_data_path, ''),
+                    'source_kind', '',
                     'features', CASE WHEN m.features_json IS NULL OR m.features_json = ''
                         THEN json('{}') ELSE json(m.features_json) END),
                 'TAPPD_MIGRATION'

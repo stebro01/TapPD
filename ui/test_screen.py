@@ -19,8 +19,11 @@ from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
 
 from motor_tests.base_test import BaseMotorTest
-from motor_tests.config import get_test_config, get_hand_detection_config
-from motor_tests.recorder import HandDetector, extract_metric
+from motor_tests.config import get_test_config
+from motor_tests.recorder import extract_metric
+from capture.source import profile_for
+from ui.hand_visualization import HandVisualizationWidget
+from ui.pretest_gate import ReadinessGate
 from ui.theme import SZ, PRIMARY, ACCENT, TEXT_SECONDARY
 
 log = logging.getLogger(__name__)
@@ -33,13 +36,11 @@ class TestScreen(QWidget):
         self.test: BaseMotorTest | None = None
         self.patient_id = ""
         self._recording = False
-        self._detecting = False
         self._duration_reached = False
         self._last_frame_t: float = 0.0
         self._live_data_right: list[tuple[float, float]] = []
         self._live_data_left: list[tuple[float, float]] = []
         self._lock = threading.Lock()
-        self._hand_detector: HandDetector | None = None
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(30, 20, 30, 16)
@@ -62,6 +63,12 @@ class TestScreen(QWidget):
         self.instruction_image.setScaledContents(True)
         self.instruction_image.setStyleSheet("border: 1px solid #E0E0E0; border-radius: 10px;")
         top.addWidget(self.instruction_image)
+
+        # Small live hand window, shown during recording (source-agnostic)
+        self.live_hand = HandVisualizationWidget()
+        self.live_hand.setFixedSize(200, 200)
+        self.live_hand.setVisible(False)
+        top.addWidget(self.live_hand)
 
         layout.addLayout(top)
 
@@ -93,18 +100,19 @@ class TestScreen(QWidget):
 
         self._ui_timer = QTimer()
         self._ui_timer.timeout.connect(self._update_ui)
-        self._countdown_timer = QTimer()
-        self._countdown_timer.timeout.connect(self._countdown_tick)
-        self._detect_timer = QTimer()
-        self._detect_timer.timeout.connect(self._detect_tick)
-        self._countdown_value = 3
-        self._detect_start_time = 0.0
+        self._last_record_frame = None
+
+        # Unified, source-agnostic pre-test readiness gate (hand model + 1-2-3).
+        self.readiness_gate = ReadinessGate(self)
+        self.readiness_gate.ready.connect(self._on_gate_ready)
+        self.readiness_gate.cancelled.connect(self._on_gate_cancelled)
 
     def start_test(self, test: BaseMotorTest, patient_id: str) -> None:
         self.test = test
         self.patient_id = patient_id
         self._live_data_right.clear()
         self._live_data_left.clear()
+        self._last_record_frame = None  # don't flash the previous test's last frame
         self.progress_bar.setValue(0)
         self.instructions_label.setText(test.get_instructions())
 
@@ -120,89 +128,24 @@ class TestScreen(QWidget):
         self.canvas.draw()
         self.cancel_button.setEnabled(True)
 
-        # Start hand detection phase (or skip for mock)
-        from capture.mock_capture import MockCaptureDevice
-        if isinstance(test.capture, MockCaptureDevice):
-            # Skip hand detection for mock
-            self._start_countdown()
-        else:
-            self._start_hand_detection()
+        # Unified pre-test gate: hand model + 1-2-3 countdown, source-agnostic.
+        self.status_label.setText("")
+        require_hand = "both" if test.bilateral else test.hand
+        profile = profile_for(test.capture)
+        self.readiness_gate.begin(test.capture, profile, require_hand=require_hand)
 
-    def _start_hand_detection(self) -> None:
-        """Wait for hands to be detected above the sensor."""
-        self._detecting = True
-        self._hand_detector = HandDetector(
-            self.test.capture,
-            bilateral=self.test.bilateral,
-            hand=self.test.hand,
-        )
-
-        cfg = get_hand_detection_config()
-        self.status_label.setProperty("cssClass", "countdown")
+    def _on_gate_ready(self, hand: str) -> None:
+        """Hand detected + countdown finished — begin recording."""
+        self.status_label.setProperty("cssClass", "recording")
         self.status_label.style().unpolish(self.status_label)
         self.status_label.style().polish(self.status_label)
-        self.status_label.setText(cfg.get("message_waiting", "Bitte Hände über den Sensor halten..."))
-        self.progress_bar.setValue(0)
+        self.status_label.setText("Aufnahme läuft...")
+        self.live_hand.setVisible(True)
+        self._start_recording()
 
-        self._detect_start_time = time.perf_counter()
-
-        def detect_callback(frame):
-            if self._hand_detector and not self._hand_detector.is_detected:
-                self._hand_detector.check_frame(frame)
-
-        self.test.capture.start_recording(detect_callback)
-        poll_ms = cfg.get("poll_interval_ms", 100)
-        self._detect_timer.start(poll_ms)
-
-    def _detect_tick(self) -> None:
-        if not self._detecting:
-            return
-
-        cfg = get_hand_detection_config()
-        timeout = cfg.get("timeout_s", 30)
-        elapsed = time.perf_counter() - self._detect_start_time
-
-        if self._hand_detector and self._hand_detector.is_detected:
-            # Hands found
-            self._detecting = False
-            self._detect_timer.stop()
-            self.test.capture.stop_recording()
-            self.status_label.setText(cfg.get("message_detected", "Hände erkannt!"))
-            QTimer.singleShot(600, self._start_countdown)
-            return
-
-        # Update progress
-        if self._hand_detector:
-            progress = self._hand_detector.progress
-            self.progress_bar.setValue(int(progress * 100))
-
-        if elapsed > timeout:
-            # Timeout
-            self._detecting = False
-            self._detect_timer.stop()
-            self.test.capture.stop_recording()
-            self.status_label.setText(cfg.get("message_timeout", "Keine Hände erkannt."))
-            QTimer.singleShot(2000, lambda: self.main_window.show_start())
-
-    def _start_countdown(self) -> None:
-        self._countdown_value = 3
-        self.status_label.setProperty("cssClass", "countdown")
-        self.status_label.style().unpolish(self.status_label)
-        self.status_label.style().polish(self.status_label)
-        self.status_label.setText(str(self._countdown_value))
-        self._countdown_timer.start(1000)
-
-    def _countdown_tick(self) -> None:
-        self._countdown_value -= 1
-        if self._countdown_value > 0:
-            self.status_label.setText(str(self._countdown_value))
-        else:
-            self._countdown_timer.stop()
-            self.status_label.setProperty("cssClass", "recording")
-            self.status_label.style().unpolish(self.status_label)
-            self.status_label.style().polish(self.status_label)
-            self.status_label.setText("Aufnahme läuft...")
-            self._start_recording()
+    def _on_gate_cancelled(self) -> None:
+        """Gate timed out or was cancelled — return to the dashboard."""
+        self.main_window.show_start()
 
     def _start_recording(self) -> None:
         """Start the actual data recording.
@@ -241,6 +184,7 @@ class TestScreen(QWidget):
                     return
 
                 original_on_frame(frame)
+                self._last_record_frame = frame  # for the live hand window
                 t = elapsed_us / 1_000_000
                 self._last_frame_t = t
                 metric = self.test.get_live_metric(frame)
@@ -261,6 +205,10 @@ class TestScreen(QWidget):
     def _update_ui(self) -> None:
         if not self._recording:
             return
+
+        # Live hand window
+        if self._last_record_frame is not None:
+            self.live_hand.update_frame(self._last_record_frame)
 
         # Check if recording duration reached (detected by frame callback)
         if self._duration_reached:
@@ -311,6 +259,7 @@ class TestScreen(QWidget):
             return
         self._recording = False
         self._ui_timer.stop()
+        self.live_hand.setVisible(False)
         self.test.stop()
         self.status_label.setProperty("cssClass", "done")
         self.status_label.style().unpolish(self.status_label)
@@ -329,13 +278,11 @@ class TestScreen(QWidget):
         QTimer.singleShot(600, show)
 
     def _on_cancel(self) -> None:
-        self._countdown_timer.stop()
-        self._detect_timer.stop()
+        self.readiness_gate.cancel()
         self._ui_timer.stop()
-        if self._detecting:
-            self._detecting = False
-            self.test.capture.stop_recording()
+        self.live_hand.setVisible(False)
         if self._recording:
             self._recording = False
+            self.test.capture.stop_recording()
             self.test.stop()
         self.main_window.show_start()
