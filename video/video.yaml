@@ -1,0 +1,42 @@
+# Video-service settings — central config so little is hard-coded.
+# Loaded by video/config.py; missing keys fall back to the defaults there.
+
+import:
+  transcode: true          # normalize imported videos via the sidecar (downscale + re-encode)
+  container: mp4           # stored file extension
+  codec: avc1              # cv2 fourcc: avc1=H.264 (best size via cv2), mp4v=MPEG-4, hvc1=H.265
+                           # NB: cv2 hardcodes H.265 to ~18 Mbps (huge) → H.264 wins here
+  # Square caps = limit the LONGER side, so PORTRAIT phone clips keep enough width
+  # for hand features (1080×1920 → 720×1280, not 405×720).
+  max_width: 1280
+  max_height: 1280
+  target_fps: 30           # cap frame rate (frames are dropped if the source is higher)
+  transcode_timeout_s: 900 # safety timeout for the transcode subprocess
+  fallback_to_copy: true   # if transcode fails/unavailable, copy the original instead
+
+record:                    # Sim "Save" recording (Eingabequelle)
+  default_seconds: 10
+  min_seconds: 1
+  max_seconds: 120
+
+segments:
+  min_length_s: 0.3        # shortest selectable onset→offset range
+  extract: true            # cut each segment into its own compact clip on creation
+  max_width: 1080          # square cap → keep hand detail (portrait stays ~608 wide)
+  max_height: 1080
+  target_fps: 30
+  capture_eyeref: true     # save iris-centre track (<clip>.eyeref.json) before defacing
+                           # → recovers absolute hand position for tremor (privacy-safe)
+
+privacy:
+  deface: blur             # off | blur | mesh — de-identify faces in segment clips
+  blur_strength: 41        # gaussian kernel size for deface=blur (odd)
+
+analysis:
+  default_hand: right      # default hand for unilateral paradigms
+  with_face: false         # run the face landmarker during analysis (display only)
+  done_fallback_margin_s: 4.0   # extra wait before forcing finish if "done" is lost
+  live_plot_window_points: 300  # max points shown in the realtime metric plot
+
+ui:
+  video_extensions: ["*.mp4", "*.mov", "*.m4v", "*.avi", "*.mkv", "*.webm"]

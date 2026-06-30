@@ -51,7 +51,7 @@ def compute_joint_angles(finger: FingerData) -> list[float]:
 
     When full bone data is available (4 bones), computes the angle between
     consecutive bone direction vectors.  When only 1 bone is present
-    (MockCaptureDevice), falls back to a simplified estimate based on
+    (SimulationSource), falls back to a simplified estimate based on
     ``is_extended`` and tip-to-palm geometry.
     """
     if len(finger.bones) >= 2:

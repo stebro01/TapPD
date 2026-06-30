@@ -203,5 +203,3 @@ class LeapSource(BaseCaptureDevice):
         )
 
 
-# Backward-compatible alias (pre-consolidation name). Stage 2 finishes migration.
-LeapCaptureDevice = LeapSource

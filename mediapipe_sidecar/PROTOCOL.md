@@ -10,9 +10,14 @@ modalities (face/eye) can be added without breaking changes.
 | Message | Meaning |
 |---|---|
 | `{"cmd":"list_cameras"}` | enumerate cameras |
+| `{"cmd":"config","preview_fps":15,"preview_max_width":640,"jpeg_quality":70,"hand_confidence":0.5,"tracking_confidence":0.5,"record_fps":30,"record_codec":"avc1"}` | set tunables (sent on connect from `capture/capture.yaml`; all keys optional). Apply before `start` so the landmarker picks up the confidences |
 | `{"cmd":"start","index":0}` | open camera `index` and begin streaming `hand` frames |
-| `{"cmd":"stop"}` | stop streaming, release camera |
+| `{"cmd":"start","video":"/path.mp4"}` | open a video file instead of a camera (default: loop forever) |
+| `{"cmd":"start","video":"/path.mp4","start_s":2.0,"end_s":7.5,"loop":false}` | play only `[start_s,end_s]` once, then emit `done` (VideoLab). `start_s`/`end_s`/`loop` are optional; no range + `loop:true` (default) = legacy looping |
+| `{"cmd":"stop"}` | stop streaming, keep source warm |
 | `{"cmd":"preview","on":true}` | enable/disable the throttled `preview` JPEG stream |
+| `{"cmd":"face","on":true}` | enable/disable the (optional) face landmarker in the preview |
+| `{"cmd":"record","path":"/clip.mp4","seconds":10}` | record live frames to an mp4 for `seconds` |
 | `{"cmd":"quit"}` | stop and exit |
 
 ## Sidecar → main app (events)
@@ -31,6 +36,14 @@ modalities (face/eye) can be added without breaking changes.
 {"type":"preview","jpeg":"<base64>","w":640,"h":360,
  "landmarks":[[[x,y], ...21...]],             // normalized image coords, per hand
  "face":[[x,y], ...478...]}                   // first face, normalized; 468-477 = iris/eyes
+
+// recording finished (reply to record)
+{"type":"recorded","path":"/clip.mp4"}
+
+// a play-once range (loop:false) reached its offset or EOF — authoritative stop.
+// Emitted exactly once; never emitted in looping mode. The capture thread then
+// idles warm so a re-run / new range restarts cheaply.
+{"type":"done"}
 
 // any error (camera open failed, model missing, etc.)
 {"type":"error","msg":"..."}

@@ -112,6 +112,15 @@ class Sidecar:
         self._model_path = model_path
         self._landmarker = None
         self._face_landmarker = None
+        # Tunables (overridable via the {"cmd":"config"} message; defaults below).
+        self._preview_fps = PREVIEW_FPS
+        self._preview_max_w = PREVIEW_MAX_W
+        self._jpeg_quality = PREVIEW_JPEG_QUALITY
+        self._hand_confidence = 0.5
+        self._tracking_confidence = 0.5
+        self._num_hands = 2
+        self._record_fps = 30.0
+        self._record_codec = "mp4v"
         self._capture_thread: threading.Thread | None = None
         self._closing = threading.Event()   # tells the camera thread to exit
         self._quit = threading.Event()      # process should terminate
@@ -120,6 +129,11 @@ class Sidecar:
         self._face_on = True                # run the face landmarker? (optional)
         self._cam_index = 0
         self._video_path = None             # if set, loop this video instead of the camera
+        # Optional bounded play range (VideoLab): play [start_s, end_s] once.
+        self._range_start_s = None
+        self._range_end_s = None
+        self._loop_video = True             # False = play the range once, then emit "done"
+        self._done_sent = False
         # Video recording (writes the live frames to a clip for later replay).
         self._record_path = None
         self._record_until = 0.0
@@ -142,9 +156,9 @@ class Sidecar:
         opts = mp_vision.HandLandmarkerOptions(
             base_options=base,
             running_mode=mp_vision.RunningMode.VIDEO,
-            num_hands=2,
-            min_hand_detection_confidence=0.5,
-            min_tracking_confidence=0.5,
+            num_hands=self._num_hands,
+            min_hand_detection_confidence=self._hand_confidence,
+            min_tracking_confidence=self._tracking_confidence,
         )
         self._landmarker = mp_vision.HandLandmarker.create_from_options(opts)
 
@@ -169,9 +183,16 @@ class Sidecar:
         if cmd == "list_cameras":
             self._send({"type": "cameras", "items": list_cameras()})
         elif cmd == "start":
-            self.start(int(msg.get("index", 0)), msg.get("video") or None)
+            ss = msg.get("start_s")
+            ee = msg.get("end_s")
+            self.start(int(msg.get("index", 0)), msg.get("video") or None,
+                       None if ss is None else float(ss),
+                       None if ee is None else float(ee),
+                       bool(msg.get("loop", True)))
         elif cmd == "stop":
             self.stop()
+        elif cmd == "config":
+            self._apply_config(msg)
         elif cmd == "preview":
             self._preview_on = bool(msg.get("on", False))
         elif cmd == "face":
@@ -186,15 +207,42 @@ class Sidecar:
         else:
             self._send({"type": "error", "msg": f"unknown command: {cmd!r}"})
 
-    def start(self, index: int, video: str | None = None) -> None:
+    def _apply_config(self, msg: dict) -> None:
+        """Apply tunables pushed from the main app (preview/confidence/record)."""
+        self._preview_fps = float(msg.get("preview_fps", self._preview_fps))
+        self._preview_max_w = int(msg.get("preview_max_width", self._preview_max_w))
+        self._jpeg_quality = int(msg.get("jpeg_quality", self._jpeg_quality))
+        self._hand_confidence = float(msg.get("hand_confidence", self._hand_confidence))
+        self._tracking_confidence = float(msg.get("tracking_confidence", self._tracking_confidence))
+        new_n = int(msg.get("num_hands", self._num_hands))
+        if new_n != self._num_hands:
+            self._num_hands = new_n
+            self._landmarker = None   # recreate with the new hand count
+        self._record_fps = float(msg.get("record_fps", self._record_fps))
+        self._record_codec = str(msg.get("record_codec", self._record_codec))
+
+    def start(self, index: int, video: str | None = None,
+              start_s: float | None = None, end_s: float | None = None,
+              loop: bool = True) -> None:
         # Open the source once and keep it warm; (re)start only if it isn't
         # running or the selected source changed (macOS AVFoundation hangs on a
-        # rapid camera close/reopen, so we toggle streaming instead).
+        # rapid camera close/reopen, so we toggle streaming instead). A new play
+        # range or loop flag also forces a restart so the seek/bounds re-apply.
         alive = self._capture_thread is not None and self._capture_thread.is_alive()
-        if not alive or index != self._cam_index or video != self._video_path:
+        changed = (index != self._cam_index or video != self._video_path
+                   or start_s != self._range_start_s or end_s != self._range_end_s
+                   or loop != self._loop_video)
+        # Play-once (loop=False) always restarts so a re-run of the SAME range
+        # re-seeks to the onset; otherwise the thread idles at the offset with
+        # _done_sent set and a re-run would emit nothing.
+        if not alive or changed or not loop:
             self._stop_camera()
             self._cam_index = index
             self._video_path = video
+            self._range_start_s = start_s
+            self._range_end_s = end_s
+            self._loop_video = loop
+            self._done_sent = False
             self._closing.clear()
             self._capture_thread = threading.Thread(target=self._loop, daemon=True)
             self._capture_thread.start()
@@ -219,10 +267,23 @@ class Sidecar:
             return
 
         is_video = bool(self._video_path)
+        start_frame = 0
+        end_frame = None
         if is_video:
             cap = cv2.VideoCapture(self._video_path)
             vid_fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
-            frame_interval = 1.0 / (vid_fps if vid_fps > 0 else 30.0)
+            if vid_fps <= 0:
+                vid_fps = 30.0
+            frame_interval = 1.0 / vid_fps
+            # Optional bounded play range → frame bounds (seconds×fps). The
+            # `hand` timestamp is wall-clock, so the offset is enforced here by
+            # frame count, and "done" (loop=False) is the authoritative stop.
+            if self._range_start_s is not None:
+                start_frame = max(0, round(self._range_start_s * vid_fps))
+            if self._range_end_s is not None:
+                end_frame = round(self._range_end_s * vid_fps)
+            if start_frame:
+                cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
         else:
             backend = cv2.CAP_AVFOUNDATION if sys.platform == "darwin" else cv2.CAP_ANY
             cap = cv2.VideoCapture(self._cam_index, backend)
@@ -235,6 +296,7 @@ class Sidecar:
 
             last_preview = 0.0
             last_frame_t = 0.0
+            frame_idx = start_frame   # local count; CAP_PROP_POS_FRAMES is unreliable
             while not self._closing.is_set():
                 if not self._streaming:
                     if is_video:
@@ -251,13 +313,25 @@ class Sidecar:
                         time.sleep(frame_interval - dt)
                     last_frame_t = time.perf_counter()
 
-                ok, frame_bgr = cap.read()
-                if not ok:
+                # Reached the offset of a bounded range → end of this pass.
+                at_end = end_frame is not None and frame_idx >= end_frame
+                ok, frame_bgr = (False, None) if at_end else cap.read()
+                if at_end or not ok:
+                    if is_video and self._loop_video:
+                        cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame)   # loop the range
+                        frame_idx = start_frame
+                        continue
                     if is_video:
-                        cap.set(cv2.CAP_PROP_POS_FRAMES, 0)   # loop the clip
+                        # Play-once: emit "done" once, then idle warm (keep the file
+                        # open so a re-run / new range restarts cheaply).
+                        if not self._done_sent:
+                            self._done_sent = True
+                            self._send({"type": "done"})
+                        self._streaming = False
                         continue
                     self._send({"type": "error", "msg": "Kamera lieferte kein Bild"})
                     break
+                frame_idx += 1
 
                 self._maybe_record(frame_bgr)   # write live frames to a clip if requested
 
@@ -277,7 +351,7 @@ class Sidecar:
                 self._send({"type": "hand", "ts": int(time.time() * 1_000_000), "hands": hands})
 
                 now = time.perf_counter()
-                if self._preview_on and (now - last_preview) >= (1.0 / PREVIEW_FPS):
+                if self._preview_on and (now - last_preview) >= (1.0 / self._preview_fps):
                     last_preview = now
                     # Face landmarks are display-only for now → compute only for
                     # the (throttled) preview, not the full-rate hand stream.
@@ -302,8 +376,8 @@ class Sidecar:
             return
         if self._writer is None:
             h, w = frame_bgr.shape[:2]
-            fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-            self._writer = cv2.VideoWriter(self._record_path, fourcc, 30.0, (w, h))
+            fourcc = cv2.VideoWriter_fourcc(*self._record_codec)
+            self._writer = cv2.VideoWriter(self._record_path, fourcc, self._record_fps, (w, h))
         if time.perf_counter() < self._record_until:
             self._writer.write(frame_bgr)
         else:
@@ -327,15 +401,14 @@ class Sidecar:
             })
         return hands
 
-    @staticmethod
-    def _preview_payload(frame_bgr, result, face_result=None) -> dict:
+    def _preview_payload(self, frame_bgr, result, face_result=None) -> dict:
         h, w = frame_bgr.shape[:2]
-        if w > PREVIEW_MAX_W:
-            scale = PREVIEW_MAX_W / w
-            frame_bgr = cv2.resize(frame_bgr, (PREVIEW_MAX_W, int(h * scale)))
+        if w > self._preview_max_w:
+            scale = self._preview_max_w / w
+            frame_bgr = cv2.resize(frame_bgr, (self._preview_max_w, int(h * scale)))
             h, w = frame_bgr.shape[:2]
         ok, buf = cv2.imencode(".jpg", frame_bgr,
-                               [int(cv2.IMWRITE_JPEG_QUALITY), PREVIEW_JPEG_QUALITY])
+                               [int(cv2.IMWRITE_JPEG_QUALITY), self._jpeg_quality])
         jpeg = base64.b64encode(buf.tobytes()).decode("ascii") if ok else ""
 
         # Normalized image landmarks per hand for the overlay, + handedness so the

@@ -6,9 +6,9 @@ Conflict-free preview model
 On entering, the currently active capture device is disconnected to free the
 hardware.  The screen then drives a *candidate* device for the selected source:
 
-* Webcam  → a :class:`MediaPipeCaptureDevice` (spawns the Python-3.12 sidecar);
+* Webcam  → a :class:`WebcamSource` (spawns the Python-3.12 sidecar);
   preview shows the live RGB frame with a landmark overlay plus the 2D skeleton.
-* Leap    → a ``LeapCaptureDevice``; preview shows the 2D skeleton only.
+* Leap    → a ``LeapSource``; preview shows the 2D skeleton only.
 
 "Übernehmen" adopts the candidate as the app's active device (via
 ``main_window.switch_capture_device``).  "Zurück" without applying reconnects the
@@ -23,12 +23,11 @@ Landmarker) — see the plan's conceptual section.
 
 from __future__ import annotations
 
-import base64
 import logging
 import time
 
 from PyQt6.QtCore import Qt, QTimer, QPointF
-from PyQt6.QtGui import QImage, QPixmap, QPainter, QColor, QPen
+from PyQt6.QtGui import QPainter, QColor
 from PyQt6.QtWidgets import (
     QButtonGroup,
     QCheckBox,
@@ -45,93 +44,12 @@ from PyQt6.QtWidgets import (
 log = logging.getLogger(__name__)
 
 from capture.base_capture import HandFrame
-from capture.mediapipe_capture import MediaPipeCaptureDevice
+from capture.config import cfg as capture_cfg
+from capture.mediapipe_capture import WebcamSource
 from ui.hand_visualization import HandVisualizationWidget
+from ui.widgets.webcam_preview import WebcamPreview
 
-HAND_STALE_S = 0.3  # clear a hand panel if no frame for this long
-
-# MediaPipe hand-skeleton connections (landmark index pairs) for the overlay.
-_HAND_CONNECTIONS = [
-    (0, 1), (1, 2), (2, 3), (3, 4),            # thumb
-    (0, 5), (5, 6), (6, 7), (7, 8),            # index
-    (5, 9), (9, 10), (10, 11), (11, 12),       # middle
-    (9, 13), (13, 14), (14, 15), (15, 16),     # ring
-    (13, 17), (17, 18), (18, 19), (19, 20),    # pinky
-    (0, 17),                                   # palm base
-]
-
-
-class _WebcamPreview(QWidget):
-    """Shows the latest webcam JPEG with the MediaPipe landmark overlay."""
-
-    def __init__(self, parent: QWidget | None = None) -> None:
-        super().__init__(parent)
-        self.setMinimumSize(360, 300)
-        self._pixmap: QPixmap | None = None
-        self._landmarks: list = []  # list of hands, each a list of [x,y] normalized
-        self._face: list = []       # 478 [x,y] normalized face landmarks (incl. iris)
-
-    def set_frame(self, jpeg_b64: str, landmarks: list, face: list | None = None) -> None:
-        if jpeg_b64:
-            img = QImage.fromData(base64.b64decode(jpeg_b64), "JPG")
-            self._pixmap = QPixmap.fromImage(img) if not img.isNull() else None
-        self._landmarks = landmarks or []
-        self._face = face or []
-        self.update()
-
-    def clear(self) -> None:
-        self._pixmap = None
-        self._landmarks = []
-        self._face = []
-        self.update()
-
-    def paintEvent(self, event) -> None:
-        p = QPainter(self)
-        p.setRenderHint(QPainter.RenderHint.Antialiasing)
-        w, h = self.width(), self.height()
-        p.fillRect(0, 0, w, h, QColor("#212121"))
-
-        if self._pixmap is None:
-            p.setPen(QColor("#9E9E9E"))
-            p.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, "Warte auf Kamerabild …")
-            p.end()
-            return
-
-        # Fit pixmap into the widget, keeping aspect ratio (letterboxed).
-        scaled = self._pixmap.scaled(w, h, Qt.AspectRatioMode.KeepAspectRatio,
-                                     Qt.TransformationMode.SmoothTransformation)
-        ox = (w - scaled.width()) // 2
-        oy = (h - scaled.height()) // 2
-        p.drawPixmap(ox, oy, scaled)
-
-        sw, sh = scaled.width(), scaled.height()
-
-        def pt(lm):
-            return QPointF(ox + lm[0] * sw, oy + lm[1] * sh)
-
-        for hand in self._landmarks:
-            if not hand:
-                continue
-            p.setPen(QPen(QColor("#00E5FF"), 2))
-            for a, b in _HAND_CONNECTIONS:
-                if a < len(hand) and b < len(hand):
-                    p.drawLine(pt(hand[a]), pt(hand[b]))
-            p.setPen(Qt.PenStyle.NoPen)
-            p.setBrush(QColor("#FFEB3B"))
-            for lm in hand:
-                p.drawEllipse(pt(lm), 3, 3)
-
-        # Face mesh (478 points; indices 468-477 are the iris/eyes).
-        if self._face:
-            p.setPen(Qt.PenStyle.NoPen)
-            p.setBrush(QColor(120, 230, 140, 150))
-            for lm in self._face:
-                p.drawEllipse(pt(lm), 1.0, 1.0)
-            p.setBrush(QColor("#FF4081"))  # iris / eyes
-            for i in range(468, min(478, len(self._face))):
-                p.drawEllipse(pt(self._face[i]), 2.5, 2.5)
-        p.end()
-
+HAND_STALE_S = float(capture_cfg("preview", "hand_stale_s", default=0.3))
 
 
 class _FaceView(QWidget):
@@ -266,9 +184,11 @@ class TrackingScreen(QWidget):
             "als Sim-Default (überschreibt den bestehenden Clip). Nur im Webcam-Modus.")
         self._record_btn.clicked.connect(self._on_record_clicked)
         sim_row.addWidget(self._record_btn)
+        from video.config import cfg as video_cfg
         self._dur_spin = QSpinBox()
-        self._dur_spin.setRange(1, 120)
-        self._dur_spin.setValue(10)
+        self._dur_spin.setRange(int(video_cfg("record", "min_seconds", default=1)),
+                                int(video_cfg("record", "max_seconds", default=120)))
+        self._dur_spin.setValue(int(video_cfg("record", "default_seconds", default=10)))
         self._dur_spin.setSuffix(" s")
         self._dur_spin.setFixedSize(64, 18)         # narrow (~1/3) and low
         # The global theme forces min-height/padding on inputs → reset it locally.
@@ -328,7 +248,7 @@ class TrackingScreen(QWidget):
         cam_lbl = QLabel("Kamera (Gesicht + Hände)")
         cam_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         cam_lbl.setStyleSheet(hdr)
-        self._webcam_preview = _WebcamPreview()
+        self._webcam_preview = WebcamPreview()
         cam_col.addWidget(cam_lbl)
         cam_col.addWidget(self._webcam_preview, 1)
         preview.addWidget(self._cam_panel, 1)
@@ -450,9 +370,9 @@ class TrackingScreen(QWidget):
     # ── record (re)the Sim-default clip from the live webcam ──────
     def _live_webcam(self):
         """A live (non-replay) webcam to record from, or None."""
-        if isinstance(self._candidate, MediaPipeCaptureDevice) and not self._candidate.replay_path:
+        if isinstance(self._candidate, WebcamSource) and not self._candidate.replay_path:
             return self._candidate
-        if isinstance(self._face_candidate, MediaPipeCaptureDevice):
+        if isinstance(self._face_candidate, WebcamSource):
             return self._face_candidate
         return None
 
@@ -462,21 +382,22 @@ class TrackingScreen(QWidget):
         live = self._live_webcam()
         if live is None:
             # Sim/elsewhere: spin up a temporary live webcam just for recording.
-            ok, issues = MediaPipeCaptureDevice.sidecar_ready()
+            ok, issues = WebcamSource.sidecar_ready()
             if not ok:
                 self._set_status(issues[0], error=True)
                 return
             try:
-                live = MediaPipeCaptureDevice(camera_index=self._selected_camera_index())
+                live = WebcamSource(camera_index=self._selected_camera_index())
                 live.connect()
                 live.start_recording(lambda _f: None)
                 self._record_webcam = live
             except Exception as e:
                 self._set_status(f"Keine Webcam zum Aufnehmen: {e}", error=True)
                 return
-        from capture.clip import CLIPS_DIR
+        from video.clip import CLIPS_DIR
         CLIPS_DIR.mkdir(parents=True, exist_ok=True)
         secs = float(self._dur_spin.value())
+        self._record_seconds = secs
         self._pending_clip = str(CLIPS_DIR / "_pending.mp4")
         live.set_recorded_callback(lambda p: setattr(self, "_recorded_path", p))
         live.record_clip(self._pending_clip, seconds=secs)
@@ -488,7 +409,8 @@ class TrackingScreen(QWidget):
     def _finish_recording(self, tmp_path: str) -> None:
         import os
         from PyQt6.QtWidgets import QMessageBox
-        from capture.clip import DEFAULT_CLIP
+        from video.clip import DEFAULT_CLIP
+        from video.recorder import VideoRecorder
         self._recording_clip = False
         # Tear down the temporary record-only webcam if we started one.
         if self._record_webcam is not None:
@@ -500,10 +422,11 @@ class TrackingScreen(QWidget):
         try:
             ans = QMessageBox.question(
                 self, "Aufnahme speichern?",
-                "10-Sekunden-Aufnahme als Sim-Default speichern?\n"
+                "Aufnahme als Sim-Default speichern?\n"
                 "Der bestehende Sim-Clip wird überschrieben.")
             if ans == QMessageBox.StandardButton.Yes:
-                os.replace(tmp_path, str(DEFAULT_CLIP))
+                VideoRecorder.finalize(tmp_path, str(DEFAULT_CLIP),
+                                       seconds=getattr(self, "_record_seconds", 0.0))
                 self._set_status("Sim-Default aktualisiert.")
                 if self._current_source() == self.SOURCE_SIM:
                     self._rebuild_candidate()  # loop the new default
@@ -516,13 +439,13 @@ class TrackingScreen(QWidget):
 
     def _on_flip_changed(self, _state: int) -> None:
         for dev in (self._candidate, self._face_candidate):
-            if isinstance(dev, MediaPipeCaptureDevice):
+            if isinstance(dev, WebcamSource):
                 dev.flip_handedness = self._flip_cb.isChecked()
 
     def _on_face_toggled(self, _state: int) -> None:
         on = self._face_cb.isChecked()
         for dev in (self._candidate, self._face_candidate):
-            if isinstance(dev, MediaPipeCaptureDevice):
+            if isinstance(dev, WebcamSource):
                 dev.enable_face(on)
         if not on:
             self._face_view.clear()
@@ -572,13 +495,13 @@ class TrackingScreen(QWidget):
             self._set_status(f"Vorschau nicht möglich: {e}", error=True)
 
     def _start_webcam_candidate(self) -> None:
-        ok, issues = MediaPipeCaptureDevice.sidecar_ready()
+        ok, issues = WebcamSource.sidecar_ready()
         if not ok:
             self._set_status(issues[0], error=True)
             return
 
         # Build + connect so we can enumerate cameras, then (re)pick the index.
-        dev = MediaPipeCaptureDevice(flip_handedness=self._flip_cb.isChecked())
+        dev = WebcamSource(flip_handedness=self._flip_cb.isChecked())
         dev.connect()
         self._candidate = dev
         self._owns_candidate = True
@@ -597,11 +520,11 @@ class TrackingScreen(QWidget):
 
     def _start_sim_candidate(self) -> None:
         """Loop the default clip through MediaPipe (deterministic Sim source)."""
-        ok, issues = MediaPipeCaptureDevice.sidecar_ready()
+        ok, issues = WebcamSource.sidecar_ready()
         if not ok:
             self._set_status(issues[0], error=True)
             return
-        from capture.clip import default_clip_path
+        from video.clip import default_clip_path
         clip = default_clip_path()
         if not clip:
             self._cam_panel.setVisible(False)
@@ -609,7 +532,7 @@ class TrackingScreen(QWidget):
             self._set_status("Kein Sim-Clip – erst über „● 10 s“ aufnehmen.", error=True)
             return
 
-        dev = MediaPipeCaptureDevice(flip_handedness=self._flip_cb.isChecked(),
+        dev = WebcamSource(flip_handedness=self._flip_cb.isChecked(),
                                      replay_path=clip)
         dev.connect()
         self._candidate = dev
@@ -626,8 +549,8 @@ class TrackingScreen(QWidget):
         # Webcam (camera + face) first — independent of Leap, so it shows even
         # while Leap is connecting.
         self._start_face_webcam()
-        from capture.leap_capture import LeapCaptureDevice
-        dev = LeapCaptureDevice()
+        from capture.leap_capture import LeapSource
+        dev = LeapSource()
         dev.connect()
         self._candidate = dev
         self._owns_candidate = True
@@ -638,13 +561,13 @@ class TrackingScreen(QWidget):
         """Start a webcam purely for the camera image + face mesh (its hand
         detection feeds the camera overlay + eye reference, but the hand skeletons
         come from the primary source)."""
-        ok, _ = MediaPipeCaptureDevice.sidecar_ready()
+        ok, _ = WebcamSource.sidecar_ready()
         if not ok:
             self._cam_panel.setVisible(False)
             self._face_panel.setVisible(False)
             return
         try:
-            dev = MediaPipeCaptureDevice(flip_handedness=self._flip_cb.isChecked())
+            dev = WebcamSource(flip_handedness=self._flip_cb.isChecked())
             dev.connect()
         except Exception as e:
             log.warning("Webcam für Gesicht nicht verfügbar: %s", e)
@@ -661,7 +584,7 @@ class TrackingScreen(QWidget):
         self._cam_panel.setVisible(True)
         self._face_panel.setVisible(True)
 
-    def _populate_cameras(self, dev: MediaPipeCaptureDevice) -> None:
+    def _populate_cameras(self, dev: WebcamSource) -> None:
         cams = dev.list_cameras()
         self._cam_combo.blockSignals(True)
         self._cam_combo.clear()
@@ -678,7 +601,7 @@ class TrackingScreen(QWidget):
             return
         try:
             dev.stop_recording()
-            if isinstance(dev, MediaPipeCaptureDevice):
+            if isinstance(dev, WebcamSource):
                 dev.set_preview_callback(None)
             if owns:
                 dev.disconnect()
@@ -807,7 +730,7 @@ class TrackingScreen(QWidget):
         adopt = candidate if (candidate is not None and self._owns_candidate) else None
         if adopt is not None:
             adopt.stop_recording()
-            if isinstance(adopt, MediaPipeCaptureDevice):
+            if isinstance(adopt, WebcamSource):
                 adopt.set_preview_callback(None)
                 # Persisted camera/flip must match the device actually adopted.
                 adopt.camera_index = idx

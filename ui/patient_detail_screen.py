@@ -112,14 +112,27 @@ class PatientDetailScreen(QWidget):
 
         layout.addWidget(self.info_card)
 
-        # ── New session button ──
+        # ── New session + VideoLab buttons ──
+        btn_row = QHBoxLayout()
+        btn_row.setSpacing(12)
+        btn_row.addStretch()
         self.new_btn = QPushButton("+ Neue Session")
         self.new_btn.setProperty("cssClass", "accent")
         self.new_btn.setFixedHeight(SZ.BTN_H)
         self.new_btn.setFixedWidth(260)
         self.new_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
         self.new_btn.clicked.connect(self._on_new_session)
-        layout.addWidget(self.new_btn, alignment=Qt.AlignmentFlag.AlignCenter)
+        btn_row.addWidget(self.new_btn)
+        self.video_lab_btn = QPushButton("🎬 VideoLab")
+        self.video_lab_btn.setProperty("cssClass", "primary")
+        self.video_lab_btn.setFixedHeight(SZ.BTN_H)
+        self.video_lab_btn.setFixedWidth(200)
+        self.video_lab_btn.setToolTip("Handy-Video hochladen, Bereich wählen und analysieren")
+        self.video_lab_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        self.video_lab_btn.clicked.connect(self._on_video_lab)
+        btn_row.addWidget(self.video_lab_btn)
+        btn_row.addStretch()
+        layout.addLayout(btn_row)
 
         layout.addSpacing(4)
 
@@ -493,6 +506,11 @@ class PatientDetailScreen(QWidget):
     def _on_new_session(self) -> None:
         if self._patient:
             self.main_window.start_new_session()
+
+    def _on_video_lab(self) -> None:
+        if self._patient:
+            self.main_window.current_patient = self._patient
+            self.main_window.show_video_lab()
 
     def _on_delete_patient(self) -> None:
         """Delete the entire patient with all sessions and measurements."""

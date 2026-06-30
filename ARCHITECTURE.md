@@ -1,12 +1,12 @@
 # Architecture
 
-> Working title **TapPD**; the forward-looking platform name is **Motryx**
-> (motor + metrics) — a multimodal movement-assessment lab (hand, and later
-> face & oculomotor). The rename is Stage 2 (see roadmap).
+> **Motryx** (motor + metrics) — a multimodal movement-assessment lab (hand
+> tracking now; face & oculomotor on the roadmap). Formerly *TapPD* (still the
+> DB concept namespace; see Storage).
 
 This document is the single written description of how the system is layered, the
-standard API each layer agrees on, the naming scheme, and the staged plan toward
-multimodal support.
+standard API each layer agrees on, the services, the naming scheme, the
+configuration story, and the staged plan toward multimodal support.
 
 ---
 
@@ -15,20 +15,34 @@ multimodal support.
 ```
 ┌──────────────┐   frames    ┌───────────────┐  features  ┌──────────────┐
 │   SOURCE     │ ──────────► │   PARADIGM    │ ─────────► │   STORAGE    │
-│ (input/HW)   │  callback   │ (assessment)  │            │ (star schema)│
-└──────────────┘             └───────────────┘            └──────────────┘
-       ▲                            ▲
-       │ SourceProfile              │ ReadinessGate (pre-test, source-agnostic)
-       │ (caps, readiness, prompts) │
+│ capture/     │  callback   │ motor_tests/  │            │ storage/ +   │
+└──────────────┘             └───────────────┘            │ video/store  │
+       ▲   ▲                    ▲        ▲                 └──────────────┘
+       │   │ SourceProfile      │        │ ParadigmRunner (shared frame-pump)
+       │   │ (caps, readiness)  │ Readiness│
+       │   │                    │  Gate    │
+   ┌───┴───────────┐            │          │
+   │ VIDEO service │────────────┘   UI: ui/ (TestScreen, VideoLab, Eingabequelle)
+   │ video/        │   clips/playback        shared widgets: WebcamPreview,
+   └───────────────┘                          LiveMetricPlot
 ```
 
-- **Source** — produces motion data. One abstraction, several implementations
-  (Leap, webcam, simulation). Hot-swappable at runtime via the Tracking screen.
-- **Paradigm** — a clinical/cognitive task that consumes frames and computes
-  features. Declared once in the **registry**.
-- **Storage** — i2b2-style star schema; a paradigm result is an `OBSERVATION_FACT`.
+- **Source** (`capture/`) — produces motion data (HandFrames). One abstraction,
+  several implementations (Leap, webcam-via-sidecar, simulation, replay).
+  Hot-swappable at runtime via the Eingabequelle screen.
+- **Video service** (`video/`) — owns video *media*: record, import, transcode,
+  per-segment extraction (+ defacing/eye-ref), clip storage+metadata, and
+  playback orchestration. Used by **both** the Sim source (Eingabequelle) and
+  **VideoLab**. Sits beside `capture/` and feeds clip paths to a `WebcamSource`
+  for playback (`ui → video → capture`).
+- **Paradigm** (`motor_tests/`) — a clinical/cognitive task that consumes frames
+  and computes features. Declared once in the **registry**. Driven by the shared
+  **`ParadigmRunner`** (frame intake + gating + live-metric + buffers), used by
+  both the live `TestScreen` and VideoLab's `AnalysisRunner`.
+- **Storage** — i2b2-style star schema (live results) + JSON `VideoSession`
+  store (VideoLab; write-isolated, export to the DB is a roadmap item).
 - **SourceProfile** — per-source capabilities, readiness policy and prompts; the
-  seam where source-specific frame re-mapping plugs in.
+  seam where source-specific frame re-mapping plugs in (`adapt_frame`).
 
 ---
 
@@ -66,8 +80,63 @@ start()/stop()                         # records via capture.start_recording(_on
 `PARADIGMS: list[ParadigmSpec]` declares each paradigm once: `key, label, updrs,
 description, category (MOTOR|COGNITIVE), bilateral, sim_scenario, screen,
 cls_path, cls_kwargs`. The dashboard, the main-window router, storage
-categorisation and the capability gating **all derive from it** (previously these
-were three drifting lists).
+categorisation and the capability gating **all derive from it**.
+
+### ParadigmRunner — `motor_tests/runner.py` (shared frame-pump)
+`begin()` resets the paradigm + live buffers; `feed(frame)` gates (optional
+SETTLE + duration for live; none when `sidecar_bounded`), calls `test._on_frame`,
+computes the live metric, and stashes per-hand `live`/`last_frame`. Both
+`ui/test_screen.py` and `ui/analysis_runner.py` (VideoLab) use it — no duplicated
+callback glue.
+
+---
+
+## 2b. Video service — `video/` + `mediapipe_sidecar/`
+
+The Sim source (record a clip → loop it through MediaPipe) and VideoLab (import a
+video → run a bounded range through MediaPipe) are the **same concept**, so the
+video media responsibilities live in one place:
+
+- `video/clip.py` — `VideoClip` (mp4 + sidecar `.meta.json`: duration/fps/res/
+  provenance/`deidentified`) and `VideoLibrary` (the Sim/global `data/clips/`).
+- `video/recorder.py` / `video/importer.py` — produce a `VideoClip` from a live
+  recording (sidecar `record`) or an imported file (sidecar transcode). Both end
+  at the same metadata.
+- `video/extractor.py` (+ `mediapipe_sidecar/extract.py`) — cut a segment
+  `[start,end]` → a compact clip, optionally **defacing** the face
+  (`privacy.deface: blur|mesh|off`) and saving a privacy-safe **eye-reference
+  track** (`<clip>.eyeref.json`: iris centres only) so tremor's absolute-position
+  recovery survives defacing.
+- `video/transcode.py` (+ `mediapipe_sidecar/transcode.py`) — normalize imports
+  (H.264, square-capped resolution so portrait clips keep width, fps cap,
+  rotation-aware).
+- `video/store.py` — `VideoSession` (per-patient segments + results), JSON.
+- **Playback** is `WebcamSource.play_range(video, start, end)` / `replay_path`
+  loop → the sidecar (`start` with `video`/`start_s`/`end_s`/`loop`, emits `done`
+  for a play-once range).
+
+The main app (Py3.14) has **no cv2**; all cv2/MediaPipe work runs in the Py3.12
+sidecar venv (looping playback in-process; transcode/extract as one-shot
+subprocesses). Video *display/scrubbing* uses Qt Multimedia (`QMediaPlayer`).
+
+---
+
+## 2c. Configuration (YAML-first)
+
+Per-domain YAML, loaded via the shared `config_loader.py` (defaults deep-merged
+with the file):
+
+- `capture/capture.yaml` (`capture/config.py`) — sidecar tunables (preview fps /
+  jpeg quality / detection confidences / record fps+codec), readiness thresholds,
+  preview staleness. The main app reads these and **pushes them to the sidecar
+  over the socket** (`{"cmd":"config",...}` on connect; the sidecar venv has no
+  pyyaml).
+- `video/video.yaml` (`video/config.py`) — import format/resolution/fps, segment
+  extraction + privacy (deface, eye-ref), Sim record durations, analysis knobs.
+- `motor_tests/test_config.yaml` — per-paradigm signal-processing + features.
+
+Remaining hardcoded (roadmap): `ui/theme.py` colours/sizes; `mock_capture.py`
+simulation parameters.
 
 ---
 
@@ -75,19 +144,23 @@ were three drifting lists).
 
 | Concept | Canonical name | Notes / deprecated aliases |
 |---|---|---|
-| Input/hardware abstraction | **Source** (`MotionSource`) | alias `BaseCaptureDevice` (Stage-2 removal) |
-| Source factory | `create_source(kind)` | alias `create_capture_device` |
-| Source kinds | `"leap"`, `"webcam"`, `"mock"` | `"mediapipe"`→`webcam`, `"sim"`→`mock` normalized |
-| Simulation source | `SimulationSource` | alias `MockCaptureDevice` |
+| Input/hardware abstraction | **Source** (`MotionSource`) | alias `BaseCaptureDevice` still kept |
+| Source factory | `create_source(kind)` | — (`create_capture_device` removed) |
+| Source kinds | `"leap"`, `"webcam"`, `"mock"` | `"mediapipe"`→`webcam`, `"sim"`→`mock`; `"replay"` (landmark json) |
+| Leap / webcam / sim sources | `LeapSource` / `WebcamSource` / `SimulationSource` | concrete aliases (`*CaptureDevice`) **removed** |
 | Per-source metadata | `SourceProfile` | capabilities/readiness/prompts |
-| Data model (now) | `HandFrame` / `FingerData` / `BoneData` | — |
+| Data model (now) | `HandFrame` / `FingerData` / `BoneData` | `HandFrame` aliases `HandPose` |
 | Data model (Stage 2) | `HandPose` + `TrackingFrame` envelope | `TrackingFrame(hands[], face?, gaze?)` |
-| Task | **Paradigm** (`ParadigmSpec`, registry) | class still `BaseMotorTest` until Stage 2 |
+| Task | **Paradigm** (`ParadigmSpec`, registry) | class still `BaseMotorTest` |
+| Frame-pump | `ParadigmRunner` | shared by TestScreen + VideoLab |
+| Preview widget | `WebcamPreview` (`ui/widgets/`) | was a private class in tracking_screen |
+| Live plot | `LiveMetricPlot` (`ui/widgets/`) | shared by TestScreen + VideoLab |
 | Category | `Category.MOTOR` / `Category.COGNITIVE` | value = DB `CATEGORY_CHAR` |
 | Pre-test gate | `ReadinessGate` | source-agnostic hand model + 1-2-3 |
 
-UI keeps the user-facing word **"Tracking"** (Tracking screen / button); internally
-the layer is **Source**.
+The input-source screen is user-labelled **"Eingabequelle"**; internally the
+layer is **Source**. Only `BaseCaptureDevice` and `HandFrame` aliases remain
+(tied to the deferred `TrackingFrame` callback migration).
 
 ---
 
@@ -130,22 +203,36 @@ iris + 52 blendshapes) is additive. To add a modality:
 
 ## 6. Staged roadmap
 
-**Stage 1 (done)** — contracts + canonical names (aliased), single paradigm
-registry, first-class `SimulationSource`, end-to-end paradigm contract tests,
-this document.
+**Stage 1 (done)** — contracts + canonical names, single paradigm registry,
+first-class `SimulationSource`, end-to-end paradigm contract tests, this document.
 
-**Stage 2 — in progress**
-- ✅ Data-model: `HandPose` + `TrackingFrame` envelope introduced (additive;
-  `HandFrame` aliases `HandPose`). The callback is still per-`HandPose` — the
-  full `Callable[[TrackingFrame], None]` migration across the ~34 consumers is
-  the remaining step.
-- ✅ Concrete sources renamed: `LeapSource`/`WebcamSource`/`SimulationSource`
-  (old names kept as aliases).
-- ✅ Capture-source **provenance** saved with every measurement (raw JSON +
-  `OBSERVATION_BLOB.source_kind`) and shown in results (⚠ flags simulation).
-- ✅ **App rename → Motryx**: title, `QSettings` org/app via `app_settings.py`
-  with a one-time TapPD→Motryx migration shim.
-- ◻️ Remaining: migrate consumers to the `TrackingFrame` callback; drop the
-  backward-compat aliases; rename package `motor_tests/ → paradigms/`; add
-  `OCULAR`/`FACIAL` categories; multimodal sidecar `FaceLandmarker` +
-  `FacePose`/`GazePose` + oculomotor paradigms; assets/icon + README rename.
+**Stage 2 (done)** — `HandPose`/`TrackingFrame` introduced; concrete sources
+renamed (`LeapSource`/`WebcamSource`/`SimulationSource`); provenance
+(`source_kind`) saved per measurement; **app renamed → Motryx** (settings
+migration shim).
+
+**VideoLab + service consolidation (done)**
+- **VideoLab** — import a phone video, select onset/offset segments, run a
+  paradigm on each segment (overlay + realtime + result); per-segment compact
+  clips with **defacing** + a privacy-safe **eye-reference track**; Sim source
+  (record→loop) on the Eingabequelle screen.
+- **Video service** (`video/`) unifies record/import/transcode/extract/store/
+  playback for Sim + VideoLab.
+- **Shared UI**: `WebcamPreview`, `LiveMetricPlot`, `ParadigmRunner` — the
+  TestScreen↔VideoLab duplication (frame-pump, plot, overlay) is gone.
+- **Config**: per-domain YAML (`capture.yaml` / `video.yaml`) + shared loader;
+  sidecar tunables pushed over the socket. Readiness/staleness/record/codec/
+  resolution are all config.
+- **Aliases**: concrete `*CaptureDevice` + `create_capture_device` removed
+  (`BaseCaptureDevice`/`HandFrame` remain, tied to the callback migration).
+
+**Remaining / future**
+- Migrate consumers to the `Callable[[TrackingFrame], None]` callback; then drop
+  `BaseCaptureDevice`/`HandFrame` aliases.
+- **Unlock tremor on video**: implement the eye-referenced absolute position in
+  `SourceProfile.adapt_frame` (webcam) using the stored eye-reference track →
+  add `CAP_ABS_POSITION` to webcam → gate auto-unlocks tremor.
+- **Export** VideoLab segment results into patient Sessions (`Measurement`s).
+- Rename package `motor_tests/ → paradigms/`; add `OCULAR`/`FACIAL` categories +
+  multimodal sidecar `FaceLandmarker` → `FacePose`/`GazePose` paradigms.
+- YAML-ify `ui/theme.py` + `mock_capture.py` simulation params.

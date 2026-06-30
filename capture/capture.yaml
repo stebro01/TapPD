@@ -1,0 +1,20 @@
+# Capture / MediaPipe sidecar settings.
+# The main app reads these and pushes them to the sidecar over the socket on
+# connect ({"cmd":"config",...}) — the sidecar venv has no pyyaml.
+
+sidecar:
+  preview_fps: 15          # throttle for the (heavy) JPEG preview stream
+  preview_max_width: 640   # downscale preview frames to at most this width
+  jpeg_quality: 70         # preview JPEG quality (0–100)
+  hand_confidence: 0.5     # MediaPipe min hand-detection confidence
+  tracking_confidence: 0.5 # MediaPipe min hand-tracking confidence
+  num_hands: 2             # live default (VideoLab uses 1 for unilateral paradigms)
+  record_fps: 30           # fps for live-recorded clips (Sim default clip)
+  record_codec: avc1       # cv2 fourcc for live recording (H.264)
+
+readiness:
+  ready_y_mm: 120.0        # Leap: hand counts as "in position" above this height
+  min_confidence: 0.5      # webcam/mock: min hand confidence to be "ready"
+
+preview:
+  hand_stale_s: 0.3        # clear a hand panel if no frame for this long

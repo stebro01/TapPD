@@ -77,6 +77,59 @@ def test_webcamsource_loops_video_through_mediapipe(fake_video):
     assert previews["face"] == previews["n"], "face path not wired into every preview"
 
 
+def test_segment_extract_and_deface(fake_video, tmp_path):
+    """Extract a range → compact segment clip; defacing flag set (deface=blur)."""
+    from video.extractor import VideoSegmentExtractor, extract_available
+    assert extract_available()
+    dest = str(tmp_path / "seg.mp4")
+    clip = VideoSegmentExtractor().extract(fake_video, 0.5, 1.5, dest)  # 1 s range
+    assert clip is not None and os.path.exists(dest)
+    assert clip.origin == "segment"
+    assert clip.width <= 960 and clip.height <= 540   # segment max from config
+    assert clip.deidentified is True                  # deface=blur (config default)
+    assert clip.duration_s > 0
+
+
+def test_transcode_normalizes_resolution(fake_video, tmp_path):
+    """Import normalization downscales + re-encodes to mp4 (via the sidecar venv)."""
+    from video import transcode as tc
+    assert tc.transcode_available()
+    dest = str(tmp_path / "norm.mp4")
+    out = tc.transcode_video(fake_video, dest)   # fake clip is 320x240
+    assert out and out["ok"]
+    assert os.path.getsize(dest) > 0
+    # within the configured cap (default 1280x720); 320x240 stays as-is
+    assert out["w"] <= 1280 and out["h"] <= 720
+    assert out["frames"] > 0
+
+
+def test_play_range_once_emits_done(fake_video):
+    """VideoLab: play a bounded range once → frames stream, exactly one `done`,
+    no looping; a warm re-run of a different range works too."""
+    dev = WebcamSource()
+    done = {"n": 0}
+    msgs = {"hand": 0}
+    dev.set_done_callback(lambda: done.__setitem__("n", done["n"] + 1))
+    orig = dev._dispatch
+    dev._dispatch = lambda m: (msgs.__setitem__(
+        "hand", msgs["hand"] + (1 if m.get("type") == "hand" else 0)), orig(m))
+    dev.connect()
+    dev.play_range(fake_video, 0.5, 1.5)   # fake clip is 2 s → range is 1 s
+    dev.start_recording(lambda f: None)
+    time.sleep(3)                          # well past the 1 s range
+    assert msgs["hand"] > 0, "range did not stream frames"
+    assert done["n"] == 1, f"expected exactly one done, got {done['n']}"
+
+    # warm re-run, different range, same connected source
+    done["n"] = 0
+    dev.play_range(fake_video, 0.0, 0.5)
+    dev.start_recording(lambda f: None)
+    time.sleep(2.5)
+    assert done["n"] == 1, "warm re-run did not emit done"
+    dev.stop_recording()
+    dev.disconnect()
+
+
 def test_replay_survives_stop_start_handoff(fake_video):
     """Gate→record style stop/start must keep streaming from the looped clip."""
     dev = WebcamSource(replay_path=fake_video)

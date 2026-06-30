@@ -46,7 +46,10 @@ class WebcamSource(BaseCaptureDevice):
         self.camera_index = camera_index
         self.flip_handedness = flip_handedness
         self.replay_path = replay_path  # if set, sidecar loops this video clip
+        self._range: tuple[float, float] | None = None  # play-once [start_s, end_s]
+        self._loop = True               # False = play the range once, then "done"
         self._recorded_callback = None  # called(path) when a record finishes
+        self._done_callback = None      # called() when a play-once range finishes
 
         self._proc: subprocess.Popen | None = None
         self._srv: socket.socket | None = None
@@ -127,6 +130,12 @@ class WebcamSource(BaseCaptureDevice):
             self._reader_thread = threading.Thread(target=self._read_loop, daemon=True)
             self._reader_thread.start()
             self._connected = True
+            # Push tunables (preview/confidence/record) from capture.yaml.
+            try:
+                from capture.config import sidecar_settings
+                self._send({"cmd": "config", **sidecar_settings()})
+            except Exception:
+                log.debug("Sidecar-Config konnte nicht gesendet werden", exc_info=True)
             log.info("MediaPipe-Sidecar verbunden")
         except Exception:
             # Any partial failure → full cleanup, then re-raise.
@@ -194,16 +203,26 @@ class WebcamSource(BaseCaptureDevice):
         return []
 
     # ── recording ─────────────────────────────────────────────────
+    def play_range(self, video: str, start_s: float, end_s: float) -> None:
+        """Configure a one-shot bounded playback of `video[start_s:end_s]`
+        (VideoLab). The next start_recording() plays it once and fires the
+        done-callback at the offset. Leaves the looping `replay_path` path alone."""
+        self.replay_path = video
+        self._range = (float(start_s), float(end_s))
+        self._loop = False
+
     def start_recording(self, callback: Callable[[HandFrame], None]) -> None:
         if not self.is_connected():
             self.connect()
         self._frame_callback = callback
         self._prev_by_hand.clear()
         self._recording = True
+        s, e = self._range or (None, None)
         self._send({"cmd": "start", "index": self.camera_index,
-                    "video": self.replay_path or None})
-        log.debug("MediaPipe-Aufnahme gestartet (Kamera %d, replay=%s)",
-                  self.camera_index, self.replay_path or "-")
+                    "video": self.replay_path or None,
+                    "start_s": s, "end_s": e, "loop": self._loop})
+        log.debug("MediaPipe-Aufnahme gestartet (Kamera %d, replay=%s, range=%s)",
+                  self.camera_index, self.replay_path or "-", self._range)
 
     def stop_recording(self) -> None:
         self._recording = False
@@ -224,6 +243,11 @@ class WebcamSource(BaseCaptureDevice):
         if self.is_connected():
             self._send({"cmd": "face", "on": bool(on)})
 
+    def configure(self, **settings) -> None:
+        """Push sidecar tunables (e.g. num_hands) — apply before start_recording."""
+        if self.is_connected():
+            self._send({"cmd": "config", **settings})
+
     def record_clip(self, path: str, seconds: float = 10.0) -> None:
         """Record the live camera to an mp4 clip for `seconds` (for later replay)."""
         if self.is_connected():
@@ -231,6 +255,10 @@ class WebcamSource(BaseCaptureDevice):
 
     def set_recorded_callback(self, cb) -> None:
         self._recorded_callback = cb
+
+    def set_done_callback(self, cb) -> None:
+        """Called (on the reader thread) when a play-once range reaches its end."""
+        self._done_callback = cb
 
     # ── transport ─────────────────────────────────────────────────
     def _send(self, obj: dict) -> None:
@@ -288,10 +316,12 @@ class WebcamSource(BaseCaptureDevice):
         elif mtype == "recorded":
             if self._recorded_callback is not None:
                 self._recorded_callback(msg.get("path", ""))
+        elif mtype == "done":
+            self._recording = False   # drop any late frames
+            if self._done_callback is not None:
+                self._done_callback()
         elif mtype == "error":
             log.warning("Sidecar-Fehler: %s", msg.get("msg"))
             self._sensor_issues = [str(msg.get("msg"))]
 
 
-# Backward-compatible alias (pre-consolidation name). Stage 2 finishes migration.
-MediaPipeCaptureDevice = WebcamSource

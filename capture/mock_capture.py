@@ -572,5 +572,3 @@ class SimulationSource(BaseCaptureDevice):
         return fingers
 
 
-# Backward-compatible alias (pre-consolidation name). Stage 2 removes it.
-MockCaptureDevice = SimulationSource
