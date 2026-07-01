@@ -5,8 +5,8 @@ from capture.source import (
     SourceProfile, profile_for, READY_Y_MM,
     CAP_ABS_POSITION, CAP_FINGERTIPS, LEAP, WEBCAM, MOCK,
 )
-from capture.mock_capture import MockCaptureDevice
-from capture.mediapipe_capture import MediaPipeCaptureDevice
+from capture.mock_capture import SimulationSource
+from capture.mediapipe_capture import WebcamSource
 
 
 def _frame(y=200.0, conf=0.9, hand="right"):
@@ -15,8 +15,8 @@ def _frame(y=200.0, conf=0.9, hand="right"):
 
 
 def test_profile_for_classifies_devices():
-    assert profile_for(MockCaptureDevice()).kind == MOCK
-    assert profile_for(MediaPipeCaptureDevice()).kind == WEBCAM
+    assert profile_for(SimulationSource()).kind == MOCK
+    assert profile_for(WebcamSource()).kind == WEBCAM
 
 
 def test_leap_readiness_requires_hand_above_sensor():
@@ -41,10 +41,10 @@ def test_adapt_frame_is_identity_for_now():
 
 
 def test_webcam_lacks_absolute_position_capability():
-    web = profile_for(MediaPipeCaptureDevice())
+    web = profile_for(WebcamSource())
     assert CAP_FINGERTIPS in web.capabilities
     assert CAP_ABS_POSITION not in web.capabilities
 
 
 def test_prompts_are_source_aware():
-    assert "Kamera" in profile_for(MediaPipeCaptureDevice()).prompts()["waiting"]
+    assert "Kamera" in profile_for(WebcamSource()).prompts()["waiting"]

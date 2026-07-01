@@ -5,7 +5,7 @@ import time
 import pytest
 
 from capture.base_capture import HandPose, FingerData, BoneData
-from capture.clip import save_clip, list_clips, list_landmark_clips, CLIPS_DIR
+from video.clip import save_clip, list_clips, list_landmark_clips, CLIPS_DIR
 from capture.replay_source import ReplaySource
 from capture import create_source, normalize_source_kind
 from capture.contracts import MotionSourceProtocol
@@ -25,7 +25,7 @@ def _landmark_frames(n=15):
 @pytest.fixture
 def landmark_clip(tmp_path, monkeypatch):
     # save_clip writes into CLIPS_DIR; redirect to a temp dir for isolation.
-    monkeypatch.setattr("capture.clip.CLIPS_DIR", tmp_path)
+    monkeypatch.setattr("video.clip.CLIPS_DIR", tmp_path)
     path = save_clip(_landmark_frames(), duration_s=0.5, label="utest", fps=30.0)
     return path
 
@@ -62,9 +62,9 @@ def test_replaysource_replays_and_loops(landmark_clip):
 
 
 def test_default_clip_path_prefers_default_then_newest(tmp_path, monkeypatch):
-    monkeypatch.setattr("capture.clip.CLIPS_DIR", tmp_path)
-    monkeypatch.setattr("capture.clip.DEFAULT_CLIP", tmp_path / "default.mp4")
-    from capture.clip import default_clip_path
+    monkeypatch.setattr("video.clip.CLIPS_DIR", tmp_path)
+    monkeypatch.setattr("video.clip.DEFAULT_CLIP", tmp_path / "default.mp4")
+    from video.clip import default_clip_path
     assert default_clip_path() == ""                       # nothing yet
     (tmp_path / "clip_a.mp4").write_bytes(b"x")
     assert default_clip_path().endswith("clip_a.mp4")      # newest clip as fallback
@@ -73,7 +73,7 @@ def test_default_clip_path_prefers_default_then_newest(tmp_path, monkeypatch):
 
 
 def test_list_clips_separates_video_and_landmark(tmp_path, monkeypatch):
-    monkeypatch.setattr("capture.clip.CLIPS_DIR", tmp_path)
+    monkeypatch.setattr("video.clip.CLIPS_DIR", tmp_path)
     (tmp_path / "clip_a.mp4").write_bytes(b"x")
     (tmp_path / "clip_b.json").write_text("{}")
     vids = [p.name for p in list_clips()]

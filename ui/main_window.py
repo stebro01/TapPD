@@ -19,8 +19,8 @@ from PyQt6.QtWidgets import (
 log = logging.getLogger(__name__)
 
 from capture.base_capture import BaseCaptureDevice
-from capture.mock_capture import MockCaptureDevice
-from capture.mediapipe_capture import MediaPipeCaptureDevice
+from capture.mock_capture import SimulationSource
+from capture.mediapipe_capture import WebcamSource
 from motor_tests.base_test import BaseMotorTest
 from storage.database import (
     Measurement, Patient, Session,
@@ -36,6 +36,7 @@ from ui.tmt_screen import TMTScreen
 from ui.results_screen import ResultsScreen, save_raw_data
 from ui.gesture_lab_screen import GestureLabScreen
 from ui.tracking_screen import TrackingScreen
+from ui.video_lab_screen import VideoLabScreen
 from ui.log_viewer import LogViewerDialog
 from ui import theme
 from ui.theme import SZ
@@ -167,7 +168,7 @@ class MotryxMainWindow(QMainWindow):
         self._set_sensor_indicator(connected, f"{source} {suffix}")
 
     @staticmethod
-    def _webcam_name(device: "MediaPipeCaptureDevice") -> str:
+    def _webcam_name(device: "WebcamSource") -> str:
         """Best-effort friendly name of the active webcam."""
         for idx, nm in getattr(device, "_cameras", []) or []:
             if idx == device.camera_index:
@@ -186,7 +187,7 @@ class MotryxMainWindow(QMainWindow):
         log.info("Sensor-Status wird geprüft...")
 
         # Webcam tracking: don't run Leap-specific diagnostics/reconnect.
-        if isinstance(self.capture_device, MediaPipeCaptureDevice):
+        if isinstance(self.capture_device, WebcamSource):
             connected = self.capture_device.is_connected()
             name = self._webcam_name(self.capture_device)
             QMessageBox.information(
@@ -199,17 +200,17 @@ class MotryxMainWindow(QMainWindow):
             self._update_status_bar()
             return
 
-        is_mock = isinstance(self.capture_device, MockCaptureDevice)
+        is_mock = isinstance(self.capture_device, SimulationSource)
 
         if is_mock:
             # Try to connect a real Leap device
             try:
-                from capture.leap_capture import LeapCaptureDevice
-                test_device = LeapCaptureDevice()
+                from capture.leap_capture import LeapSource
+                test_device = LeapSource()
                 test_device.connect()
                 self.capture_device = test_device
                 self._update_status_bar()
-                log.info("Leap Controller gefunden! Wechsel von Mock auf LeapCaptureDevice")
+                log.info("Leap Controller gefunden! Wechsel von Mock auf LeapSource")
                 QMessageBox.information(
                     self, "Sensor erkannt",
                     "Leap Motion Controller erfolgreich verbunden!\n"
@@ -274,7 +275,7 @@ class MotryxMainWindow(QMainWindow):
         log.info("Reset angefordert")
 
         # Webcam tracking: reconnect the sidecar generically, no Leap dialogs.
-        if isinstance(self.capture_device, MediaPipeCaptureDevice):
+        if isinstance(self.capture_device, WebcamSource):
             self._set_sensor_indicator(False, "Webcam-Tracking wird neu gestartet...")
             from PyQt6.QtWidgets import QApplication
             QApplication.processEvents()
@@ -315,12 +316,12 @@ class MotryxMainWindow(QMainWindow):
             log.warning("Reconnect fehlgeschlagen (%s), erstelle neues Device...", e1)
             # Step 3: Fresh device as fallback
             try:
-                from capture.leap_capture import LeapCaptureDevice
-                new_device = LeapCaptureDevice()
+                from capture.leap_capture import LeapSource
+                new_device = LeapSource()
                 new_device.connect()
                 self.capture_device = new_device
                 self._update_status_bar()
-                log.info("Neues LeapCaptureDevice erstellt und verbunden")
+                log.info("Neues LeapSource erstellt und verbunden")
                 QMessageBox.information(
                     self, "Reset erfolgreich",
                     "Leap Motion Controller wurde neu initialisiert."
@@ -379,7 +380,7 @@ class MotryxMainWindow(QMainWindow):
         msg.exec()
 
     def _check_sensor_on_start(self) -> None:
-        if not isinstance(self.capture_device, MockCaptureDevice):
+        if not isinstance(self.capture_device, SimulationSource):
             return
         issues = getattr(self.capture_device, "_sensor_issues", None)
         if not issues:
@@ -424,6 +425,7 @@ class MotryxMainWindow(QMainWindow):
         self.tmt_screen = TMTScreen(self)
         self.gesture_lab_screen = GestureLabScreen(self)
         self.tracking_screen = TrackingScreen(self)
+        self.video_lab_screen = VideoLabScreen(self)
 
         self.stack.addWidget(self.patient_screen)
         self.stack.addWidget(self.patient_detail)
@@ -435,6 +437,7 @@ class MotryxMainWindow(QMainWindow):
         self.stack.addWidget(self.tmt_screen)
         self.stack.addWidget(self.gesture_lab_screen)
         self.stack.addWidget(self.tracking_screen)
+        self.stack.addWidget(self.video_lab_screen)
 
     def _update_tracking_btn_visibility(self, *_args) -> None:
         self._tracking_btn.setVisible(self.stack.currentWidget() is self.patient_screen)
@@ -492,6 +495,14 @@ class MotryxMainWindow(QMainWindow):
     def show_gesture_lab(self) -> None:
         self.stack.setCurrentWidget(self.gesture_lab_screen)
 
+    def show_video_lab(self) -> None:
+        self.video_lab_screen.on_enter(self.current_patient)
+        self.stack.setCurrentWidget(self.video_lab_screen)
+
+    def close_video_lab(self) -> None:
+        self.video_lab_screen.on_leave()
+        self.stack.setCurrentWidget(self.patient_detail)
+
     def show_tracking_screen(self) -> None:
         self._return_after_tracking = self.stack.currentWidget()
         self.tracking_screen.on_enter()
@@ -511,7 +522,7 @@ class MotryxMainWindow(QMainWindow):
         fresh one.  Persists the choice to QSettings.  Returns True on success.
         """
         from PyQt6.QtCore import QSettings
-        from capture import create_capture_device
+        from capture import create_source
 
         old = self.capture_device
         if old is not None and old is not device:
@@ -532,7 +543,7 @@ class MotryxMainWindow(QMainWindow):
                 if not new.is_connected():
                     new.connect()
             else:
-                new = create_capture_device(mode, camera_index=camera_index,
+                new = create_source(mode, camera_index=camera_index,
                                             flip_handedness=flip_handedness)
                 new.connect()
         except Exception as e:
@@ -541,7 +552,7 @@ class MotryxMainWindow(QMainWindow):
                 self, "Tracking-Wechsel fehlgeschlagen",
                 f"Konnte nicht auf '{mode}' wechseln:\n{e}\n\nSimulationsmodus aktiv.",
             )
-            self.capture_device = MockCaptureDevice()
+            self.capture_device = SimulationSource()
             self._update_status_bar()
             return False
 
@@ -575,7 +586,7 @@ class MotryxMainWindow(QMainWindow):
         spec = registry.get(test_key)
 
         # Set the simulation scenario when running on the simulation source.
-        if isinstance(self.capture_device, MockCaptureDevice):
+        if isinstance(self.capture_device, SimulationSource):
             self.capture_device.mode = spec.sim_scenario
 
         test = spec.load_class()(self.capture_device, duration=float(duration),

@@ -5,7 +5,7 @@ ReplaySource re-emits its HandPose frames at the original timing, looping — so
 real session becomes a deterministic simulation source, usable anywhere a live
 source is (preview, paradigms, tests).
 
-Clip format (see capture.clip):
+Clip format (see video.clip):
     {"meta": {"source_kind", "duration_s", "fps", "recorded_at"},
      "frames": [{"dt": <seconds from start>, "hand": <HandPose.to_dict()>}, ...]}
 """

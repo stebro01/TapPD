@@ -19,8 +19,10 @@ MOCK = "mock"
 # Leap: a hand counts as "in position" once it is held this far above the
 # sensor (mm).  This is what the spatial screens checked individually as
 # ``palm_position[1] > 120``.  Webcams have no such absolute reference.
-READY_Y_MM = 120.0
-READY_MIN_CONFIDENCE = 0.5
+# Configurable via capture/capture.yaml (readiness:).
+from capture.config import cfg as _cap_cfg
+READY_Y_MM = float(_cap_cfg("readiness", "ready_y_mm", default=120.0))
+READY_MIN_CONFIDENCE = float(_cap_cfg("readiness", "min_confidence", default=0.5))
 
 # ── Capability tokens ──────────────────────────────────────────────
 # What a source can deliver / what a task needs.  Tasks declare their needs in
@@ -53,12 +55,12 @@ CAP_LABELS = {
 def source_kind(device: BaseCaptureDevice | None) -> str:
     """Return "leap", "webcam" or "mock" for the given capture device."""
     # Imported lazily to avoid import cycles / loading the Leap binding early.
-    from capture.mediapipe_capture import MediaPipeCaptureDevice
-    from capture.mock_capture import MockCaptureDevice
+    from capture.mediapipe_capture import WebcamSource
+    from capture.mock_capture import SimulationSource
 
-    if isinstance(device, MediaPipeCaptureDevice):
+    if isinstance(device, WebcamSource):
         return WEBCAM
-    if isinstance(device, MockCaptureDevice):
+    if isinstance(device, SimulationSource):
         return MOCK
     return LEAP
 

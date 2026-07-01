@@ -9,6 +9,7 @@ build/
 data/sessions/
 data/samples/
 data/clips/
+data/video_sessions/
 data/logs/
 data/*.db
 leapc_cffi/

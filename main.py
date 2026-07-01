@@ -26,7 +26,7 @@ from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import QApplication
 
 from logging_config import setup_logging
-from capture import create_capture_device
+from capture import create_source
 from ui.main_window import MotryxMainWindow
 from ui import theme
 
@@ -81,14 +81,14 @@ def main() -> None:
         flip = settings.value("flip_handedness", False)
         flip = (flip in (True, "true", "True", 1, "1"))
         try:
-            device = create_capture_device("mediapipe", camera_index=cam_idx,
+            device = create_source("mediapipe", camera_index=cam_idx,
                                            flip_handedness=flip)
             device.connect()
         except Exception as e:
             log.warning("Webcam-Tracking-Start fehlgeschlagen (%s) – Fallback auf auto", e)
-            device = create_capture_device("auto")
+            device = create_source("auto")
     else:
-        device = create_capture_device(mode)
+        device = create_source(mode)
     log.info("Capture-Device erstellt: %s", type(device).__name__)
 
     window = MotryxMainWindow(device)

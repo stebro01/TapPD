@@ -139,19 +139,19 @@ def create_source(kind: str = "auto", camera_index: int = 0,
 
     if mode == "mock":
         log.info("Mock-Modus angefordert")
-        from capture.mock_capture import MockCaptureDevice
-        return MockCaptureDevice()
+        from capture.mock_capture import SimulationSource
+        return SimulationSource()
 
     if mode == "webcam":
         log.info("Webcam-Modus angefordert (Kamera %d)", camera_index)
-        from capture.mediapipe_capture import MediaPipeCaptureDevice
-        return MediaPipeCaptureDevice(camera_index=camera_index,
+        from capture.mediapipe_capture import WebcamSource
+        return WebcamSource(camera_index=camera_index,
                                       flip_handedness=flip_handedness)
 
     if mode == "leap":
         log.info("Leap-Modus angefordert")
-        from capture.leap_capture import LeapCaptureDevice
-        return LeapCaptureDevice()
+        from capture.leap_capture import LeapSource
+        return LeapSource()
 
     if mode == "websocket":
         log.info("WebSocket-Modus angefordert")
@@ -160,8 +160,8 @@ def create_source(kind: str = "auto", camera_index: int = 0,
 
     # auto: try leap -> mock fallback with diagnostics
     try:
-        from capture.leap_capture import LeapCaptureDevice
-        device = LeapCaptureDevice()
+        from capture.leap_capture import LeapSource
+        device = LeapSource()
         device.connect()
         log.info("Leap Motion Controller erfolgreich verbunden")
         return device
@@ -173,12 +173,10 @@ def create_source(kind: str = "auto", camera_index: int = 0,
     if issues:
         for issue in issues:
             log.warning("Sensor-Problem: %s", issue.split('\n')[0])
-    from capture.mock_capture import MockCaptureDevice
-    device = MockCaptureDevice()
+    from capture.mock_capture import SimulationSource
+    device = SimulationSource()
     device._sensor_issues = issues  # attach diagnostics for the UI to display
-    log.info("Fallback auf Simulationsmodus (MockCaptureDevice)")
+    log.info("Fallback auf Simulationsmodus (SimulationSource)")
     return device
 
 
-# Backward-compatible alias (pre-consolidation name). Stage 2 removes it.
-create_capture_device = create_source
