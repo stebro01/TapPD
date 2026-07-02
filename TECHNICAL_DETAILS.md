@@ -1,4 +1,8 @@
-# TapPD – Technische Dokumentation
+# Motryx (ehem. TapPD) – Technische Dokumentation
+
+> Inhalt: Setup, klinische Tests + Features, Signalverarbeitung, MPI,
+> Rohdaten-Format, Logging. Die **Komponenten-Gesamtkarte** steht in
+> [BLUEPRINT.md](BLUEPRINT.md), die Layer-Contracts in [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## 1. Setup & Installation
 
@@ -87,86 +91,17 @@ Python-Versionen muss die Binding-Datei kopiert/umbenannt werden (C-ABI ist komp
 
 ## 2. Projektstruktur
 
-```
-TapPD/
-├── main.py                              # Entry Point
-├── logging_config.py                    # Zentrales Logging (File + Console + Qt-Signal)
-├── start.sh                             # Start-Script macOS (aktiviert venv + DYLD)
-├── start.ps1                            # Start-Script Windows PowerShell (venv + SDK-Kopie)
-├── start.bat                            # Start-Script Windows cmd (venv + SDK-Kopie)
-├── pyproject.toml                       # Projekt-Metadaten
-├── requirements.txt                     # Python-Abhaengigkeiten
-├── ABOUT.md                             # Info-Dialog Inhalt
-├── TECHNICAL_DETAILS.md                 # Diese Datei
-├── OPTIMIZATION_PLAN.md                 # Geplante Verbesserungen
-│
-├── capture/                             # Sensor-Abstraktionsschicht
-│   ├── __init__.py                      # Factory: create_source() + Diagnostik
-│   ├── base_capture.py                  # HandFrame/FingerData/BoneData Dataclasses + ABC
-│   ├── mock_capture.py                  # Simulierte Daten (120 Hz, 8 Modi)
-│   └── leap_capture.py                  # Echtes LeapC SDK via CFFI
-│
-├── motor_tests/                         # Klinische Motorik-Tests
-│   ├── base_test.py                     # BaseMotorTest ABC (uni-/bilateral)
-│   ├── config.py                        # YAML-Config-Loader + Cache
-│   ├── test_config.yaml                 # Zentrale Test-Konfiguration
-│   ├── recorder.py                      # Config-getriebene Feature-Berechnung
-│   ├── finger_tapping.py               # MDS-UPDRS 3.4
-│   ├── hand_open_close.py              # MDS-UPDRS 3.5
-│   ├── pronation_supination.py         # MDS-UPDRS 3.6
-│   ├── tremor.py                        # MDS-UPDRS 3.15 (Postural Tremor)
-│   ├── rest_tremor.py                   # MDS-UPDRS 3.17 (Ruhetremor)
-│   ├── tower_of_hanoi.py               # Tuerme von Hanoi (kognitiv-motorisch)
-│   ├── hanoi_logic.py                   # Hanoi-Spiellogik (pure)
-│   ├── pinch_detector.py               # Pinzettengriff-Zustandsautomat
-│   ├── spatial_srt.py                   # Raeumliche Reaktionszeit (S-SRT)
-│   ├── srt_logic.py                     # SRT Block-/Trial-Struktur
-│   ├── trail_making.py                  # Trail Making Test (dTMT)
-│   └── tmt_logic.py                     # TMT-Zielgenerierung + Segmentverfolgung
-│
-├── analysis/                            # Signalverarbeitung
-│   └── signal_processing.py             # Filter, FFT, Peak-Detection, Onset-Detection
-│
-├── storage/                             # Datenhaltung
-│   ├── database.py                      # SQLite (Patienten + Messungen + raw_data_path)
-│   └── session_store.py                 # CSV-Export
-│
-├── ui/                                  # PyQt6 GUI
-│   ├── theme.py                         # Globales Stylesheet, Farbpalette
-│   ├── feature_meta.py                  # Feature-Anzeigenamen + Einheiten (shared)
-│   ├── main_window.py                   # QMainWindow + Navigation + Auto-Save
-│   ├── patient_screen.py               # Patientenauswahl/-erstellung
-│   ├── patient_detail_screen.py        # Session-Matrix + Kontext-Menues
-│   ├── test_dashboard.py               # Testuebersicht (8 Karten)
-│   ├── test_screen.py                  # Hand-Detection + Countdown + Live-Aufnahme
-│   ├── hanoi_screen.py                 # Tuerme von Hanoi (QPainter, Pinch-Interaktion)
-│   ├── srt_screen.py                   # S-SRT (QPainter, Dwell-Aktivierung)
-│   ├── tmt_screen.py                   # dTMT (QPainter, Trail-Linien, Fehler-Feedback)
-│   ├── results_screen.py               # Ergebnisanzeige + Plots + Rohdaten-Speicherung
-│   ├── data_browser.py                 # Historische Messungen (Filter, Delete, Export)
-│   ├── detail_dialog.py                # Detail-Ansicht mit Analyse-Plots
-│   └── log_viewer.py                   # Log Viewer Dialog (Live-Logs, Farbcodiert)
-│
-├── assets/                              # Instruktionsbilder
-│   ├── generate_instructions.py         # Generiert PNG-Bilder
-│   └── instr_*.png                      # 5 Instruktionsbilder
-│
-├── leapc_cffi/                          # LeapC SDK Bindings (nicht im Repo)
-│   ├── _leapc_cffi.cp3XX-win_amd64.pyd  # Windows
-│   ├── LeapC.dll                         # Windows
-│   ├── _leapc_cffi.cpython-3XX-darwin.so # macOS
-│   ├── libLeapC.dylib                    # macOS
-│   └── __init__.py
-│
-└── data/                                # Laufzeitdaten (nicht im Repo)
-    ├── tappd.db                         # SQLite-Datenbank
-    ├── samples/                         # JSON-Rohdaten
-    └── logs/                            # Log-Dateien (tageweise Rotation, 7 Tage)
-```
+Die Komponenten-Gesamtkarte (Verzeichnisse, Layer, Datenfluesse,
+Speicher-Topologie und eine Analyse jeder Komponente) steht in
+**[BLUEPRINT.md](BLUEPRINT.md)** — hier nicht dupliziert.
 
 ---
 
 ## 3. Architektur-Ueberblick
+
+> System-Architektur (Layer, Komponenten, Datenfluesse zwischen ihnen):
+> **[BLUEPRINT.md](BLUEPRINT.md)**; Layer-Contracts/APIs: [ARCHITECTURE.md](ARCHITECTURE.md).
+> Dieser Abschnitt beschreibt nur das Innenleben der Analyse-Pipeline.
 
 ### Config-getriebene Feature-Berechnung
 
@@ -448,29 +383,17 @@ und im Detail-Dialog als vertikale Markierungen angezeigt.
 
 ### Schema
 
-```sql
-CREATE TABLE patients (
-    id           INTEGER PRIMARY KEY AUTOINCREMENT,
-    patient_code TEXT UNIQUE NOT NULL,
-    first_name   TEXT DEFAULT '',
-    last_name    TEXT DEFAULT '',
-    birth_date   TEXT DEFAULT '',             -- ISO 8601: "YYYY-MM-DD"
-    gender       TEXT DEFAULT '',             -- "m", "f", "d", ""
-    notes        TEXT DEFAULT '',
-    created_at   TEXT DEFAULT (datetime('now'))
-);
+Die Datenbank ist ein **i2b2-Sternschema** (`PATIENT_DIMENSION`,
+`VISIT_DIMENSION`, `OBSERVATION_FACT`, `CONCEPT_DIMENSION`, `CODE_LOOKUP`,
+`NOTE_FACT`, `GESTURE_TEMPLATE`) — implementiert in `storage/database.py`,
+das eine `Patient`/`Session`/`Measurement`-Fassade darueberlegt. Kompakte
+Uebersicht mit Spalten-Wirkungen (MPI in `NVAL_NUM`, Provenienz in
+`SOURCESYSTEM_CD='TAPPD:<kind>'`, Features im `OBSERVATION_BLOB`):
+**[BLUEPRINT.md §3.7](BLUEPRINT.md)**; das ausfuehrliche Referenz-Konzept:
+[DB_KONZEPT.md](DB_KONZEPT.md).
 
-CREATE TABLE measurements (
-    id            INTEGER PRIMARY KEY AUTOINCREMENT,
-    patient_id    INTEGER NOT NULL REFERENCES patients(id),
-    test_type     TEXT NOT NULL,              -- z.B. "finger_tapping"
-    hand          TEXT NOT NULL,              -- "left", "right", "both"
-    duration_s    REAL NOT NULL,
-    features_json TEXT NOT NULL DEFAULT '{}', -- Berechnete Features als JSON
-    recorded_at   TEXT DEFAULT (datetime('now')),
-    raw_data_path TEXT DEFAULT ''             -- Pfad zur JSON-Rohdatendatei
-);
-```
+Ein frueheres 2-Tabellen-Schema (v1: `patients`/`measurements`) wird beim
+ersten Oeffnen automatisch migriert (Backup: `tappd_v1_backup.db`).
 
 ### Rohdaten-Speicherung
 
@@ -485,36 +408,14 @@ Inhalt:
 - S-SRT: zusaetzlich `trial_results[]` (17 Felder pro Trial), `blocks[]` (Blockstruktur), `sequence` (versteckte Sequenz)
 - dTMT: zusaetzlich `segment_results[]` (11 Felder pro Segment), `targets[]` (Label + Position), `wrong_approaches[]`
 
-Der Pfad wird in `measurements.raw_data_path` vermerkt.
+Der Pfad wird in der Messung als `raw_data_path` vermerkt (im `OBSERVATION_BLOB`).
 
 ---
 
 ## 9. GUI-Architektur
 
-### Screen-Flow
-
-```
-PatientScreen → PatientDetailScreen → TestDashboard → TestScreen      → ResultsScreen
-                 (Session-Matrix)       (8 Karten)    HanoiScreen       (Auto-Save)
-                                                      SRTScreen
-                                                      TMTScreen
-                                                         │
-                                                         └→ DataBrowser → DetailDialog
-```
-
-### Screens
-
-1. **PatientScreen**: Patientensuche, -erstellung, -auswahl.
-2. **PatientDetailScreen**: Session-Matrix (Zeilen = Sessions, Spalten = Tests).
-   Rechtsklick-Kontext-Menues zum Hinzufuegen/Loeschen. L/R-Zellinhalte.
-3. **TestDashboard**: 8 Test-Karten in 3-Spalten-Grid. L/R-Indikatoren, Dauer-Spinner.
-4. **TestScreen**: Hand-Detection → 3s Countdown → Echtzeit-Aufnahme mit Live-Plot (Motorik-Tests).
-5. **HanoiScreen**: Interaktives Hanoi-Spiel. Pinzettengriff, Peg-Highlighting, Erfolgs-Dialog.
-6. **SRTScreen**: 4 raeumliche Ziele, Block-basierte Aufgabe, ISI-Steuerung, Trial-Zustandsautomat.
-7. **TMTScreen**: Nummerierte/beschriftete Ziele, Trail-Linien, Fehler-Feedback, Teil-A/B-Dialog.
-8. **ResultsScreen**: Feature-Tabelle + Plots. Auto-Save in DB.
-9. **DataBrowser**: Historische Messungen mit Filter, Loeschen, CSV-/JSON-Export.
-10. **DetailDialog**: Feature-Tabelle + 4 Analyse-Plots aus JSON-Rohdaten. L/R-Umschaltung.
+Screen-Navigationsgraph und Rollen aller UI-Bausteine (11 Screens, Dialoge,
+geteilte Widgets): **[BLUEPRINT.md §3.8](BLUEPRINT.md)** — hier nicht dupliziert.
 
 ---
 

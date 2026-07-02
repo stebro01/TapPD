@@ -1,33 +1,45 @@
-# TapPD
+# Motryx (ehem. TapPD)
 
-Kontaktlose Motorik-Analyse bei Morbus Parkinson mittels Leap Motion Controller.
+Kontaktlose Bewegungsanalyse bei Morbus Parkinson — Movement Lab mit
+umschaltbaren Tracking-Quellen (Leap Motion, Webcam, Video, Simulation).
 
-TapPD digitalisiert die motorischen Handtests der MDS-UPDRS Part III. Handbewegungen
-werden kontaktlos per Infrarot-Sensor erfasst und quantitative Parameter automatisch berechnet.
+Motryx digitalisiert die motorischen Handtests der MDS-UPDRS Part III und
+kognitiv-motorische Paradigmen. Handbewegungen werden kontaktlos erfasst und
+quantitative Parameter automatisch berechnet; Handy-Videos lassen sich im
+VideoLab schneiden, anonymisieren und auswerten.
 
 ## Features
 
-- 5 klinische Motorik-Tests (MDS-UPDRS 3.4, 3.5, 3.6, 3.15, 3.17)
-- 3 kognitiv-motorische Paradigmen (Tuerme von Hanoi, Spatial SRT, Trail Making Test)
-- Echtzeit-Visualisierung waehrend der Aufnahme
-- Automatische Feature-Berechnung mit Artefakt-Korrektur
-- YAML-konfigurierbare Analyse-Pipeline (test_config.yaml)
-- Auto-Onset/Offset-Detection fuer Bewegungsaufgaben
-- Bilaterale Tremor-Analyse (Translation + Rotation, Asymmetrie)
-- Patientenverwaltung mit SQLite-Datenbank
-- Daten-Browser mit Detail-Ansicht inkl. Analyse-Plots
-- Rohdaten-Speicherung als JSON (optional)
-- CSV-Export fuer statistische Auswertung
-- Simulationsmodus fuer Entwicklung ohne Sensor
-- Zentrales Logging-System mit tageweiser Rotation (data/logs/)
-- Log Viewer im GUI (Statusleiste → "Log"-Button)
+- 5 klinische Motorik-Tests (MDS-UPDRS 3.4, 3.5, 3.6, 3.15, 3.17) + 3
+  kognitiv-motorische Paradigmen (Tuerme von Hanoi, Spatial SRT, Trail Making Test)
+- **Vier Tracking-Quellen**, zur Laufzeit umschaltbar: Leap Motion (praeziseste
+  3D-Position), Webcam (MediaPipe), Video-Replay, Simulation — mit
+  Capability-Gating (Tests, die eine Quelle nicht unterstuetzt, sind gesperrt)
+- **VideoLab**: Handy-Video importieren, Segmente schneiden (Onset/Offset),
+  Gesicht anonymisieren (hand-aware Defacing), Paradigma auf dem Segment
+  auswerten, Ergebnis in die Patientenakte exportieren
+- **Tremor auf Kamera-Quellen** ueber Augen-Referenz (Iris-Skala → absolute
+  Handposition); mm-Werte von Kamera-Quellen sind als Modellschaetzung (≈mm)
+  gekennzeichnet
+- **Gesture Lab**: klinische Handposen aufnehmen, matchen (statisch/DTW),
+  Fehleranalyse pro Finger
+- Echtzeit-Visualisierung, YAML-konfigurierbare Analyse-Pipeline,
+  Auto-Onset/Offset-Detection, bilaterale Tremor-Analyse (+ Asymmetrie)
+- Patientenverwaltung (SQLite, i2b2-Sternschema) mit Provenienz pro Messung
+  (`source_kind`), **📈 Verlaufsansicht** (Merkmale ueber Zeit), Detail-Plots,
+  CSV-Export, optionale JSON-Rohdaten
+- Motor Performance Index (MPI) als Komposit-Verlaufsmarker
+- Zentrales Logging (data/logs/) mit GUI-Log-Viewer
 
 ## Voraussetzungen
 
 - **Windows 10/11** oder **macOS** (getestet: Windows 10 Pro, macOS 26 Tahoe)
-- Python 3.12+
-- Leap Motion Controller LM-010 (Original, 2013)
-- [Ultraleap Tracking Software](https://www.ultraleap.com/downloads/leap-controller/) (Hyperion v6 oder Gemini v5)
+- Python 3.12+ (Haupt-App laeuft auch unter 3.14)
+- **Optional** fuer den Leap-Modus: Leap Motion Controller LM-010 +
+  [Ultraleap Tracking Software](https://www.ultraleap.com/downloads/leap-controller/)
+  (Hyperion v6 oder Gemini v5) — ohne Sensor funktionieren Webcam-, Video- und
+  Simulationsmodus
+- Fuer Webcam/VideoLab: das MediaPipe-Sidecar-venv (`bash mediapipe_sidecar/setup_sidecar.sh`)
 
 ## Installation
 
@@ -104,224 +116,39 @@ pip install -r requirements.txt
 
 ## Projektstruktur
 
-```
-TapPD/
-├── main.py                     # Entry Point
-├── logging_config.py           # Zentrales Logging (File + Console + Qt)
-├── start.sh                    # Start-Script (macOS)
-├── start.ps1                   # Start-Script (Windows PowerShell)
-├── start.bat                   # Start-Script (Windows cmd)
-├── requirements.txt            # Python-Abhaengigkeiten
-├── pyproject.toml              # Projekt-Metadaten
-│
-├── capture/                    # Sensor-Abstraktionsschicht
-│   ├── __init__.py             #   Factory: create_source()
-│   ├── base_capture.py         #   HandFrame Dataclass + ABC
-│   ├── mock_capture.py         #   Simulierte Daten (120 Hz)
-│   └── leap_capture.py         #   Echtes LeapC SDK
-│
-├── motor_tests/                # Klinische Tests
-│   ├── base_test.py            #   BaseMotorTest ABC
-│   ├── config.py               #   YAML-Config-Loader
-│   ├── test_config.yaml        #   Zentrale Test-Konfiguration
-│   ├── recorder.py             #   Config-getriebene Feature-Berechnung
-│   ├── finger_tapping.py       #   MDS-UPDRS 3.4
-│   ├── hand_open_close.py      #   MDS-UPDRS 3.5
-│   ├── pronation_supination.py #   MDS-UPDRS 3.6
-│   ├── tremor.py               #   MDS-UPDRS 3.15 (Posturaler Tremor)
-│   ├── rest_tremor.py          #   MDS-UPDRS 3.17 (Ruhetremor)
-│   ├── tower_of_hanoi.py       #   Tuerme von Hanoi (kognitiv-motorisch)
-│   ├── hanoi_logic.py          #   Hanoi-Spiellogik
-│   ├── pinch_detector.py       #   Pinzettengriff-Erkennung
-│   ├── spatial_srt.py          #   Raeumliche Reaktionszeit (S-SRT)
-│   ├── srt_logic.py            #   SRT-Aufgabenlogik
-│   ├── trail_making.py         #   Trail Making Test (dTMT)
-│   └── tmt_logic.py            #   TMT-Aufgabenlogik
-│
-├── analysis/                   # Signalverarbeitung
-│   └── signal_processing.py    #   Filter, FFT, Peak-Detection, Onset-Detection
-│
-├── storage/                    # Datenhaltung
-│   ├── database.py             #   SQLite (Patienten + Messungen)
-│   └── session_store.py        #   CSV-Export
-│
-├── ui/                         # PyQt6 GUI
-│   ├── theme.py                #   Stylesheet + Farbpalette
-│   ├── feature_meta.py         #   Feature-Anzeigenamen + Einheiten
-│   ├── main_window.py          #   Hauptfenster + Navigation
-│   ├── patient_screen.py       #   Patientenauswahl
-│   ├── patient_detail_screen.py #  Session-Matrix mit Kontext-Menues
-│   ├── test_dashboard.py       #   Test-Uebersicht (8 Karten)
-│   ├── test_screen.py          #   Live-Aufnahme (Motorik-Tests)
-│   ├── hanoi_screen.py         #   Tuerme von Hanoi (interaktiv)
-│   ├── srt_screen.py           #   Raeumliche Reaktionszeit (S-SRT)
-│   ├── tmt_screen.py           #   Trail Making Test (dTMT)
-│   ├── results_screen.py       #   Ergebnis-Anzeige
-│   ├── data_browser.py         #   Daten-Browser
-│   ├── detail_dialog.py        #   Detail-Ansicht mit Analyse-Plots
-│   └── log_viewer.py           #   Log Viewer Dialog (Live-Logs)
-│
-├── assets/                     # Instruktionsbilder
-│   └── instr_*.png             #   5 Instruktionsbilder
-│
-├── leapc_cffi/                 # LeapC SDK (nicht im Repo)
-└── data/                       # SQLite DB + Rohdaten (nicht im Repo)
-    ├── tappd.db
-    ├── samples/                #   JSON-Rohdaten
-    └── logs/                   #   Log-Dateien (tageweise, 7 Tage)
-```
+Die vollstaendige Komponenten-Karte (Layer, Datenfluesse, Speicher-Topologie und
+eine Analyse jeder Komponente) steht in **[BLUEPRINT.md](BLUEPRINT.md)**. Kurzfassung:
+
+| Verzeichnis | Inhalt |
+|---|---|
+| `capture/` | Source-Layer: Leap / Webcam(MediaPipe) / Simulation / Replay, Factory, Capabilities |
+| `mediapipe_sidecar/` | Python-3.12-Prozess fuer cv2/MediaPipe (Hand- + Face-Tracking, Transcode, Extract) |
+| `video/` | Video-Service: Import, Schnitt, Defacing, Clip-Store, DB-Export (VideoLab + Sim-Quelle) |
+| `motor_tests/` | Paradigmen (Registry, Runner, config-getriebene Feature-Berechnung) |
+| `analysis/` | Signalverarbeitung (Filter, FFT, Peaks, Onset) |
+| `gesture_lab/` | Gesten-Pipeline (Posen-Templates, Matching, Fehleranalyse) |
+| `storage/` | SQLite (i2b2-Sternschema) + Raw-JSON-Store |
+| `ui/` | PyQt6-Screens und geteilte Widgets |
+| `data/` | DB, Clips, Video-Sessions, Rohdaten, Logs (nicht im Repo) |
 
 ## Tests & Berechnete Features
 
-### Finger Tapping (3.4) – unilateral
-
-| Feature | Beschreibung | Einheit |
-|---------|-------------|---------|
-| tap_frequency_hz | Tapping-Frequenz | Hz |
-| mean_amplitude_mm | Mittlere Oeffnungsamplitude | mm |
-| amplitude_decrement | Ermuedungs-Dekrement (normalisiert) | /Zyklus |
-| intertap_variability_cv | Rhythmus-Variabilitaet (CV) | – |
-| mean_velocity_mm_s | Mittlere Geschwindigkeit | mm/s |
-| n_taps | Anzahl Taps | – |
-
-### Hand Oeffnen/Schliessen (3.5) – unilateral
-
-| Feature | Beschreibung | Einheit |
-|---------|-------------|---------|
-| mean_amplitude | Mittlere Greifstaerke-Amplitude | – |
-| cycle_frequency_hz | Zyklusfrequenz | Hz |
-| mean_velocity_per_s | Mittlere Geschwindigkeit | /s |
-| amplitude_decrement | Ermuedungs-Dekrement | /Zyklus |
-| n_cycles | Anzahl Zyklen | – |
-
-### Pronation/Supination (3.6) – unilateral
-
-| Feature | Beschreibung | Einheit |
-|---------|-------------|---------|
-| rotation_frequency_hz | Rotationsfrequenz | Hz |
-| range_of_motion_deg | Bewegungsumfang | ° |
-| mean_angular_velocity_deg_s | Mittlere Winkelgeschwindigkeit | °/s |
-| amplitude_decrement | Ermuedungs-Dekrement | /Zyklus |
-| n_cycles | Anzahl Zyklen | – |
-
-### Tremor (3.15, 3.17) – bilateral
-
-Pro Hand (Praefix `R_` / `L_`):
-
-| Feature | Beschreibung | Einheit |
-|---------|-------------|---------|
-| dominant_frequency_hz | Dominante Tremor-Frequenz | Hz |
-| translational_amplitude_mm | RMS translationaler Tremor | mm |
-| rotational_amplitude_deg | RMS rotationaler Tremor | ° |
-| spectral_power | Spektrale Leistung (3-12 Hz) | mm² |
-
-Plus Asymmetrie-Indizes:
-
-| Feature | Berechnung | Bereich |
-|---------|-----------|---------|
-| asymmetry_index | (R - L) / (R + L) Translation | -1.0 bis +1.0 |
-| rotation_asymmetry_index | (R - L) / (R + L) Rotation | -1.0 bis +1.0 |
-
-### Tuerme von Hanoi – Einhand, kognitiv-motorisch
-
-Interaktives Scheiben-Verschieben (3 Scheiben, 3 Staebe). Pinzettengriff zum Greifen,
-Hand ueber Stab bewegen, Loslassen zum Ablegen. Hand wird automatisch erkannt.
-
-| Feature | Beschreibung | Einheit |
-|---------|-------------|---------|
-| completed | Aufgabe geloest (1) oder aufgegeben (0) | – |
-| total_time_s | Gesamtzeit | s |
-| n_moves | Anzahl gueltige Zuege | – |
-| optimal_moves | Optimale Zuege (2^n - 1) | – |
-| move_efficiency | optimal / tatsaechlich | – |
-| planning_time_s | Zeit vor erstem Zug | s |
-| mean_move_time_s | Mittlere Zugzeit | s |
-| move_time_cv | Zugzeit-Variabilitaet (CV) | – |
-| mean_pinch_duration_s | Mittlere Greifzeit | s |
-| mean_pinch_depth_mm | Mittlere Greiftiefe | mm |
-| pinch_accuracy | Erfolgreiche Griffe / Greif-Episoden | – |
-| mean_trajectory_mm | Mittlere Pfadlaenge pro Zug | mm |
-| trajectory_efficiency | Geradeaus-Distanz / Pfadlaenge | – |
-| hand_jitter_mm | Hochfrequenter Hand-Jitter (Tremor-Proxy) | mm |
-
-### Raeumliche Reaktionszeit (S-SRT) – Einhand, kognitiv-motorisch
-
-Misst implizites prozedurales Lernen (Basalganglien-abhaengig). 4 raeumliche Ziele
-auf dem Bildschirm leuchten nacheinander auf. Der Patient bewegt die Hand zum leuchtenden
-Ziel und haelt kurz (300 ms Dwell). In Sequenz-Bloecken folgen die Ziele einer versteckten
-10-Element-Sequenz; in Zufalls-Bloecken ist die Reihenfolge zufaellig. Lerneffekt wird
-als RT-Differenz zwischen Zufall- und Sequenz-Bloecken gemessen.
-
-**Aufbau**: 10 Uebungstrials → 9 Bloecke (abwechselnd Zufall/Sequenz, je 20 Trials) = 190 Trials
-
-| Feature | Beschreibung | Einheit |
-|---------|-------------|---------|
-| total_time_s | Gesamtdauer | s |
-| reaction_time_ms | Stimulus → Bewegungsbeginn | ms |
-| movement_time_ms | Bewegungsbeginn → Zielankunft | ms |
-| total_response_time_ms | Stimulus → Dwell abgeschlossen | ms |
-| learning_index | (RT_Zufall - RT_Sequenz) / RT_Zufall | – |
-| rt_sequence_mean_ms | Mittlere RT in Sequenz-Bloecken | ms |
-| rt_random_mean_ms | Mittlere RT in Zufalls-Bloecken | ms |
-| sequence_rt_slope | Steigung der RT ueber Sequenz-Bloecke (Lernkurve) | ms/Block |
-| path_efficiency | Geradeaus / tatsaechlicher Pfad | – |
-| peak_velocity_mm_s | Mittlere Spitzengeschwindigkeit | mm/s |
-| velocity_variability_cv | Geschwindigkeits-Variationskoeffizient | – |
-| error_rate | Anteil falscher Ziel-Anfahrten | – |
-| fatigue_index | RT-Aenderung erster vs. letzter Block | – |
-| dwell_time_ms | Mittlere Verweilzeit am Ziel | ms |
-
-**Detail-Plots**: RT nach Block (Zufall rot / Sequenz gruen), Lernkurve, Geschwindigkeit, Pfad-Effizienz
-
-### Trail Making Test (dTMT) – Einhand, kognitiv-motorisch
-
-Digitaler Trail Making Test. Misst Verarbeitungsgeschwindigkeit (Teil A)
-und kognitive Flexibilitaet / Set-Shifting (Teil B).
-
-- **Teil A**: 15 Zahlen (1-15) in aufsteigender Reihenfolge verbinden
-- **Teil B**: Abwechselnd Zahlen und Buchstaben (1→A→2→B→3→C→...)
-
-Ziele werden zufaellig auf dem Bildschirm platziert. Der Patient bewegt die Hand
-zum naechsten Ziel und haelt kurz. Fehlerhafte Anfahrten (falsches Ziel) werden
-rot markiert und gezaehlt. Verbindungslinien zeigen den zurueckgelegten Pfad.
-
-| Feature | Beschreibung | Einheit |
-|---------|-------------|---------|
-| tmt_part | Teil A (1) oder B (2) | – |
-| completed | Erfolgreich abgeschlossen | – |
-| total_time_s | Gesamtzeit | s |
-| n_targets_completed | Erreichte Ziele | – |
-| mean_reaction_time_ms | Mittlere Reaktionszeit | ms |
-| mean_movement_time_ms | Mittlere Bewegungszeit | ms |
-| movement_time_cv | Bewegungszeit-Variabilitaet (CV) | – |
-| path_efficiency | Geradeaus / tatsaechlicher Pfad | – |
-| mean_peak_velocity_mm_s | Mittlere Spitzengeschwindigkeit | mm/s |
-| n_errors | Gesamtzahl falscher Anfahrten | – |
-| error_rate_per_target | Fehler pro Ziel | – |
-| mean_dwell_time_ms | Mittlere Verweilzeit | ms |
-| fatigue_index | Bewegungszeit-Aenderung Anfang vs. Ende | – |
-
-**Detail-Plots**: Pfadkarte, Segmentzeiten, Pfad-Effizienz, Fehler pro Segment
-
-## Motor Performance Index (MPI)
-
-Fuer die drei repetitiven Motorik-Tests wird ein zusammengefasster **Motor Performance Index**
-als normalisierter Verlaufsmarker berechnet (0.0 = schwer betroffen, 1.0 = gesund).
-
-Der MPI aggregiert vier Subdomaenen, angelehnt an die MDS-UPDRS Bewertungskriterien:
-
-| Subdomaene | Gewicht | Was wird gemessen? |
+| Paradigma | UPDRS | Kern-Features |
 |---|---|---|
-| Speed | 30% | Bewegungsfrequenz (Hz) |
-| Amplitude | 30% | Oeffnungsweite / ROM |
-| Decrement | 20% | Ermuedung ueber die Aufnahmedauer |
-| Regularity | 20% | Rhythmusstabilitaet (CV) oder Geschwindigkeit |
+| Finger Tapping | 3.4 | Frequenz, Amplitude, Dekrement, CV, Geschwindigkeit |
+| Hand Oeffnen/Schliessen | 3.5 | Amplitude, Zyklusfrequenz, Dekrement |
+| Pronation/Supination | 3.6 | Rotationsfrequenz, ROM, Winkelgeschwindigkeit |
+| Posturaler Tremor (bilateral) | 3.15 | Dominante Frequenz, Translations-/Rotations-RMS, Spektralleistung, Asymmetrie |
+| Ruhetremor (bilateral) | 3.17 | wie 3.15, niedrigere Handposition |
+| Tuerme von Hanoi | – | Zuege/Effizienz, Planungszeit, Greif-Metriken, Trajektorie, Jitter |
+| Spatial SRT | – | RT/Bewegungszeit, Lernindex (Sequenz vs. Zufall), Pfad-Effizienz |
+| Trail Making A/B | – | Gesamtzeit, RT, Fehler, Pfad-Effizienz, Fatigue |
 
-Jede Komponente wird gegen konfigurierbare Referenzwerte (Literatur: Butt 2018, Heldman 2014)
-linear normalisiert. Die Referenzwerte koennen in `motor_tests/test_config.yaml` angepasst werden.
-
-Der MPI wird als **erste Zeile** in der Ergebnistabelle angezeigt, farbcodiert:
-gruen (>0.7), gelb (0.4-0.7), rot (<0.4).
+Die vollstaendigen Feature-Tabellen mit Beschreibungen, Einheiten und
+Aufgaben-Details stehen in
+**[TECHNICAL_DETAILS.md §6](TECHNICAL_DETAILS.md)**; der **Motor Performance
+Index** (Komposit-Score 0–1, farbcodiert, Default-Merkmal der Verlaufsansicht)
+ist dort in §10 beschrieben.
 
 ## Ausgabeformate
 
@@ -332,8 +159,8 @@ Optional koennen Rohdaten als JSON in `data/samples/` gespeichert werden (Checkb
 
 ### CSV-Export
 
-- **Einzelmessung**: Ueber "CSV Export" auf dem Ergebnis-Screen oder im Daten-Browser
-- **Alle Messungen**: Ueber "Alle als CSV" im Daten-Browser
+- **Einzelmessung**: ueber "CSV Export" auf dem Ergebnis-Screen
+- **Alle Messungen eines Patienten**: ueber "CSV Export" in der Patienten-Detailansicht
 
 ### JSON-Rohdaten
 
@@ -346,10 +173,13 @@ Enthaelt alle HandFrame-Daten fuer Offline-Analyse:
 
 ### SQLite-Datenbank
 
-Direkter Zugriff:
+i2b2-Sternschema (siehe [BLUEPRINT.md §3.7](BLUEPRINT.md) und
+[DB_KONZEPT.md](DB_KONZEPT.md)). Direkter Zugriff:
 
 ```bash
-sqlite3 data/tappd.db "SELECT * FROM measurements ORDER BY recorded_at DESC"
+sqlite3 data/tappd.db \
+  "SELECT CONCEPT_CD, TVAL_CHAR, NVAL_NUM, START_DATE, SOURCESYSTEM_CD
+   FROM OBSERVATION_FACT ORDER BY START_DATE DESC LIMIT 20"
 ```
 
 ## Troubleshooting
@@ -407,6 +237,14 @@ Auf Windows erledigen `start.ps1`/`start.bat` dies automatisch beim ersten Start
 
 ## Weitergehende Dokumentation
 
+- **[BLUEPRINT.md](BLUEPRINT.md)** – Einstiegspunkt: Komponenten-Gesamtkarte,
+  Datenfluesse, Konzepte, Status
+- [ARCHITECTURE.md](ARCHITECTURE.md) – Layer-Contracts (APIs), Naming-Schema,
+  Ausbaustufen-Historie
+- [TECHNICAL_DETAILS.md](TECHNICAL_DETAILS.md) – Klinische Tests + Features,
+  Signalverarbeitung, MPI, Rohdaten-Format, Logging
+- [DB_KONZEPT.md](DB_KONZEPT.md) – Referenz-Konzept des i2b2-Schemas (Zielbild)
+- [mediapipe_sidecar/PROTOCOL.md](mediapipe_sidecar/PROTOCOL.md) – Sidecar-Protokoll
 - [ABOUT.md](ABOUT.md) – Kurzinfo zum Projekt
-- [TECHNICAL_DETAILS.md](TECHNICAL_DETAILS.md) – Ausfuehrliche technische Dokumentation
-- [OPTIMIZATION_PLAN.md](OPTIMIZATION_PLAN.md) – Geplante Verbesserungen
+- [OPTIMIZATION_PLAN.md](OPTIMIZATION_PLAN.md) – historischer Optimierungsplan
+  (Maerz 2026; offene Analyse-Ideen)

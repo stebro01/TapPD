@@ -1,6 +1,14 @@
 # TapPD – Recording & Analysis Optimization Plan
 
-## Status: TEILWEISE UMGESETZT
+> **HISTORISCHES PLANUNGSDOKUMENT (Maerz 2026).** Der aktuelle Systemstand
+> steht in [BLUEPRINT.md](BLUEPRINT.md) (inkl. offener Punkte in §4).
+> Ueberholt: die Datenfluss-Uebersicht (§1) und die DB-Erweiterungen (§6 —
+> referenzieren das alte v1-Schema; heute i2b2-Sternschema, Provenienz via
+> `SOURCESYSTEM_CD`). Weiterhin lebendig: die offenen Analyse-Ideen aus
+> Phase 2–4 (Welch-PSD, Hesitation-/Freezing-Erkennung, Savitzky-Golay,
+> Qualitaetsmetriken, Referenzmessungen).
+
+## Status: TEILWEISE UMGESETZT (historisch)
 
 ---
 

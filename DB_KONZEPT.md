@@ -2,6 +2,12 @@
 
 > Detaillierte Dokumentation zur Uebertragung auf andere Projekte.
 > Stand: 2026-03-31
+>
+> **Einordnung fuer Motryx:** Dieses Dokument ist das **Referenz-Konzept /
+> Zielbild** (teils mit JS/TS-Beispielen aus dem Ursprungsprojekt). Die in
+> Motryx implementierte **Teilmenge** (ohne PROVIDER_DIMENSION, CQL_*,
+> *_LOOKUP-Tabellen, Trigger und einige Spalten) steht in
+> `storage/database.py`; kompakte Uebersicht: [BLUEPRINT.md §3.7](BLUEPRINT.md).
 
 ---
 

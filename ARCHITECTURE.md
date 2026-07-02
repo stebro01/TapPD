@@ -4,9 +4,11 @@
 > tracking now; face & oculomotor on the roadmap). Formerly *TapPD* (still the
 > DB concept namespace; see Storage).
 
-This document is the single written description of how the system is layered, the
-standard API each layer agrees on, the services, the naming scheme, the
-configuration story, and the staged plan toward multimodal support.
+This document defines the **layer contracts** (the standard API each layer
+agrees on), the naming scheme, the configuration story, and the staged plan
+toward multimodal support. The component-by-component map of the whole system
+(directories, data flows, storage topology, per-component analysis) lives in
+**[BLUEPRINT.md](BLUEPRINT.md)** — start there for orientation.
 
 ---
 

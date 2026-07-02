@@ -37,6 +37,11 @@ Die erfasste Quelle wird mit jeder Messung gespeichert (Simulationsdaten sind kl
 - SQLite-Datenbank (i2b2-Sternschema) für Patienten und Messungen
 - Echtzeit-Signalverarbeitung (NumPy, SciPy)
 
+## Dokumentation
+
+Technischer Einstieg: [BLUEPRINT.md](BLUEPRINT.md) (Komponenten-Gesamtkarte) ·
+[README.md](README.md) (Installation & Bedienung).
+
 ## Hinweis
 
 Dieses Werkzeug ist ein Forschungsprototyp und nicht für den klinischen Einsatz zugelassen. Es ersetzt keine ärztliche Untersuchung.
