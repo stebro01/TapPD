@@ -233,9 +233,15 @@ migration shim).
 **Remaining / future**
 - Migrate consumers to the `Callable[[TrackingFrame], None]` callback; then drop
   `BaseCaptureDevice`/`HandFrame` aliases.
-- **Unlock tremor on video**: implement the eye-referenced absolute position in
-  `SourceProfile.adapt_frame` (webcam) using the stored eye-reference track →
-  add `CAP_ABS_POSITION` to webcam → gate auto-unlocks tremor.
+- ~~**Unlock tremor on video**~~ — done, live variant: the sidecar attaches
+  iris centres (`iris_px`, ~5 Hz cadence) + per-hand `palm_px` to the full-rate
+  `hand` stream; `mediapipe_mapping.eye_ref_position_mm` derives an absolute
+  ≈mm palm position, promoted in `SourceProfile.adapt_frame` (webcam). The
+  webcam gains `CAP_ABS_POSITION` dynamically while face tracking is on
+  (`extra_capabilities`); VideoLab forces face on for abs-position paradigms
+  and warns when the eye reference covered <50% of frames. The stored
+  `.eyeref.json` track remains an (unconsumed) archive artifact for clips
+  whose original is gone.
 - ~~**Export** VideoLab segment results into patient Sessions~~ — done:
   `video/export.py` (one DB Session per video session, `source_kind="video"`,
   double-export guarded by the `measurement_id` stamp).

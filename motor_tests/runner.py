@@ -62,10 +62,14 @@ class ParadigmRunner:
                 if (frame.timestamp_us - self._t0_us) > self._duration_s * 1_000_000:
                     self.duration_reached = True
                     return
-            self.test._on_frame(frame)
+            # Adapt once (source seam, e.g. webcam eye-referenced position) so
+            # paradigm AND live metric see the same view. adapt_frame is
+            # idempotent, so the paradigm's own _on_frame adapt is a no-op.
+            adapted = self.test._profile.adapt_frame(frame)
+            self.test._on_frame(adapted)
             t = (frame.timestamp_us - self._t0_us) / 1e6
             try:
-                m = float(self.test.get_live_metric(frame))
+                m = float(self.test.get_live_metric(adapted))
             except Exception:
                 m = 0.0
             with self._lock:

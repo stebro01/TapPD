@@ -27,6 +27,9 @@ import math
 from capture.base_capture import BoneData, FingerData, HandFrame
 
 M_TO_MM = 1000.0
+AVG_IPD_MM = 63.0          # average human inter-pupillary distance (eye-ref scale)
+_IRIS_MAX_AGE_MS = 1500    # stale eye reference → no absolute position
+_IRIS_MIN_PX = 10.0        # degenerate iris distance → no reliable scale
 
 WRIST = 0
 # Per finger: the 4 landmark indices [MCP-ish, PIP/IP, DIP/TIP-1, TIP].
@@ -152,16 +155,46 @@ def hand_from_world(world: list, handedness: str, score: float,
     )
 
 
+def eye_ref_position_mm(palm_px, iris_px, iris_age_ms: int | None) -> tuple | None:
+    """Absolute palm position from the eye reference, or None.
+
+    The iris centres give a metric scale (average IPD = 63 mm) and a stable
+    origin (eye midpoint); the palm's image position becomes an absolute
+    position in ≈mm — x right, y up, z unknown (0). This is what unlocks
+    tremor on camera sources (MediaPipe world landmarks are hand-relative).
+    """
+    if not palm_px or not iris_px or len(iris_px) < 2:
+        return None
+    if iris_age_ms is not None and iris_age_ms > _IRIS_MAX_AGE_MS:
+        return None
+    (lx, ly), (rx, ry) = iris_px[0], iris_px[1]
+    ipd_px = math.hypot(rx - lx, ry - ly)
+    if ipd_px < _IRIS_MIN_PX:
+        return None
+    scale = AVG_IPD_MM / ipd_px            # mm per pixel at face depth
+    mid_x, mid_y = (lx + rx) / 2.0, (ly + ry) / 2.0
+    return ((palm_px[0] - mid_x) * scale,   # x: right of the eye midpoint
+            (mid_y - palm_px[1]) * scale,   # y: image-down → up positive
+            0.0)                            # z not recoverable from RGB
+
+
 def frames_from_message(msg: dict, flip_handedness: bool = False,
                         prev_by_hand: dict | None = None) -> list[HandFrame]:
     """Convert one ``{"type":"hand", ...}`` sidecar message to HandFrames.
 
     ``prev_by_hand`` maps hand_type -> previous HandFrame and is updated in place
     so successive calls produce palm velocities.
+
+    When the sidecar attaches an eye reference (``iris_px`` + per-hand
+    ``palm_px``), each frame gets an ``eye_ref_mm`` attribute; the webcam
+    ``SourceProfile.adapt_frame`` seam promotes it to ``palm_position`` for
+    paradigms that need absolute position (tremor).
     """
     if msg.get("type") != "hand":
         return []
     ts = int(msg.get("ts", 0))
+    iris_px = msg.get("iris_px")
+    iris_age = msg.get("iris_age_ms")
     out: list[HandFrame] = []
     for hand in msg.get("hands", []):
         prev = (prev_by_hand or {}).get((hand.get("handedness") or "Right").lower())
@@ -182,6 +215,7 @@ def frames_from_message(msg: dict, flip_handedness: bool = False,
             dt=dt,
         )
         if frame is not None:
+            frame.eye_ref_mm = eye_ref_position_mm(hand.get("palm_px"), iris_px, iris_age)
             out.append(frame)
             if prev_by_hand is not None:
                 prev_by_hand[frame.hand_type] = frame

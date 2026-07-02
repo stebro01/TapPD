@@ -65,6 +65,8 @@ from mediapipe.tasks.python import vision as mp_vision
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _DEFAULT_MODEL = os.path.join(_HERE, "models", "hand_landmarker.task")
 _FACE_MODEL = os.path.join(_HERE, "models", "face_landmarker.task")
+_IRIS_L, _IRIS_R = 468, 473        # MediaPipe iris-centre landmark indices
+_PALM_ANCHORS = (0, 1, 5, 9, 13, 17)   # wrist + thumb-CMC + four MCPs
 
 PREVIEW_FPS = 15.0          # throttle for the (heavy) JPEG preview stream
 PREVIEW_MAX_W = 640         # downscale preview frames to at most this width
@@ -142,6 +144,13 @@ class Sidecar:
         # the landmarker instance is reused across start/stop — so this must keep
         # increasing across restarts (a per-loop t0 would reset and break it).
         self._last_ts_ms = -1
+        # Eye reference (iris centres, PIXELS) for absolute hand position: the
+        # face runs at its own low cadence (the head barely moves) and the last
+        # result is attached to every full-rate hand message.
+        self._last_iris_px = None            # [[xL,yL],[xR,yR]] or None
+        self._last_iris_ts_ms = -1
+        self._last_face_result = None        # reused by the preview payload
+        self._last_face_t = 0.0
 
     # ── lifecycle ────────────────────────────────────────────────
     def _ensure_landmarker(self) -> None:
@@ -347,23 +356,38 @@ class Sidecar:
                     self._send({"type": "error", "msg": f"detect_for_video: {e}"})
                     continue
 
-                hands = self._hands_payload(result)
-                self._send({"type": "hand", "ts": int(time.time() * 1_000_000), "hands": hands})
-
                 now = time.perf_counter()
+                # Eye reference at its own low cadence (~5 Hz): the iris scale/
+                # origin varies slowly, while the hand stream stays full-rate.
+                if self._face_on and (now - self._last_face_t) >= 0.2:
+                    self._last_face_t = now
+                    fl = self._ensure_face_landmarker()
+                    if fl is not None:
+                        try:
+                            fres = fl.detect_for_video(mp_image, ts_ms)
+                        except Exception:
+                            fres = None
+                        self._last_face_result = fres
+                        h0, w0 = frame_bgr.shape[:2]
+                        lms = fres.face_landmarks[0] if (fres and fres.face_landmarks) else None
+                        if lms is not None and len(lms) > _IRIS_R:
+                            self._last_iris_px = [
+                                [lms[_IRIS_L].x * w0, lms[_IRIS_L].y * h0],
+                                [lms[_IRIS_R].x * w0, lms[_IRIS_R].y * h0]]
+                            self._last_iris_ts_ms = ts_ms
+
+                h0, w0 = frame_bgr.shape[:2]
+                hands = self._hands_payload(result, w0, h0)
+                msg = {"type": "hand", "ts": int(time.time() * 1_000_000), "hands": hands}
+                if self._face_on and self._last_iris_px is not None:
+                    msg["iris_px"] = self._last_iris_px
+                    msg["iris_age_ms"] = int(ts_ms - self._last_iris_ts_ms)
+                self._send(msg)
+
                 if self._preview_on and (now - last_preview) >= (1.0 / self._preview_fps):
                     last_preview = now
-                    # Face landmarks are display-only for now → compute only for
-                    # the (throttled) preview, not the full-rate hand stream.
-                    face_result = None
-                    if self._face_on:
-                        fl = self._ensure_face_landmarker()
-                        if fl is not None:
-                            try:
-                                face_result = fl.detect_for_video(mp_image, ts_ms)
-                            except Exception:
-                                face_result = None
-                    self._send(self._preview_payload(frame_bgr, result, face_result))
+                    self._send(self._preview_payload(frame_bgr, result,
+                                                     self._last_face_result if self._face_on else None))
         finally:
             cap.release()
             if self._writer is not None:
@@ -388,17 +412,27 @@ class Sidecar:
 
     # ── serialization ────────────────────────────────────────────
     @staticmethod
-    def _hands_payload(result) -> list[dict]:
+    def _hands_payload(result, w: int = 0, h: int = 0) -> list[dict]:
         hands = []
         world = getattr(result, "hand_world_landmarks", None) or []
+        image = getattr(result, "hand_landmarks", None) or []
         handed = getattr(result, "handedness", None) or []
         for i, hand_world in enumerate(world):
             cat = handed[i][0] if i < len(handed) and handed[i] else None
-            hands.append({
+            entry = {
                 "handedness": cat.category_name if cat else "Right",
                 "score": float(cat.score) if cat else 1.0,
                 "world": [[lm.x, lm.y, lm.z] for lm in hand_world],
-            })
+            }
+            # Palm centre in image PIXELS — with the iris reference this yields
+            # an absolute (eye-referenced) hand position in the main app.
+            if w and h and i < len(image) and len(image[i]) >= 21:
+                lms = image[i]
+                entry["palm_px"] = [
+                    sum(lms[j].x for j in _PALM_ANCHORS) / len(_PALM_ANCHORS) * w,
+                    sum(lms[j].y for j in _PALM_ANCHORS) / len(_PALM_ANCHORS) * h,
+                ]
+            hands.append(entry)
         return hands
 
     def _preview_payload(self, frame_bgr, result, face_result=None) -> dict:

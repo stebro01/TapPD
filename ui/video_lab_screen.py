@@ -486,14 +486,25 @@ class VideoLabScreen(QWidget):
         self._extract_segment(seg)
 
     def _paradigm_options(self) -> list:
-        """[(key, label, enabled, bilateral)] of motor paradigms, capability-gated."""
+        """[(key, label, enabled, bilateral)] of motor paradigms, capability-gated.
+
+        The analysis run enables face tracking itself, so the eye reference
+        provides absolute position on video — abs_position is not a blocker
+        here (tremor runs, marked as eye-referenced)."""
+        from capture.source import CAP_ABS_POSITION
         opts = []
         for key in registry.all_keys():
             spec = registry.get(key)
             if spec.category != registry.Category.MOTOR:
                 continue
             unmet = get_unmet_capabilities(key, "webcam")
-            label = spec.label.replace("\n", " ") + (" 🔒 (abs. Position)" if unmet else "")
+            eye_ref = CAP_ABS_POSITION in unmet
+            unmet -= {CAP_ABS_POSITION}
+            label = spec.label.replace("\n", " ")
+            if unmet:
+                label += " 🔒"
+            elif eye_ref:
+                label += " (Augen-Referenz)"
             opts.append((key, label, not unmet, spec.bilateral))
         return opts
 
@@ -731,19 +742,28 @@ class VideoLabScreen(QWidget):
             self._update_run_enabled()
             return
         key = test.test_type()
+        eye_cov = self.runner.eye_ref_coverage()
         if self.current_segment is not None and self.session is not None:
             from datetime import datetime
-            self.current_segment.results[key] = {
+            result = {
                 "features": features,
                 "recorded_at": datetime.now().isoformat(),
                 "raw_path": "",
                 "source_kind": "video",
             }
+            if self.runner.needs_abs_position:
+                result["eye_ref_coverage"] = round(eye_cov, 3)
+            self.current_segment.results[key] = result
             self.session.save()
             self._refresh_segment_list()
             self._reselect_current_segment()
         self._render_features(features, prefix="Ergebnis")
-        self._status.setText("Analyse fertig.")
+        if self.runner.needs_abs_position and eye_cov < 0.5:
+            self._status.setText(
+                f"⚠ Augen-Referenz nur in {eye_cov:.0%} der Frames gefunden — "
+                "Amplituden unzuverlässig (Gesicht im Video sichtbar?).")
+        else:
+            self._status.setText("Analyse fertig.")
         self._update_run_enabled()
 
     def _on_failed(self, msg: str) -> None:

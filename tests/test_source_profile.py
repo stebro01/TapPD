@@ -34,16 +34,38 @@ def test_webcam_readiness_is_presence_only():
     assert web.hand_ready(_frame(y=0.0, conf=0.1)) is False
 
 
-def test_adapt_frame_is_identity_for_now():
+def test_adapt_frame_is_identity_without_eye_ref():
     f = _frame()
     for kind in (LEAP, WEBCAM, MOCK):
         assert SourceProfile(kind, set()).adapt_frame(f) is f
+
+
+def test_adapt_frame_promotes_eye_ref_on_webcam_only():
+    f = _frame()
+    f.eye_ref_mm = (10.0, -250.0, 0.0)
+    web = SourceProfile(WEBCAM, set())
+    adapted = web.adapt_frame(f)
+    assert adapted is not f                      # copy, raw frame untouched
+    assert adapted.palm_position == (10.0, -250.0, 0.0)
+    assert f.palm_position != adapted.palm_position
+    # Idempotent: the copy carries no eye_ref → second adapt is identity.
+    assert web.adapt_frame(adapted) is adapted
+    # Leap/mock ignore the attribute.
+    assert SourceProfile(LEAP, set()).adapt_frame(f) is f
 
 
 def test_webcam_lacks_absolute_position_capability():
     web = profile_for(WebcamSource())
     assert CAP_FINGERTIPS in web.capabilities
     assert CAP_ABS_POSITION not in web.capabilities
+
+
+def test_webcam_gains_abs_position_with_face_tracking():
+    src = WebcamSource()
+    src.enable_face(True)      # not connected → just flips the local flag
+    assert CAP_ABS_POSITION in profile_for(src).capabilities
+    src.enable_face(False)
+    assert CAP_ABS_POSITION not in profile_for(src).capabilities
 
 
 def test_prompts_are_source_aware():

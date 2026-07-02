@@ -72,9 +72,18 @@ def source_kind(device: BaseCaptureDevice | None) -> str:
 
 
 def source_capabilities(kind_or_device) -> set[str]:
-    """Capabilities a source provides. Accepts a kind string or a device."""
-    kind = kind_or_device if isinstance(kind_or_device, str) else source_kind(kind_or_device)
-    return set(_SOURCE_CAPS.get(kind, _SOURCE_CAPS[LEAP]))
+    """Capabilities a source provides. Accepts a kind string or a device.
+
+    Devices can contribute state-dependent extras via ``extra_capabilities``
+    (e.g. the webcam gains ``abs_position`` while face tracking supplies an
+    eye reference).
+    """
+    if isinstance(kind_or_device, str):
+        return set(_SOURCE_CAPS.get(kind_or_device, _SOURCE_CAPS[LEAP]))
+    kind = source_kind(kind_or_device)
+    caps = set(_SOURCE_CAPS.get(kind, _SOURCE_CAPS[LEAP]))
+    caps |= set(getattr(kind_or_device, "extra_capabilities", ()) or ())
+    return caps
 
 
 # ── Source abstraction layer ───────────────────────────────────────
@@ -97,15 +106,18 @@ class SourceProfile:
         """Normalize a raw frame into the form paradigms expect.
 
         Leap/mock already deliver absolute mm, so this is identity.  Webcam
-        frames are hand-relative; today this is also identity (the absolute
-        position is simply absent, which is why tremor/spatial tasks are gated).
-
-        This is the single place a future webcam absolute-position proxy
-        (synthesised from MediaPipe image landmarks) would plug in — no
-        paradigm code would need to change.
+        frames are hand-relative — but when the sidecar delivered an eye
+        reference (``frame.eye_ref_mm``, iris-scaled image position, see
+        mediapipe_mapping.eye_ref_position_mm), the palm position is promoted
+        to that absolute (≈mm) position so tremor works on camera sources.
+        Returns a shallow copy; the raw frame (visualization, live buffers)
+        stays untouched. Idempotent: the copy carries no ``eye_ref_mm``.
         """
         if self.kind == WEBCAM:
-            # TODO: absolute-position proxy from image landmarks (deferred).
+            eye_ref = getattr(frame, "eye_ref_mm", None)
+            if eye_ref is not None:
+                from dataclasses import replace
+                return replace(frame, palm_position=tuple(eye_ref))
             return frame
         return frame
 
@@ -131,4 +143,5 @@ class SourceProfile:
 def profile_for(device: BaseCaptureDevice | None) -> SourceProfile:
     """Build the SourceProfile for a capture device."""
     kind = source_kind(device)
-    return SourceProfile(kind=kind, capabilities=source_capabilities(kind))
+    caps = source_capabilities(device) if device is not None else source_capabilities(kind)
+    return SourceProfile(kind=kind, capabilities=caps)

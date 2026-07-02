@@ -26,10 +26,17 @@ modalities (face/eye) can be added without breaking changes.
 // reply to list_cameras
 {"type":"cameras","items":[{"index":0,"name":"OBSBOT Tiny"}]}
 
-// per processed frame (full rate) — raw MediaPipe world landmarks (meters)
-{"type":"hand","ts":1719_650_000_000,"hands":[
+// per processed frame (full rate) — raw MediaPipe world landmarks (meters).
+// palm_px: palm centre in image PIXELS (wrist + 5 MCPs centroid).
+// iris_px/iris_age_ms (only while face is on): last known iris centres in
+// PIXELS + their age — the eye reference that makes the hand position
+// absolute in the main app (IPD 63 mm → mm-per-pixel; unlocks tremor).
+{"type":"hand","ts":1719_650_000_000,
+ "iris_px":[[xL,yL],[xR,yR]],"iris_age_ms":120,
+ "hands":[
   {"handedness":"Right","score":0.98,
-   "world":[[x,y,z], ...21 points...]}        // hand_world_landmarks, metres
+   "world":[[x,y,z], ...21 points...],        // hand_world_landmarks, metres
+   "palm_px":[px,py]}
 ]}
 
 // throttled (~15 fps) — only while preview is on
@@ -63,7 +70,9 @@ modalities (face/eye) can be added without breaking changes.
 ## Face landmarks (implemented via `preview`)
 
 The sidecar already runs a Face Landmarker (478 landmarks incl. iris) alongside
-the hand tracker; its output rides in the throttled `preview` message's `face`
-field (see above) and is toggled with `{"cmd":"face","on":bool}`. A dedicated
-full-rate `{"type":"face", ...}` stream (plus the 52 blendshapes) remains an
-additive future extension — no protocol change needed.
+the hand tracker at its own low cadence (~5 Hz — the eye reference varies
+slowly); it is toggled with `{"cmd":"face","on":bool}`. The full landmark set
+rides in the throttled `preview` message's `face` field (see above); the iris
+centres additionally ride on every full-rate `hand` message (`iris_px`). A
+dedicated full-rate `{"type":"face", ...}` stream (plus the 52 blendshapes)
+remains an additive future extension — no protocol change needed.

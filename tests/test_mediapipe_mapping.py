@@ -110,3 +110,34 @@ def test_velocity_uses_real_frame_dt_not_fixed_30fps():
     (f1,) = frames_from_message(msg1, prev_by_hand=prev)
     # 10 mm / 0.05 s = 200 mm/s (with fixed 1/30 it would be 300 mm/s)
     assert math.isclose(f1.palm_velocity[0], 200.0, rel_tol=1e-6)
+
+
+def test_eye_ref_position_from_iris_scale():
+    from capture.mediapipe_mapping import eye_ref_position_mm
+    # IPD 63 px → 1 mm/px. Palm 100 px right of / 200 px below the eye midpoint.
+    iris = [[300.0, 200.0], [363.0, 200.0]]     # midpoint (331.5, 200)
+    pos = eye_ref_position_mm([431.5, 400.0], iris, iris_age_ms=50)
+    assert pos is not None
+    x, y, z = pos
+    assert abs(x - 100.0) < 1e-6
+    assert abs(y - (-200.0)) < 1e-6              # image-down → negative (below eyes)
+    assert z == 0.0
+    # Stale or degenerate references yield None.
+    assert eye_ref_position_mm([431.5, 400.0], iris, iris_age_ms=5000) is None
+    assert eye_ref_position_mm([431.5, 400.0], [[0, 0], [1, 0]], 0) is None
+    assert eye_ref_position_mm(None, iris, 0) is None
+
+
+def test_frames_from_message_attaches_eye_ref():
+    world = _open_hand_world()
+    msg = {"type": "hand", "ts": 0,
+           "iris_px": [[300.0, 200.0], [363.0, 200.0]], "iris_age_ms": 10,
+           "hands": [{"handedness": "Right", "score": 0.9, "world": world,
+                      "palm_px": [331.5, 500.0]}]}
+    (f,) = frames_from_message(msg)
+    assert f.eye_ref_mm == (0.0, -300.0, 0.0)
+    # Without iris data the attribute is None.
+    msg2 = {"type": "hand", "ts": 33000,
+            "hands": [{"handedness": "Right", "score": 0.9, "world": world}]}
+    (f2,) = frames_from_message(msg2)
+    assert f2.eye_ref_mm is None

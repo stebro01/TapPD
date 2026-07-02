@@ -71,6 +71,7 @@ class WebcamSource(BaseCaptureDevice):
 
         self._sample_rate = 30.0
         self._sensor_issues: list[str] = []
+        self._face_on = False   # face tracking supplies the eye reference
 
     # ── preconditions ─────────────────────────────────────────────
     @staticmethod
@@ -240,8 +241,16 @@ class WebcamSource(BaseCaptureDevice):
 
     def enable_face(self, on: bool) -> None:
         """Toggle the (optional) face landmarker in the sidecar."""
+        self._face_on = bool(on)
         if self.is_connected():
             self._send({"cmd": "face", "on": bool(on)})
+
+    @property
+    def extra_capabilities(self) -> set[str]:
+        """State-dependent capabilities: with face tracking on, the eye
+        reference makes the hand position absolute (unlocks tremor)."""
+        from capture.source import CAP_ABS_POSITION
+        return {CAP_ABS_POSITION} if self._face_on else set()
 
     def configure(self, **settings) -> None:
         """Push sidecar tunables (e.g. num_hands) — apply before start_recording."""

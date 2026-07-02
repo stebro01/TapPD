@@ -36,6 +36,9 @@ class AnalysisRunner(QObject):
         self._dur = 0.1
         self._chosen = "right"
         self._finished = False
+        self._needs_abs = False
+        self._frames_total = 0
+        self._frames_eyeref = 0
         self._fallback = QTimer(self)
         self._fallback.setSingleShot(True)
         self._fallback.timeout.connect(self._on_done)
@@ -49,11 +52,17 @@ class AnalysisRunner(QObject):
     def metric_label(self) -> str:
         return self._pr.metric_label if self._pr else ""
 
+    @property
+    def needs_abs_position(self) -> bool:
+        return self._needs_abs
+
     # ── lifecycle ─────────────────────────────────────────────────
     def start(self, video_path: str, start_s: float, end_s: float,
               paradigm_key: str, hand: str = "right", with_face: bool = False) -> None:
         from capture.mediapipe_capture import WebcamSource
+        from capture.source import CAP_ABS_POSITION
         from motor_tests import registry
+        from motor_tests.config import get_task_requirements
         from motor_tests.runner import ParadigmRunner
         try:
             if self._src is None:
@@ -62,6 +71,12 @@ class AnalysisRunner(QObject):
             self._spec = registry.get(paradigm_key)
             self._dur = max(0.1, end_s - start_s)
             self._chosen = hand
+            # Tremor & co need absolute position → the eye reference (face
+            # tracking) is mandatory, regardless of the with_face setting.
+            self._needs_abs = CAP_ABS_POSITION in get_task_requirements(paradigm_key)
+            with_face = with_face or self._needs_abs
+            self._frames_total = 0
+            self._frames_eyeref = 0
             test = self._spec.load_class()(capture=self._src, duration=self._dur,
                                            hand=hand, **(self._spec.cls_kwargs or {}))
             self._pr = ParadigmRunner(test, sidecar_bounded=True)
@@ -89,8 +104,16 @@ class AnalysisRunner(QObject):
     def _feed(self, frame) -> None:        # reader thread
         with self._raw_lock:
             self._raw.setdefault(frame.hand_type, []).append(frame)
+            self._frames_total += 1
+            if getattr(frame, "eye_ref_mm", None) is not None:
+                self._frames_eyeref += 1
         if self._pr is not None:
             self._pr.feed(frame)           # live metric for both hands (the plot)
+
+    def eye_ref_coverage(self) -> float:
+        """Fraction of frames that carried an eye reference (0..1)."""
+        with self._raw_lock:
+            return (self._frames_eyeref / self._frames_total) if self._frames_total else 0.0
 
     def _dominant_hand(self, live: dict) -> str | None:
         """The hand that moved most (largest live-metric range) = the tested one."""
