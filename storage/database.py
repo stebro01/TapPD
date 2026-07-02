@@ -232,6 +232,21 @@ def _migrate_v2(conn: sqlite3.Connection) -> None:
         conn.commit()
         log.info("CODE_LOOKUP: LOOKUP_BLOB Spalte hinzugefuegt")
 
+    # Mirror blob source_kind into SOURCESYSTEM_CD ('TAPPD:<kind>') so
+    # provenance is SQL-filterable; idempotent, only touches plain-'TAPPD' rows.
+    try:
+        n = conn.execute(
+            "UPDATE OBSERVATION_FACT SET SOURCESYSTEM_CD = "
+            "  'TAPPD:' || json_extract(OBSERVATION_BLOB, '$.source_kind') "
+            "WHERE (SOURCESYSTEM_CD = 'TAPPD' OR SOURCESYSTEM_CD IS NULL) "
+            "  AND COALESCE(json_extract(OBSERVATION_BLOB, '$.source_kind'), '') != ''"
+        ).rowcount
+        conn.commit()
+        if n:
+            log.info("OBSERVATION_FACT: source_kind in SOURCESYSTEM_CD gespiegelt (%d Zeilen)", n)
+    except sqlite3.OperationalError:
+        log.warning("SOURCESYSTEM_CD-Backfill übersprungen (json_extract nicht verfügbar)")
+
     # Ensure LOOKUP_BLOB is populated for SEX_CD entries
     gender_blobs = {
         "SCTID: 248153007": '{"app_code":"m"}',
@@ -513,8 +528,17 @@ def _row_to_measurement(r) -> Measurement:
         features_json=json.dumps(features, default=str),
         recorded_at=d.get("START_DATE") or "",
         raw_data_path=blob.get("raw_data_path", ""),
-        source_kind=blob.get("source_kind", ""),
+        # Blob is authoritative; the SOURCESYSTEM_CD column ('TAPPD:<kind>')
+        # is the SQL-queryable mirror and the fallback for old rows.
+        source_kind=blob.get("source_kind", "")
+        or _source_kind_from_sourcesystem(d.get("SOURCESYSTEM_CD")),
     )
+
+
+def _source_kind_from_sourcesystem(cd: str | None) -> str:
+    if cd and cd.startswith("TAPPD:"):
+        return cd.split(":", 1)[1]
+    return ""
 
 
 def _row_to_session(r) -> Session:
@@ -632,13 +656,14 @@ def save_measurement(conn: sqlite3.Connection, m: Measurement) -> Measurement:
                                          features, m.source_kind)
     mpi = features.get("mpi")
 
+    source_cd = f"TAPPD:{m.source_kind}" if m.source_kind else "TAPPD"
     cur = conn.execute(
         "INSERT INTO OBSERVATION_FACT "
         "(ENCOUNTER_NUM, PATIENT_NUM, CATEGORY_CHAR, CONCEPT_CD, START_DATE, "
-        " VALTYPE_CD, TVAL_CHAR, NVAL_NUM, OBSERVATION_BLOB) "
-        "VALUES (?, ?, ?, ?, ?, 'B', ?, ?, ?)",
+        " VALTYPE_CD, TVAL_CHAR, NVAL_NUM, OBSERVATION_BLOB, SOURCESYSTEM_CD) "
+        "VALUES (?, ?, ?, ?, ?, 'B', ?, ?, ?, ?)",
         (m.session_id, m.patient_id, category, concept_cd, m.recorded_at,
-         m.hand, mpi, obs_blob),
+         m.hand, mpi, obs_blob, source_cd),
     )
     m.id = cur.lastrowid
     conn.commit()

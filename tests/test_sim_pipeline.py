@@ -152,3 +152,12 @@ def test_replay_survives_stop_start_handoff(fake_video):
     dev.stop_recording()
     dev.disconnect()
     assert counts["a"] > 0 and counts["b"] > 0, "stream did not resume after stop/start"
+
+
+def test_transcode_manual_rotation_swaps_dimensions(fake_video, tmp_path):
+    """VideoLab rotate button: 90° rotation → width/height swapped (320x240 → 240x320)."""
+    from video import transcode as tc
+    dest = str(tmp_path / "rot.mp4")
+    out = tc.transcode_video(fake_video, dest, rotate_deg=90)
+    assert out and out["ok"]
+    assert (out["w"], out["h"]) == (240, 320)

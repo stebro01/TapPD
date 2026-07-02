@@ -24,8 +24,11 @@ def transcode_available() -> bool:
     return os.path.isfile(_SIDECAR_PY) and os.path.isfile(_SCRIPT)
 
 
-def transcode_video(src: str, dest: str) -> dict | None:
-    """Downscale + fps-cap + re-encode `src` → `dest` (mp4). None on failure."""
+def transcode_video(src: str, dest: str, rotate_deg: int = 0) -> dict | None:
+    """Downscale + fps-cap + re-encode `src` → `dest` (mp4). None on failure.
+
+    ``rotate_deg`` (90/180/270) applies a manual rotation on top of the
+    container's auto-orientation — the VideoLab rotate button."""
     if not transcode_available():
         log.warning("Transcode nicht verfügbar (Sidecar-venv fehlt)")
         return None
@@ -35,6 +38,7 @@ def transcode_video(src: str, dest: str) -> dict | None:
         str(cfg("import", "max_height", default=1280)),
         str(cfg("import", "target_fps", default=30)),
         str(cfg("import", "codec", default="avc1")),
+        str(int(rotate_deg) % 360),
     ]
     try:
         r = subprocess.run(args, capture_output=True, text=True,

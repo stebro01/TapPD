@@ -131,6 +131,13 @@ class PatientDetailScreen(QWidget):
         self.video_lab_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
         self.video_lab_btn.clicked.connect(self._on_video_lab)
         btn_row.addWidget(self.video_lab_btn)
+        self.trend_btn = QPushButton("📈 Verlauf")
+        self.trend_btn.setFixedHeight(SZ.BTN_H)
+        self.trend_btn.setFixedWidth(160)
+        self.trend_btn.setToolTip("Merkmale über die Zeit (alle Messungen dieses Patienten)")
+        self.trend_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        self.trend_btn.clicked.connect(self._on_trend)
+        btn_row.addWidget(self.trend_btn)
         btn_row.addStretch()
         layout.addLayout(btn_row)
 
@@ -511,6 +518,20 @@ class PatientDetailScreen(QWidget):
         if self._patient:
             self.main_window.current_patient = self._patient
             self.main_window.show_video_lab()
+
+    def _on_trend(self) -> None:
+        if not self._patient or not self._patient.id:
+            return
+        conn = get_db()
+        try:
+            measurements = get_measurements(conn, self._patient.id)
+        finally:
+            conn.close()
+        if not measurements:
+            QMessageBox.information(self, "Verlauf", "Noch keine Messungen vorhanden.")
+            return
+        from ui.trend_dialog import TrendDialog
+        TrendDialog(self._patient, measurements, parent=self).exec()
 
     def _on_delete_patient(self) -> None:
         """Delete the entire patient with all sessions and measurements."""

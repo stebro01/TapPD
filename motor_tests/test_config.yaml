@@ -43,7 +43,7 @@ finger_tapping:
       method: "prominence"
       min_distance_factor: 6     # min_distance = fs / this_value
       min_prominence_pct: 15     # % of signal range
-      max_frequency_hz: 7.0      # physiological maximum for tapping (dokumentativ; derzeit nicht ausgewertet)
+      max_frequency_hz: 7.0      # physiological maximum for tapping (caps peak spacing)
 
   # What features to compute
   features:
@@ -143,7 +143,7 @@ hand_open_close:
       method: "prominence"
       min_distance_factor: 4
       min_prominence_pct: 15
-      max_frequency_hz: 5.0              # dokumentativ; derzeit nicht ausgewertet
+      max_frequency_hz: 5.0              # physiological maximum (caps peak spacing)
 
   features:
     - key: "mean_amplitude_mm"
@@ -235,7 +235,7 @@ pronation_supination:
       method: "prominence"
       min_distance_factor: 4
       min_prominence_pct: 15
-      max_frequency_hz: 4.0              # dokumentativ; derzeit nicht ausgewertet
+      max_frequency_hz: 4.0              # physiological maximum (caps peak spacing)
 
   features:
     - key: "rotation_frequency_hz"

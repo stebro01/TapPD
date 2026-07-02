@@ -263,6 +263,10 @@ def _compute_unilateral(
     min_dist_factor = peak_cfg.get("min_distance_factor", 6)
     min_prom_pct = peak_cfg.get("min_prominence_pct", 15)
     min_dist = max(1, int(fs / min_dist_factor))
+    # Physiological ceiling: peaks may not come faster than max_frequency_hz.
+    max_freq = float(peak_cfg.get("max_frequency_hz", 0) or 0)
+    if max_freq > 0:
+        min_dist = max(min_dist, int(fs / max_freq))
     signal_range = float(np.max(v_detrended) - np.min(v_detrended))
     min_prominence = signal_range * min_prom_pct / 100.0
 

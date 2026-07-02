@@ -53,6 +53,29 @@ class _ImportWorker(QThread):
             self.failed.emit(str(e))
 
 
+class _RotateWorker(QThread):
+    """Re-transcode the session video with a manual rotation off the GUI thread."""
+    done = pyqtSignal(str)        # new stored path
+    failed = pyqtSignal(str)
+
+    def __init__(self, session: VideoSession, degrees: int) -> None:
+        super().__init__()
+        self._session = session
+        self._deg = degrees
+
+    def run(self) -> None:
+        try:
+            from video.transcode import transcode_video
+            dest = str(self._session.new_video_path(".mp4"))
+            out = transcode_video(self._session.video_path, dest, rotate_deg=self._deg)
+            if not out:
+                self.failed.emit("Drehen fehlgeschlagen (Transcode).")
+                return
+            self.done.emit(dest)
+        except Exception as e:   # noqa: BLE001
+            self.failed.emit(str(e))
+
+
 class _SegmentExtractWorker(QThread):
     """Cut a segment into its own compact, defaced clip off the GUI thread."""
     done = pyqtSignal(str, str, bool)   # (seg_id, clip_path, deidentified)
@@ -231,6 +254,13 @@ class VideoLabScreen(QWidget):
         self._range_lbl.setStyleSheet("font-size:12px; color:#607D8B;")
         self._range_lbl.setFixedWidth(120)
         ctl.addWidget(self._range_lbl)
+        self._rotate_btn = QPushButton("↻ 90°")
+        self._rotate_btn.setFixedWidth(70)
+        self._rotate_btn.setToolTip(
+            "Video um 90° im Uhrzeigersinn drehen (falls die automatische "
+            "Orientierung falsch ist)")
+        self._rotate_btn.clicked.connect(self._on_rotate)
+        ctl.addWidget(self._rotate_btn)
         self._deface_cb = QCheckBox("Defacing")
         self._deface_cb.setToolTip("Gesicht im Segment-Clip anonymisieren (Datenschutz)")
         self._deface_cb.setChecked(cfg("privacy", "deface", default="blur") in ("blur", "mesh"))
@@ -433,6 +463,51 @@ class VideoLabScreen(QWidget):
         self._hide_busy()
         self._load_btn.setEnabled(True)
         QMessageBox.critical(self, "VideoLab", f"Konnte Video nicht laden:\n{msg}")
+        self._status.setText("")
+
+    # ── rotate (Videoschnitt) ─────────────────────────────────────
+    def _on_rotate(self) -> None:
+        if self.session is None or not self.session.video_path or self._running:
+            return
+        import os
+        if not os.path.exists(self.session.video_path):
+            return
+        if self.session.segments:
+            r = QMessageBox.question(
+                self, "Video drehen",
+                "Bereits extrahierte Segment-Clips behalten die alte Orientierung "
+                "und Analysen sollten neu ausgeführt werden. Trotzdem drehen?")
+            if r != QMessageBox.StandardButton.Yes:
+                return
+        self._player.stop()
+        self._show_busy("Video wird um 90° gedreht …")
+        self._rotate_worker = _RotateWorker(self.session, 90)
+        self._rotate_worker.done.connect(self._on_rotate_done)
+        self._rotate_worker.failed.connect(self._on_rotate_failed)
+        self._rotate_worker.start()
+
+    def _on_rotate_done(self, dest: str) -> None:
+        self._hide_busy()
+        if self.session is None:
+            return
+        import os
+        old = self.session.video_path
+        from video.clip import VideoClip
+        self.session.set_video(dest, self.session.video_name)
+        self.session.save()
+        try:
+            if old and os.path.exists(old) and old != dest:
+                os.remove(old)
+        except OSError:
+            log.warning("Altes Video konnte nicht gelöscht werden: %s", old)
+        self._player.setSource(QUrl.fromLocalFile(dest))
+        self._show_first_frame()
+        self._populate_info(VideoClip.load(dest))
+        self._status.setText("Video um 90° gedreht.")
+
+    def _on_rotate_failed(self, msg: str) -> None:
+        self._hide_busy()
+        QMessageBox.critical(self, "VideoLab", f"Drehen fehlgeschlagen:\n{msg}")
         self._status.setText("")
 
     def _timeline_duration(self, ms: int) -> None:
@@ -802,7 +877,7 @@ class VideoLabScreen(QWidget):
 
     # ── enable/disable ────────────────────────────────────────────
     def _set_controls_enabled(self, has_video: bool) -> None:
-        for w in (self._play_btn, self._timeline, self._add_seg_btn):
+        for w in (self._play_btn, self._timeline, self._add_seg_btn, self._rotate_btn):
             w.setEnabled(has_video)
         self._update_run_enabled()
 

@@ -607,3 +607,50 @@ class TestEdgeCases:
         conn.commit()
         assert conn.execute("SELECT COUNT(*) FROM VISIT_DIMENSION WHERE PATIENT_NUM=?", (pid,)).fetchone()[0] == 0
         assert conn.execute("SELECT COUNT(*) FROM OBSERVATION_FACT WHERE PATIENT_NUM=?", (pid,)).fetchone()[0] == 0
+
+
+class TestSourceKindProvenance:
+    """source_kind is mirrored into SOURCESYSTEM_CD (SQL-queryable)."""
+
+    def test_save_writes_sourcesystem_cd(self, conn):
+        p = save_patient(conn, Patient(patient_code="SRC01"))
+        m = Measurement(patient_id=p.id, test_type="finger_tapping", hand="right")
+        m.features = {"tap_frequency_hz": 3.0}
+        m.source_kind = "webcam"
+        save_measurement(conn, m)
+        cd = conn.execute(
+            "SELECT SOURCESYSTEM_CD FROM OBSERVATION_FACT WHERE OBSERVATION_ID=?",
+            (m.id,)).fetchone()[0]
+        assert cd == "TAPPD:webcam"
+        # SQL filter works
+        n = conn.execute(
+            "SELECT COUNT(*) FROM OBSERVATION_FACT WHERE SOURCESYSTEM_CD='TAPPD:webcam'"
+        ).fetchone()[0]
+        assert n == 1
+
+    def test_column_is_fallback_when_blob_lacks_source_kind(self, conn):
+        p = save_patient(conn, Patient(patient_code="SRC02"))
+        blob = _marshal_observation_blob("left", 10.0, "", {"mpi": 0.5}, "")
+        conn.execute(
+            "INSERT INTO OBSERVATION_FACT (PATIENT_NUM, CONCEPT_CD, START_DATE, "
+            "TVAL_CHAR, OBSERVATION_BLOB, SOURCESYSTEM_CD) VALUES (?, ?, ?, ?, ?, ?)",
+            (p.id, "TAPPD:FINGER_TAPPING", "2026-01-01T10:00:00", "left", blob,
+             "TAPPD:leap"))
+        conn.commit()
+        got = get_measurements(conn, p.id)[0]
+        assert got.source_kind == "leap"
+
+    def test_migrate_v2_backfills_sourcesystem(self, conn):
+        from storage.database import _migrate_v2
+        p = save_patient(conn, Patient(patient_code="SRC03"))
+        blob = _marshal_observation_blob("right", 10.0, "", {"mpi": 0.5}, "mock")
+        conn.execute(
+            "INSERT INTO OBSERVATION_FACT (PATIENT_NUM, CONCEPT_CD, START_DATE, "
+            "TVAL_CHAR, OBSERVATION_BLOB) VALUES (?, ?, ?, ?, ?)",
+            (p.id, "TAPPD:FINGER_TAPPING", "2026-01-01T10:00:00", "right", blob))
+        conn.commit()
+        _migrate_v2(conn)
+        cd = conn.execute(
+            "SELECT SOURCESYSTEM_CD FROM OBSERVATION_FACT WHERE PATIENT_NUM=?",
+            (p.id,)).fetchone()[0]
+        assert cd == "TAPPD:mock"
