@@ -217,6 +217,11 @@ def _ensure_schema(conn: sqlite3.Connection) -> None:
         # Inline migrations for existing v2 databases
         _migrate_v2(conn)
 
+    # Gesture Lab lives in the same DB file; register its table here so the
+    # central schema owns ALL tables (it was lazily bootstrapped before).
+    from gesture_lab.gesture_db import ensure_gesture_table
+    ensure_gesture_table(conn)
+
 
 def _migrate_v2(conn: sqlite3.Connection) -> None:
     """Inline migrations for existing v2 star schema databases."""
