@@ -9,7 +9,6 @@ later stage exports chosen results into real patient Sessions as Measurements.
 from __future__ import annotations
 
 import json
-import shutil
 from dataclasses import dataclass, field, asdict
 from datetime import datetime
 from pathlib import Path
@@ -78,14 +77,6 @@ class VideoSession:
     def set_video(self, path: str, original_name: str) -> None:
         self.video_path = str(path)
         self.video_name = original_name
-
-    def import_video(self, src_path: str) -> str:
-        """Copy an uploaded video into this session's folder (fallback, no transcode)."""
-        src = Path(src_path)
-        dest = self.new_video_path(src.suffix.lower() or ".mp4")
-        shutil.copy2(str(src), str(dest))
-        self.set_video(str(dest), src.name)
-        return self.video_path
 
     def add_segment(self, name: str, start_s: float, end_s: float,
                     paradigm: str = "", hand: str = "right", note: str = "") -> Segment:

@@ -111,7 +111,7 @@ _KIND_ALIASES = {
 
 
 def normalize_source_kind(kind: str) -> str:
-    """Map accepted aliases to canonical kind strings (webcam/leap/mock/auto/websocket)."""
+    """Map accepted aliases to canonical kind strings (webcam/leap/mock/replay/auto)."""
     return _KIND_ALIASES.get(kind, kind)
 
 
@@ -121,7 +121,7 @@ def create_source(kind: str = "auto", camera_index: int = 0,
 
     Args:
         kind: "leap", "webcam" (alias "mediapipe"), "mock" (alias "sim"),
-            "websocket", or "auto" (tries leap -> mock).
+            "replay", or "auto" (tries leap -> mock).
         camera_index: webcam index for the "webcam" kind.
         flip_handedness: swap left/right for "webcam" (webcams mirror).
 
@@ -152,11 +152,6 @@ def create_source(kind: str = "auto", camera_index: int = 0,
         log.info("Leap-Modus angefordert")
         from capture.leap_capture import LeapSource
         return LeapSource()
-
-    if mode == "websocket":
-        log.info("WebSocket-Modus angefordert")
-        from capture.websocket_capture import WebSocketCaptureDevice
-        return WebSocketCaptureDevice()
 
     # auto: try leap -> mock fallback with diagnostics
     try:

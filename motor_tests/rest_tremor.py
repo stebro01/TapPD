@@ -4,6 +4,7 @@ import math
 
 from capture.base_capture import BaseCaptureDevice, HandFrame
 from motor_tests.base_test import BaseMotorTest
+from motor_tests.config import get_test_config
 from motor_tests.recorder import compute_features_from_config
 
 
@@ -12,6 +13,8 @@ class RestTremorTest(BaseMotorTest):
 
     def __init__(self, capture: BaseCaptureDevice, duration: float = 10.0, hand: str = "both") -> None:
         super().__init__(capture, duration, hand)
+        # Same baseline the feature computation uses (test_config.yaml capture.base_y).
+        self._base_y = float(get_test_config(self.test_type()).get("capture", {}).get("base_y", 150.0))
 
     def test_type(self) -> str:
         return "rest_tremor"
@@ -31,8 +34,7 @@ class RestTremorTest(BaseMotorTest):
 
     def get_live_metric(self, frame: HandFrame) -> float:
         px, py, pz = frame.palm_position
-        base_y = 150.0  # lower position for rest
-        return math.sqrt(px**2 + (py - base_y) ** 2 + pz**2)
+        return math.sqrt(px**2 + (py - self._base_y) ** 2 + pz**2)
 
     def get_live_metric_label(self) -> str:
         return "Handposition Abweichung (mm)"

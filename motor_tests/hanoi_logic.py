@@ -1,6 +1,6 @@
 """Pure Tower of Hanoi game logic — no UI, no Leap dependencies."""
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 
 @dataclass

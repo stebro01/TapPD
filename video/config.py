@@ -16,7 +16,7 @@ _DEFAULTS = {
     "import": {
         "transcode": True,
         "container": "mp4",
-        "codec": "hvc1",
+        "codec": "avc1",
         "max_width": 1280,
         "max_height": 1280,
         "target_fps": 30,

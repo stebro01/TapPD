@@ -80,3 +80,18 @@ def test_list_clips_separates_video_and_landmark(tmp_path, monkeypatch):
     lms = [p.name for p in list_landmark_clips()]
     assert vids == ["clip_a.mp4"]
     assert lms == ["clip_b.json"]
+
+
+def test_replay_classified_by_clip_origin(landmark_clip):
+    # A replay must inherit the capabilities/readiness of the clip's origin
+    # source (default: webcam), not fall through to the Leap default.
+    from capture.source import source_kind, profile_for, CAP_ABS_POSITION, WEBCAM
+
+    src = ReplaySource(str(landmark_clip))
+    assert source_kind(src) == WEBCAM
+    assert CAP_ABS_POSITION not in profile_for(src).capabilities
+
+    src.source_kind_origin = "leap"
+    assert source_kind(src) == "leap"
+    src.source_kind_origin = "somethingelse"
+    assert source_kind(src) == WEBCAM

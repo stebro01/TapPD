@@ -32,14 +32,14 @@ class VideoSegmentExtractor:
             log.warning("Segment-Extraktion nicht verfügbar (Sidecar-venv fehlt)")
             return None
         if deface is None:
-            deface = str(cfg("privacy", "deface", default="off"))
+            deface = str(cfg("privacy", "deface", default="blur"))
         args = [
             _SIDECAR_PY, _SCRIPT, str(src), str(dest),
             str(start_s), str(end_s),
-            str(cfg("segments", "max_width", default=960)),
-            str(cfg("segments", "max_height", default=540)),
+            str(cfg("segments", "max_width", default=1080)),
+            str(cfg("segments", "max_height", default=1080)),
             str(cfg("segments", "target_fps", default=30)),
-            str(cfg("import", "codec", default="mp4v")),
+            str(cfg("import", "codec", default="avc1")),
             deface,
             str(cfg("privacy", "blur_strength", default=41)),
             "1" if cfg("segments", "capture_eyeref", default=True) else "0",

@@ -187,10 +187,13 @@ layer is **Source**. Only `BaseCaptureDevice` and `HandFrame` aliases remain
 ## 5. Multimodal plug-in points (face / oculomotor)
 
 The sidecar protocol (`mediapipe_sidecar/PROTOCOL.md`) is already message-typed,
-so a `{"type":"face", ...}` stream (MediaPipe Face Landmarker: 478 landmarks +
-iris + 52 blendshapes) is additive. To add a modality:
+and the sidecar **already runs a `FaceLandmarker`** (478 landmarks incl. iris):
+its output rides in the throttled `preview` message (`face` field, toggled via
+`{"cmd":"face"}`), is consumed by the tracking screen's eye-reference overlay,
+and drives defacing + the `.eyeref.json` track in `extract.py`. What's missing
+is the full-rate modality stream + data model. To add a modality:
 
-1. **Sidecar**: load `FaceLandmarker` alongside `HandLandmarker`; emit `face` msgs.
+1. **Sidecar**: emit dedicated full-rate `face` msgs (landmarker already loaded).
 2. **Source**: dispatch `face` → `FacePose`/`GazePose` (new dataclasses) on a new
    consumer; add `CAP_FACE_LANDMARKS` / `CAP_EYE_GAZE` capability tokens.
 3. **Data model**: `TrackingFrame{ hands: list[HandPose], face, gaze }` — the

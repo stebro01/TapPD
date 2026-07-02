@@ -85,7 +85,10 @@ def test_segment_extract_and_deface(fake_video, tmp_path):
     clip = VideoSegmentExtractor().extract(fake_video, 0.5, 1.5, dest)  # 1 s range
     assert clip is not None and os.path.exists(dest)
     assert clip.origin == "segment"
-    assert clip.width <= 960 and clip.height <= 540   # segment max from config
+    from video.config import cfg as video_cfg
+    max_w = int(video_cfg("segments", "max_width", default=1080))
+    max_h = int(video_cfg("segments", "max_height", default=1080))
+    assert clip.width <= max_w and clip.height <= max_h   # segment caps from config
     assert clip.deidentified is True                  # deface=blur (config default)
     assert clip.duration_s > 0
 

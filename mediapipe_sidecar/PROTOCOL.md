@@ -10,7 +10,7 @@ modalities (face/eye) can be added without breaking changes.
 | Message | Meaning |
 |---|---|
 | `{"cmd":"list_cameras"}` | enumerate cameras |
-| `{"cmd":"config","preview_fps":15,"preview_max_width":640,"jpeg_quality":70,"hand_confidence":0.5,"tracking_confidence":0.5,"record_fps":30,"record_codec":"avc1"}` | set tunables (sent on connect from `capture/capture.yaml`; all keys optional). Apply before `start` so the landmarker picks up the confidences |
+| `{"cmd":"config","preview_fps":15,"preview_max_width":640,"jpeg_quality":70,"hand_confidence":0.5,"tracking_confidence":0.5,"num_hands":2,"record_fps":30,"record_codec":"avc1"}` | set tunables (sent on connect from `capture/capture.yaml`; all keys optional). Apply before `start` so the landmarker picks up the confidences |
 | `{"cmd":"start","index":0}` | open camera `index` and begin streaming `hand` frames |
 | `{"cmd":"start","video":"/path.mp4"}` | open a video file instead of a camera (default: loop forever) |
 | `{"cmd":"start","video":"/path.mp4","start_s":2.0,"end_s":7.5,"loop":false}` | play only `[start_s,end_s]` once, then emit `done` (VideoLab). `start_s`/`end_s`/`loop` are optional; no range + `loop:true` (default) = legacy looping |
@@ -60,7 +60,10 @@ modalities (face/eye) can be added without breaking changes.
 - `handedness` is from the image's perspective; front-facing webcams mirror, so
   the main app exposes a left/right flip setting.
 
-## Future (not implemented)
+## Face landmarks (implemented via `preview`)
 
-A `{"type":"face", ...}` message (MediaPipe Face Landmarker: 478 landmarks +
-iris + 52 blendshapes) is an additive extension — no protocol change needed.
+The sidecar already runs a Face Landmarker (478 landmarks incl. iris) alongside
+the hand tracker; its output rides in the throttled `preview` message's `face`
+field (see above) and is toggled with `{"cmd":"face","on":bool}`. A dedicated
+full-rate `{"type":"face", ...}` stream (plus the 52 blendshapes) remains an
+additive future extension — no protocol change needed.

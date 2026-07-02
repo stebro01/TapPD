@@ -101,11 +101,10 @@ TapPD/
 ├── OPTIMIZATION_PLAN.md                 # Geplante Verbesserungen
 │
 ├── capture/                             # Sensor-Abstraktionsschicht
-│   ├── __init__.py                      # Factory: create_capture_device() + Diagnostik
+│   ├── __init__.py                      # Factory: create_source() + Diagnostik
 │   ├── base_capture.py                  # HandFrame/FingerData/BoneData Dataclasses + ABC
 │   ├── mock_capture.py                  # Simulierte Daten (120 Hz, 8 Modi)
-│   ├── leap_capture.py                  # Echtes LeapC SDK via CFFI
-│   └── websocket_capture.py             # WebSocket-Fallback (Platzhalter)
+│   └── leap_capture.py                  # Echtes LeapC SDK via CFFI
 │
 ├── motor_tests/                         # Klinische Motorik-Tests
 │   ├── base_test.py                     # BaseMotorTest ABC (uni-/bilateral)
@@ -218,7 +217,6 @@ Sensor (120 Hz) → HandFrame → BaseMotorTest.frames[]
 | `matplotlib` | >= 3.8 | Echtzeit-Plots, Ergebnis-Diagramme |
 | `PyQt6` | >= 6.6 | GUI-Framework |
 | `pyyaml` | >= 6.0 | YAML-Konfiguration laden |
-| `websockets` | >= 12.0 | WebSocket-Fallback (reserviert) |
 | `cffi` | >= 1.0 | LeapC Python-Bindings (Backend fuer leapc_cffi) |
 
 ---

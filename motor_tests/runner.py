@@ -77,3 +77,8 @@ class ParadigmRunner:
     def live_snapshot(self) -> dict:
         with self._lock:
             return {k: list(v) for k, v in self.live.items()}
+
+    def replace_live(self, live: dict[str, list[tuple[float, float]]]) -> None:
+        """Swap the live buffers (e.g. relabel hands after analysis) under the lock."""
+        with self._lock:
+            self.live = live

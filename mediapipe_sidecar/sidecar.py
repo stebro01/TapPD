@@ -120,7 +120,7 @@ class Sidecar:
         self._tracking_confidence = 0.5
         self._num_hands = 2
         self._record_fps = 30.0
-        self._record_codec = "mp4v"
+        self._record_codec = "avc1"   # matches capture.yaml record_codec (config push overrides)
         self._capture_thread: threading.Thread | None = None
         self._closing = threading.Event()   # tells the camera thread to exit
         self._quit = threading.Event()      # process should terminate

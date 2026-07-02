@@ -13,6 +13,7 @@ one being tested) and attribute it to the clinician's chosen side.
 from __future__ import annotations
 
 import logging
+import threading
 
 from PyQt6.QtCore import QObject, QTimer, pyqtSignal
 
@@ -30,6 +31,7 @@ class AnalysisRunner(QObject):
         self._src = None
         self._pr = None                    # ParadigmRunner (shared frame-pump, live plot)
         self._raw: dict[str, list] = {"left": [], "right": []}
+        self._raw_lock = threading.Lock()  # _feed (reader thread) vs _on_done (GUI)
         self._spec = None
         self._dur = 0.1
         self._chosen = "right"
@@ -42,7 +44,7 @@ class AnalysisRunner(QObject):
     # ── the screen reads these ────────────────────────────────────
     @property
     def live(self) -> dict:
-        return self._pr.live if self._pr else {"left": [], "right": []}
+        return self._pr.live_snapshot() if self._pr else {"left": [], "right": []}
 
     def metric_label(self) -> str:
         return self._pr.metric_label if self._pr else ""
@@ -64,7 +66,8 @@ class AnalysisRunner(QObject):
                                            hand=hand, **(self._spec.cls_kwargs or {}))
             self._pr = ParadigmRunner(test, sidecar_bounded=True)
             self._pr.begin()
-            self._raw = {"left": [], "right": []}
+            with self._raw_lock:
+                self._raw = {"left": [], "right": []}
             self._finished = False
         except Exception as e:
             log.exception("VideoLab-Analyse konnte nicht gestartet werden")
@@ -84,13 +87,13 @@ class AnalysisRunner(QObject):
         self._fallback.start(int((end_s - start_s + margin) * 1000))
 
     def _feed(self, frame) -> None:        # reader thread
-        self._raw.setdefault(frame.hand_type, []).append(frame)
+        with self._raw_lock:
+            self._raw.setdefault(frame.hand_type, []).append(frame)
         if self._pr is not None:
             self._pr.feed(frame)           # live metric for both hands (the plot)
 
-    def _dominant_hand(self) -> str | None:
+    def _dominant_hand(self, live: dict) -> str | None:
         """The hand that moved most (largest live-metric range) = the tested one."""
-        live = self._pr.live if self._pr else {}
 
         def span(data):
             vals = [v for _, v in data]
@@ -112,8 +115,10 @@ class AnalysisRunner(QObject):
                 test.stop()
             else:
                 # Recompute on the MOVING hand, relabelled to the chosen side.
-                moving = self._dominant_hand()
-                frames = list(self._raw.get(moving, [])) if moving else []
+                live = self._pr.live_snapshot()
+                moving = self._dominant_hand(live)
+                with self._raw_lock:
+                    frames = list(self._raw.get(moving, [])) if moving else []
                 for f in frames:
                     f.hand_type = self._chosen
                 test = self._spec.load_class()(capture=self._src, duration=self._dur,
@@ -123,7 +128,7 @@ class AnalysisRunner(QObject):
                 # Final plot: show the moving hand under the chosen side.
                 if moving:
                     other = "left" if self._chosen == "right" else "right"
-                    self._pr.live = {self._chosen: self._pr.live.get(moving, []), other: []}
+                    self._pr.replace_live({self._chosen: live.get(moving, []), other: []})
             features = test.compute_features()
         except Exception as e:
             log.exception("compute_features fehlgeschlagen")

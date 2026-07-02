@@ -27,7 +27,6 @@ class PinchDetector:
 
         self._is_pinching = False
         self._consecutive = 0
-        self._last_below = False
 
     def update(self, frame: HandFrame) -> PinchEvent | None:
         dist = frame.pinch_distance

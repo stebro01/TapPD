@@ -141,12 +141,10 @@ def compute_features_from_config(
     For bilateral tests, pass left_frames and right_frames.
     For unilateral tests, pass frames.
     """
-    log.info("Feature-Berechnung: %s (bilateral=%s, frames=%d, fs=%.1f)",
-             test_key, cfg.get("bilateral", False) if (cfg := get_test_config(test_key)) else False,
-             len(frames), fs)
     cfg = get_test_config(test_key)
-    analysis = cfg.get("analysis", {})
     is_bilateral = cfg.get("bilateral", False)
+    log.info("Feature-Berechnung: %s (bilateral=%s, frames=%d, fs=%.1f)",
+             test_key, is_bilateral, len(frames), fs)
 
     if is_bilateral:
         log.debug("Bilateral: L=%d R=%d Frames", len(left_frames or []), len(right_frames or []))
@@ -159,8 +157,9 @@ def _filter_and_trim(
     frames: list[HandFrame], fs: float, analysis: dict
 ) -> list[HandFrame]:
     """Apply confidence filter and warmup/cooldown trimming."""
-    # Confidence filter
-    frames = [f for f in frames if f.confidence >= 0.3]
+    # Confidence filter (per-test override via analysis.min_confidence)
+    min_conf = float(analysis.get("min_confidence", 0.3))
+    frames = [f for f in frames if f.confidence >= min_conf]
 
     if len(frames) < analysis.get("min_frames", 20):
         return frames
@@ -340,7 +339,7 @@ def _compute_single_feature(
         return float(np.mean(durations)) if len(durations) > 0 else 0.0
 
     elif method == "peak_count":
-        return int(len(peaks))
+        return float(len(peaks))
 
     else:
         log.warning("Unknown feature method: %s", method)
@@ -396,7 +395,6 @@ def _compute_bilateral(
     fs: float,
 ) -> dict[str, float]:
     """Compute features for a bilateral tremor test."""
-    analysis = cfg.get("analysis", {})
     features: dict[str, float] = {}
 
     for prefix, hand_frames in [("R", right_frames), ("L", left_frames)]:
@@ -455,11 +453,12 @@ def _compute_tremor_hand(
     bp = analysis.get("bandpass", {})
     low = bp.get("low_hz", 3.0)
     high = bp.get("high_hz", 12.0)
+    order = int(bp.get("order", 4))
     try:
-        px_f = bandpass_filter(px, fs, low, high)
-        py_f = bandpass_filter(py, fs, low, high)
-        pz_f = bandpass_filter(pz, fs, low, high)
-        roll_f = bandpass_filter(roll_u, fs, low, high)
+        px_f = bandpass_filter(px, fs, low, high, order)
+        py_f = bandpass_filter(py, fs, low, high, order)
+        pz_f = bandpass_filter(pz, fs, low, high, order)
+        roll_f = bandpass_filter(roll_u, fs, low, high, order)
     except ValueError:
         return {d["key"]: 0.0 for d in per_hand_defs}
 

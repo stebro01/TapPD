@@ -233,7 +233,7 @@ class VideoLabScreen(QWidget):
         ctl.addWidget(self._range_lbl)
         self._deface_cb = QCheckBox("Defacing")
         self._deface_cb.setToolTip("Gesicht im Segment-Clip anonymisieren (Datenschutz)")
-        self._deface_cb.setChecked(cfg("privacy", "deface", default="off") in ("blur", "mesh"))
+        self._deface_cb.setChecked(cfg("privacy", "deface", default="blur") in ("blur", "mesh"))
         ctl.addWidget(self._deface_cb)
         self._add_seg_btn = QPushButton("Bereich übernehmen →")
         self._add_seg_btn.setToolTip("Markierten Bereich als benanntes Segment speichern")
@@ -497,7 +497,7 @@ class VideoLabScreen(QWidget):
             return
         dest = str(self.session.segment_clip_path(seg.id))
         # Checkbox is the master switch; mode comes from config (blur/mesh).
-        mode = cfg("privacy", "deface", default="off")
+        mode = cfg("privacy", "deface", default="blur")
         if not self._deface_cb.isChecked():
             mode = "off"
         elif mode == "off":

@@ -115,11 +115,10 @@ TapPD/
 ├── pyproject.toml              # Projekt-Metadaten
 │
 ├── capture/                    # Sensor-Abstraktionsschicht
-│   ├── __init__.py             #   Factory: create_capture_device()
+│   ├── __init__.py             #   Factory: create_source()
 │   ├── base_capture.py         #   HandFrame Dataclass + ABC
 │   ├── mock_capture.py         #   Simulierte Daten (120 Hz)
-│   ├── leap_capture.py         #   Echtes LeapC SDK
-│   └── websocket_capture.py    #   WebSocket-Fallback (Platzhalter)
+│   └── leap_capture.py         #   Echtes LeapC SDK
 │
 ├── motor_tests/                # Klinische Tests
 │   ├── base_test.py            #   BaseMotorTest ABC

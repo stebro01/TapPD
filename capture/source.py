@@ -57,11 +57,17 @@ def source_kind(device: BaseCaptureDevice | None) -> str:
     # Imported lazily to avoid import cycles / loading the Leap binding early.
     from capture.mediapipe_capture import WebcamSource
     from capture.mock_capture import SimulationSource
+    from capture.replay_source import ReplaySource
 
     if isinstance(device, WebcamSource):
         return WEBCAM
     if isinstance(device, SimulationSource):
         return MOCK
+    if isinstance(device, ReplaySource):
+        # A replay behaves like the source the clip was recorded from
+        # (capabilities/readiness must match the origin, not the Leap default).
+        origin = getattr(device, "source_kind_origin", WEBCAM)
+        return origin if origin in _SOURCE_CAPS else WEBCAM
     return LEAP
 
 

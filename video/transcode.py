@@ -32,9 +32,9 @@ def transcode_video(src: str, dest: str) -> dict | None:
     args = [
         _SIDECAR_PY, _SCRIPT, src, dest,
         str(cfg("import", "max_width", default=1280)),
-        str(cfg("import", "max_height", default=720)),
+        str(cfg("import", "max_height", default=1280)),
         str(cfg("import", "target_fps", default=30)),
-        str(cfg("import", "codec", default="mp4v")),
+        str(cfg("import", "codec", default="avc1")),
     ]
     try:
         r = subprocess.run(args, capture_output=True, text=True,
