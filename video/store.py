@@ -2,8 +2,10 @@
 
 A video session is a JSON document holding the uploaded video + a list of named
 onset/offset segments, each with its analysis results (one per paradigm run).
-Kept deliberately separate from the i2b2 star schema (storage/database.py) — a
-later stage exports chosen results into real patient Sessions as Measurements.
+Kept deliberately separate from the i2b2 star schema (storage/database.py);
+chosen results are exported into a real patient Session as Measurements via
+video/export.py (the DB session id is remembered here as ``db_session_id``,
+and each exported result carries its ``measurement_id``).
 """
 
 from __future__ import annotations
@@ -50,6 +52,7 @@ class VideoSession:
     created_at: str = ""
     segments: list[Segment] = field(default_factory=list)
     path: str = ""                # JSON file location (set on save)
+    db_session_id: int | None = None   # clinical-DB Session all exports go into
 
     # ── factory / io ─────────────────────────────────────────────
     @classmethod
@@ -103,6 +106,7 @@ class VideoSession:
             "video_path": self.video_path,
             "video_name": self.video_name,
             "created_at": self.created_at,
+            "db_session_id": self.db_session_id,
             "segments": [asdict(s) for s in self.segments],
         }
         with open(self.path, "w", encoding="utf-8") as f:
@@ -115,7 +119,8 @@ class VideoSession:
             d = json.load(f)
         vs = cls(patient_id=d["patient_id"], patient_code=d.get("patient_code", ""),
                  video_path=d.get("video_path", ""), video_name=d.get("video_name", ""),
-                 created_at=d.get("created_at", ""), path=path)
+                 created_at=d.get("created_at", ""), path=path,
+                 db_session_id=d.get("db_session_id"))
         vs.segments = [Segment(**s) for s in d.get("segments", [])]
         return vs
 

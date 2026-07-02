@@ -277,6 +277,12 @@ class VideoLabScreen(QWidget):
         self._run_btn.setProperty("cssClass", "accent")
         self._run_btn.clicked.connect(self._on_run)
         pick.addWidget(self._run_btn)
+        self._export_btn = QPushButton("→ In Patientenakte")
+        self._export_btn.setToolTip(
+            "Ergebnis dieses Segments als Messung in die Datenbank übernehmen")
+        self._export_btn.clicked.connect(self._on_export)
+        self._export_btn.setEnabled(False)
+        pick.addWidget(self._export_btn)
         pick.addStretch()
         right.addLayout(pick)
 
@@ -572,7 +578,9 @@ class VideoLabScreen(QWidget):
         self._seg_list.clear()
         if self.session:
             for seg in self.session.segments:
-                mark = " ✓" if seg.analyzed else ""
+                exported = any(r.get("measurement_id") for r in seg.results.values()
+                               if isinstance(r, dict))
+                mark = " 📋" if exported else (" ✓" if seg.analyzed else "")
                 priv = " 🔒" if seg.deidentified else ""
                 t = seg.created_at[11:16] if len(seg.created_at) >= 16 else ""
                 hand = self._HAND_SHORT.get(seg.hand, "")
@@ -631,9 +639,32 @@ class VideoLabScreen(QWidget):
         seg = self.current_segment
         ok = not self._running and seg is not None and bool(seg.paradigm)
         self._run_btn.setEnabled(ok)
+        result = None
         if seg is not None and seg.paradigm:
             done = seg.paradigm in seg.results
             self._run_btn.setText("▶ Erneut auswerten" if done else "▶ Analyse starten")
+            result = seg.results.get(seg.paradigm)
+        exported = bool(result and result.get("measurement_id"))
+        self._export_btn.setEnabled(
+            not self._running and bool(result and result.get("features")) and not exported)
+        self._export_btn.setText("✓ In Akte übernommen" if exported else "→ In Patientenakte")
+
+    def _on_export(self) -> None:
+        seg = self.current_segment
+        if seg is None or self.session is None or not seg.paradigm:
+            return
+        from video.export import AlreadyExported, export_result
+        try:
+            m = export_result(self.session, seg, seg.paradigm)
+        except AlreadyExported as e:
+            self._status.setText(str(e))
+        except Exception as e:
+            log.exception("VideoLab-Export fehlgeschlagen")
+            self._status.setText(f"Export fehlgeschlagen: {e}")
+        else:
+            self._status.setText(
+                f"Als Messung übernommen (ID {m.id}, Session {self.session.db_session_id}).")
+        self._update_run_enabled()
 
     # ── analysis run ──────────────────────────────────────────────
     def _on_run(self) -> None:

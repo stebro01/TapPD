@@ -40,7 +40,8 @@ configuration story, and the staged plan toward multimodal support.
   **`ParadigmRunner`** (frame intake + gating + live-metric + buffers), used by
   both the live `TestScreen` and VideoLab's `AnalysisRunner`.
 - **Storage** — i2b2-style star schema (live results) + JSON `VideoSession`
-  store (VideoLab; write-isolated, export to the DB is a roadmap item).
+  store (VideoLab; write-isolated, per-segment export into a dedicated DB
+  Session via `video/export.py`).
 - **SourceProfile** — per-source capabilities, readiness policy and prompts; the
   seam where source-specific frame re-mapping plugs in (`adapt_frame`).
 
@@ -235,7 +236,9 @@ migration shim).
 - **Unlock tremor on video**: implement the eye-referenced absolute position in
   `SourceProfile.adapt_frame` (webcam) using the stored eye-reference track →
   add `CAP_ABS_POSITION` to webcam → gate auto-unlocks tremor.
-- **Export** VideoLab segment results into patient Sessions (`Measurement`s).
+- ~~**Export** VideoLab segment results into patient Sessions~~ — done:
+  `video/export.py` (one DB Session per video session, `source_kind="video"`,
+  double-export guarded by the `measurement_id` stamp).
 - Rename package `motor_tests/ → paradigms/`; add `OCULAR`/`FACIAL` categories +
   multimodal sidecar `FaceLandmarker` → `FacePose`/`GazePose` paradigms.
 - YAML-ify `ui/theme.py` + `mock_capture.py` simulation params.
