@@ -2,6 +2,12 @@
 faces (privacy), and (optionally) saving an eye-reference track. Runs under the
 sidecar venv (cv2 + mediapipe). Prints one JSON line.
 
+Defacing is hand-aware: a HandLandmarker runs alongside the FaceLandmarker and
+hand regions (dilated convex hull of the 21 landmarks) are excluded from the
+blur/mesh — a hand held in front of the face keeps its pixels, so the stored
+clip remains analysable. (The primary analysis runs on the original video
+anyway; the clip is archive/review.)
+
 Eye-reference track (privacy-preserving tremor support)
 -------------------------------------------------------
 Defacing removes the face *pixels*, so MediaPipe can no longer find the eyes in
@@ -28,6 +34,7 @@ import cv2
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 FACE_MODEL = os.path.join(HERE, "models", "face_landmarker.task")
+HAND_MODEL = os.path.join(HERE, "models", "hand_landmarker.task")
 _IRIS_L, _IRIS_R = 468, 473        # MediaPipe iris-centre landmark indices
 _AVG_IPD_MM = 63.0                 # average human inter-pupillary distance
 
@@ -61,7 +68,37 @@ def _make_face_landmarker():
     return mp, mp_vision.FaceLandmarker.create_from_options(opts)
 
 
-def _deface(frame, landmarks, mode: str, blur: int):
+def _make_hand_landmarker():
+    if not os.path.isfile(HAND_MODEL):
+        return None
+    _strip_appledouble()
+    from mediapipe.tasks import python as mp_python
+    from mediapipe.tasks.python import vision as mp_vision
+    base = mp_python.BaseOptions(model_asset_path=HAND_MODEL)
+    opts = mp_vision.HandLandmarkerOptions(
+        base_options=base, running_mode=mp_vision.RunningMode.IMAGE, num_hands=2)
+    return mp_vision.HandLandmarker.create_from_options(opts)
+
+
+def _hand_exclude_mask(frame_shape, hands_landmarks):
+    """255 where a hand is (dilated convex hull of the 21 landmarks), else 0.
+
+    A hand held in front of the face must NOT be defaced — blurring it would
+    destroy the very motion signal the segment exists to measure.
+    """
+    import numpy as np
+    h, w = frame_shape[:2]
+    mask = np.zeros((h, w), dtype=np.uint8)
+    for lms in hands_landmarks:
+        pts = np.array([[int(lm.x * w), int(lm.y * h)] for lm in lms], dtype=np.int32)
+        cv2.fillConvexPoly(mask, cv2.convexHull(pts), 255)
+    if mask.any():
+        k = max(5, (int(min(h, w) * 0.05) | 1))   # generous margin around the hand
+        mask = cv2.dilate(mask, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (k, k)))
+    return mask
+
+
+def _deface(frame, landmarks, mode: str, blur: int, exclude_mask=None):
     h, w = frame.shape[:2]
     xs = [lm.x for lm in landmarks]
     ys = [lm.y for lm in landmarks]
@@ -72,15 +109,26 @@ def _deface(frame, landmarks, mode: str, blur: int):
     y0, y1 = max(0, y0 - py), min(h, y1 + py)
     if x1 <= x0 or y1 <= y0:
         return frame
+    roi = frame[y0:y1, x0:x1]
+    keep = None   # hand pixels inside the face box that must survive
+    if exclude_mask is not None:
+        m = exclude_mask[y0:y1, x0:x1]
+        if m.any():
+            keep = (m, roi.copy())
     if mode == "blur":
         k = max(11, (blur | 1))   # odd kernel
-        frame[y0:y1, x0:x1] = cv2.GaussianBlur(frame[y0:y1, x0:x1], (k, k), 0)
+        frame[y0:y1, x0:x1] = cv2.GaussianBlur(roi, (k, k), 0)
     elif mode == "mesh":
         cv2.rectangle(frame, (x0, y0), (x1, y1), (0, 0, 0), -1)
         for lm in landmarks:
             cv2.circle(frame, (int(lm.x * w), int(lm.y * h)), 1, (140, 230, 120), -1)
         for i in range(468, min(478, len(landmarks))):   # iris
             cv2.circle(frame, (int(landmarks[i].x * w), int(landmarks[i].y * h)), 2, (180, 64, 255), -1)
+    if keep is not None:
+        m, orig = keep
+        region = frame[y0:y1, x0:x1]
+        region[m > 0] = orig[m > 0]
+        frame[y0:y1, x0:x1] = region
     return frame
 
 
@@ -126,11 +174,13 @@ def main() -> int:
 
     do_deface = deface in ("blur", "mesh")
     need_face = do_deface or capture_eyeref
-    mp = fl = None
+    mp = fl = hl = None
     if need_face:
         made = _make_face_landmarker()
         if made is not None:
             mp, fl = made
+    if do_deface and fl is not None:
+        hl = _make_hand_landmarker()   # hands must survive the deface (exclude mask)
     has_eyeref = capture_eyeref and fl is not None
     iris_track = [] if has_eyeref else None   # per output frame: [[xL,yL],[xR,yR]] or None
 
@@ -163,7 +213,12 @@ def main() -> int:
                 else:
                     iris_track.append(None)
             if do_deface and lms is not None:
-                frame = _deface(frame, lms, deface, blur)
+                exclude = None
+                if hl is not None:
+                    hres = hl.detect(mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb))
+                    if hres.hand_landmarks:
+                        exclude = _hand_exclude_mask(frame.shape, hres.hand_landmarks)
+                frame = _deface(frame, lms, deface, blur, exclude)
         writer.write(frame)
         n += 1
         if n == 1:   # first (defaced) frame → thumbnail for the work area

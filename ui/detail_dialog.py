@@ -31,7 +31,7 @@ from analysis.signal_processing import (
     resample_to_uniform,
 )
 from storage.database import Measurement, Patient
-from ui.feature_meta import FEATURE_META
+from ui.feature_meta import FEATURE_META, unit_label, has_estimated_scale, SCALE_NOTE
 from ui.theme import SZ, ACCENT, PRIMARY, TEXT_SECONDARY
 
 COLOR_RIGHT = QColor(227, 242, 253)
@@ -125,9 +125,16 @@ class DetailDialog(QDialog):
             detail_str = "Teil A" if part_val == 1.0 else "Teil B"
         else:
             detail_str = {"left": "Links", "right": "Rechts", "both": "Bilateral"}.get(measurement.hand, measurement.hand)
+        src = getattr(measurement, "source_kind", "") or ""
+        src_suffix = f"  –  Quelle: {src}" if src else ""
         self._header_label.setText(
-            f"{self._patient.display_name}  –  {measurement.test_type} ({detail_str})  –  {measurement.recorded_at[:16]}"
+            f"{self._patient.display_name}  –  {measurement.test_type} ({detail_str})"
+            f"  –  {measurement.recorded_at[:16]}{src_suffix}"
         )
+        if has_estimated_scale(measurement.features, src):
+            self._header_label.setToolTip(SCALE_NOTE)
+        else:
+            self._header_label.setToolTip("")
 
         # Update feature table
         features = {k: v for k, v in measurement.features.items() if not k.startswith("_")}
@@ -139,7 +146,7 @@ class DetailDialog(QDialog):
                 val_item = QTableWidgetItem(f"{value:.3f}" if isinstance(value, float) else str(value))
             else:
                 val_item = QTableWidgetItem(f"{value:.4f}" if isinstance(value, float) else str(value))
-            unit_item = QTableWidgetItem(meta[1])
+            unit_item = QTableWidgetItem(unit_label(key, src))
             val_item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
             if key == "mpi":
                 bold = QFont()

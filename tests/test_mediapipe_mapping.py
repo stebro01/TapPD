@@ -92,3 +92,21 @@ def test_malformed_inputs_are_skipped():
     assert hand_from_world([], "Right", 1.0, 0) is None
     assert hand_from_world([[0, 0, 0]] * 10, "Right", 1.0, 0) is None
     assert frames_from_message({"type": "preview"}) == []
+
+
+def test_velocity_uses_real_frame_dt_not_fixed_30fps():
+    """dt must come from the message timestamps — a 20 fps video would
+    otherwise get velocities scaled by 30/20."""
+    prev: dict = {}
+    world = _open_hand_world()
+    msg0 = {"type": "hand", "ts": 0,
+            "hands": [{"handedness": "Right", "score": 0.9, "world": world}]}
+    frames_from_message(msg0, prev_by_hand=prev)
+
+    moved = [[x + 0.010, y, z] for x, y, z in world]   # +10 mm in x
+    ts1 = 50_000                                        # 50 ms later → 20 fps
+    msg1 = {"type": "hand", "ts": ts1,
+            "hands": [{"handedness": "Right", "score": 0.9, "world": moved}]}
+    (f1,) = frames_from_message(msg1, prev_by_hand=prev)
+    # 10 mm / 0.05 s = 200 mm/s (with fixed 1/30 it would be 300 mm/s)
+    assert math.isclose(f1.palm_velocity[0], 200.0, rel_tol=1e-6)

@@ -89,3 +89,30 @@ FEATURE_META: dict[str, tuple[str, str]] = {
     "error_rate_per_target": ("Fehler pro Ziel", ""),
     "mean_dwell_time_ms": ("Mittlere Verweilzeit", "ms"),
 }
+
+
+# mm-based units are METRIC ESTIMATES on camera sources: MediaPipe world
+# landmarks are model-regressed to an average metric hand, not calibrated to
+# the patient. Frequencies, times, angles and ratios are exact everywhere.
+_SCALE_ESTIMATED_UNITS = {"mm", "mm/s", "mm/s²", "mm²"}
+_SCALE_ESTIMATED_KINDS = {"webcam", "video"}
+
+SCALE_NOTE = ("≈ mm-Skala ist bei Kamera-Quellen eine Modellschätzung (MediaPipe, "
+              "unkalibriert) — für Verlauf/Vergleich derselben Hand geeignet; "
+              "Frequenzen, Zeiten, Winkel und Verhältnisse sind exakt.")
+
+
+def unit_label(key: str, source_kind: str = "") -> str:
+    """Display unit for a feature; '≈'-prefixed when the mm scale is estimated."""
+    unit = FEATURE_META.get(key, (key, ""))[1]
+    if unit in _SCALE_ESTIMATED_UNITS and source_kind in _SCALE_ESTIMATED_KINDS:
+        return f"≈{unit}"
+    return unit
+
+
+def has_estimated_scale(features: dict, source_kind: str = "") -> bool:
+    """Whether any displayed feature of this measurement carries an estimated mm scale."""
+    if source_kind not in _SCALE_ESTIMATED_KINDS:
+        return False
+    return any(FEATURE_META.get(k, (k, ""))[1] in _SCALE_ESTIMATED_UNITS
+               for k in features if not k.startswith("_"))

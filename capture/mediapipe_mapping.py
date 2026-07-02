@@ -165,6 +165,13 @@ def frames_from_message(msg: dict, flip_handedness: bool = False,
     out: list[HandFrame] = []
     for hand in msg.get("hands", []):
         prev = (prev_by_hand or {}).get((hand.get("handedness") or "Right").lower())
+        # Real dt from the timestamps — the camera/video rarely runs at exactly
+        # 30 fps, and a fixed dt would scale palm velocities wrongly.
+        dt = 1.0 / 30.0
+        if prev is not None:
+            d = (ts - prev.timestamp_us) / 1e6
+            if 0.0 < d < 1.0:
+                dt = d
         frame = hand_from_world(
             hand.get("world", []),
             hand.get("handedness", "Right"),
@@ -172,6 +179,7 @@ def frames_from_message(msg: dict, flip_handedness: bool = False,
             ts,
             flip_handedness=flip_handedness,
             prev=prev,
+            dt=dt,
         )
         if frame is not None:
             out.append(frame)

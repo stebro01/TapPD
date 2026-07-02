@@ -37,7 +37,7 @@ from analysis.signal_processing import (
     remove_outliers,
     resample_to_uniform,
 )
-from ui.feature_meta import FEATURE_META
+from ui.feature_meta import FEATURE_META, unit_label, has_estimated_scale, SCALE_NOTE
 from ui.theme import SZ, PRIMARY, TEXT_SECONDARY
 
 log = logging.getLogger(__name__)
@@ -210,16 +210,19 @@ class ResultsScreen(QWidget):
         from capture.source import source_kind
         _src = source_kind(test.capture)
         _src_label = {"leap": "Leap Motion", "webcam": "Webcam", "mock": "⚠ SIMULATION"}.get(_src, _src)
+        if features is None:
+            features = test.compute_features()
+
         _saved = "In Datenbank gespeichert" if measurement_id else ""
         _prov = f"Quelle: {_src_label}"
+        if has_estimated_scale(features, _src):
+            _prov += "  ·  " + SCALE_NOTE
         self.saved_label.setText(f"{_saved}  ·  {_prov}" if _saved else _prov)
+        self.saved_label.setWordWrap(True)
         if _src == "mock":
             self.saved_label.setStyleSheet("color: #E65100; font-weight: 700;")
         else:
             self.saved_label.setStyleSheet("")
-
-        if features is None:
-            features = test.compute_features()
 
         self.current_result = SessionResult(
             patient_id=patient_id,
@@ -242,7 +245,7 @@ class ResultsScreen(QWidget):
                 val_item = QTableWidgetItem(f"{value:.3f}" if isinstance(value, float) else str(value))
             else:
                 val_item = QTableWidgetItem(f"{value:.4f}" if isinstance(value, float) else str(value))
-            unit_item = QTableWidgetItem(meta[1])
+            unit_item = QTableWidgetItem(unit_label(key, _src))
 
             val_item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
 

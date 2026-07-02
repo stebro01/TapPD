@@ -658,12 +658,20 @@ class VideoLabScreen(QWidget):
         hand = seg.hand if seg.hand in ("left", "right") else "right"
         with_face = bool(cfg("analysis", "with_face", default=False))
         import os
-        if seg.clip_path and os.path.exists(seg.clip_path):
+        # Analyse IMMER auf dem Original (volle Qualität, kein Deface-Blur, der
+        # eine Hand vor dem Gesicht mit unkenntlich machen würde). Der kompakte
+        # Segment-Clip ist Archiv/Review — Fallback nur, wenn das Original fehlt.
+        if self.session.video_path and os.path.exists(self.session.video_path):
+            self.runner.start(self.session.video_path, seg.start_s, seg.end_s, key,
+                              hand=hand, with_face=with_face)
+        elif seg.clip_path and os.path.exists(seg.clip_path):
             self.runner.start(seg.clip_path, 0.0, seg.duration_s, key,
                               hand=hand, with_face=with_face)
         else:
-            self.runner.start(self.session.video_path, seg.start_s, seg.end_s, key,
-                              hand=hand, with_face=with_face)
+            self._running = False
+            self._plot_timer.stop()
+            self._status.setText("Kein Video für dieses Segment gefunden.")
+            self._set_controls_enabled(True)
 
     def _on_preview(self, msg: dict) -> None:
         self._overlay.set_frame(msg.get("jpeg", ""), msg.get("landmarks", []),
@@ -698,6 +706,7 @@ class VideoLabScreen(QWidget):
                 "features": features,
                 "recorded_at": datetime.now().isoformat(),
                 "raw_path": "",
+                "source_kind": "video",
             }
             self.session.save()
             self._refresh_segment_list()
@@ -716,12 +725,17 @@ class VideoLabScreen(QWidget):
         if not features:
             self._result_lbl.setText("")
             return
+        from ui.feature_meta import unit_label, has_estimated_scale, SCALE_NOTE
         lines = [f"<b>{prefix}</b>"]
         for k, v in features.items():
+            unit = unit_label(k, "video")
+            suffix = f" {unit}" if unit else ""
             if isinstance(v, (int, float)):
-                lines.append(f"{k}: {v:.3g}")
+                lines.append(f"{k}: {v:.3g}{suffix}")
             else:
-                lines.append(f"{k}: {v}")
+                lines.append(f"{k}: {v}{suffix}")
+        if has_estimated_scale(features, "video"):
+            lines.append(f"<i>{SCALE_NOTE}</i>")
         self._result_lbl.setText("<br>".join(lines))
 
     def _reselect_current_segment(self) -> None:
