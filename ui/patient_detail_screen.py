@@ -47,6 +47,9 @@ _TEST_COLS = [
     ("spatial_srt", "Räumliche\nReaktion", False),
     ("trail_making_a", "TMT\nTeil A", False),
     ("trail_making_b", "TMT\nTeil B", False),
+    # Not a registry paradigm: recorded via the Gesture Lab (bilateral=True →
+    # plain ✓ cell; hand may be left/right/both).
+    ("gesture_battery", "Gesten-\nBatterie", True),
 ]
 
 
@@ -131,6 +134,15 @@ class PatientDetailScreen(QWidget):
         self.video_lab_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
         self.video_lab_btn.clicked.connect(self._on_video_lab)
         btn_row.addWidget(self.video_lab_btn)
+        self.gesture_btn = QPushButton("✋ Gesture Lab")
+        self.gesture_btn.setProperty("cssClass", "primary")
+        self.gesture_btn.setFixedHeight(SZ.BTN_H)
+        self.gesture_btn.setFixedWidth(170)
+        self.gesture_btn.setToolTip(
+            "Gesten-Batterie für diesen Patienten durchführen und speichern")
+        self.gesture_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        self.gesture_btn.clicked.connect(self._on_gesture_lab)
+        btn_row.addWidget(self.gesture_btn)
         self.trend_btn = QPushButton("📈 Verlauf")
         self.trend_btn.setFixedHeight(SZ.BTN_H)
         self.trend_btn.setFixedWidth(160)
@@ -457,7 +469,12 @@ class PatientDetailScreen(QWidget):
             existing = self._cell_map.get((row, col), [])
             existing_hands = set(m.hand for m in existing)
 
-            if bilateral:
+            if test_key == "gesture_battery":
+                # Not startable from the matrix — runs in the Gesture Lab.
+                btn = _make_action_btn("✋ Im Gesture Lab durchführen", "primary")
+                btn.clicked.connect(lambda: (_close(), self._on_gesture_lab()))
+                panel_layout.addWidget(btn)
+            elif bilateral:
                 if "both" not in existing_hands:
                     btn = _make_action_btn("Messung hinzufügen", "accent")
                     btn.clicked.connect(lambda: (
@@ -518,6 +535,11 @@ class PatientDetailScreen(QWidget):
         if self._patient:
             self.main_window.current_patient = self._patient
             self.main_window.show_video_lab()
+
+    def _on_gesture_lab(self) -> None:
+        if self._patient:
+            self.main_window.current_patient = self._patient
+            self.main_window.show_gesture_lab("detail")
 
     def _on_trend(self) -> None:
         if not self._patient or not self._patient.id:

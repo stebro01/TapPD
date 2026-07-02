@@ -62,7 +62,8 @@ class TestSchemaCreation:
 
     def test_concepts_seeded(self, conn):
         rows = conn.execute("SELECT * FROM CONCEPT_DIMENSION").fetchall()
-        assert len(rows) == 9
+        from tests.conftest import EXPECTED_CONCEPT_COUNT
+        assert len(rows) == EXPECTED_CONCEPT_COUNT
         codes = {r["CONCEPT_CD"] for r in rows}
         assert "TAPPD:FINGER_TAPPING" in codes
         assert "TAPPD:REST_TREMOR" in codes
@@ -93,7 +94,8 @@ class TestSchemaCreation:
         _seed_concepts(conn)
         _seed_concepts(conn)
         _seed_code_lookup(conn)
-        assert conn.execute("SELECT COUNT(*) FROM CONCEPT_DIMENSION").fetchone()[0] == 9
+        from tests.conftest import EXPECTED_CONCEPT_COUNT
+        assert conn.execute("SELECT COUNT(*) FROM CONCEPT_DIMENSION").fetchone()[0] == EXPECTED_CONCEPT_COUNT
         assert conn.execute("SELECT COUNT(*) FROM CODE_LOOKUP").fetchone()[0] == 8
 
     def test_empty_conn_has_no_seeds(self, empty_conn):

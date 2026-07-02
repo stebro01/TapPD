@@ -215,8 +215,12 @@ konsumiert von `recorder.py` und (für Plots) Results/Detail-Dialog.
 | `error_analysis.py` | Per-Finger-Fehlerklassifikation fürs Feedback. |
 
 **Bewertung:** Bewusst eigenständige Pipeline (Erkennen statt Messen), teilt Capture-Layer
-und DB. Langfristig als Paradigmen-Kategorie integrierbar; kleine Duplikate (Euler-Winkel,
-Config-Loader-Muster) bekannt.
+und DB. **Patientenbezug integriert:** Batterie-Läufe werden als `Measurement`
+(`gesture_battery`, Kategorie `GESTURE_TEST`, eigene Konzept-Zeile) gespeichert —
+inkl. Provenienz und Verlaufs-/Matrix-Anbindung; die Referenz-Bibliothek ist als
+JSON exportier-/importierbar; Skelett-Projektion folgt der Quelle (Leap top-down,
+Kamera frontal). Rest-Duplikate (Euler-Winkel, Config-Loader-Muster) bekannt;
+dynamische Gesten (Posen 9–12) werden aufgenommen, aber noch nicht live gescort.
 
 ### 3.7 `storage/` — Klinische Persistenz
 

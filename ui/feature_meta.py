@@ -88,7 +88,21 @@ FEATURE_META: dict[str, tuple[str, str]] = {
     "n_errors": ("Anzahl Fehler", ""),
     "error_rate_per_target": ("Fehler pro Ziel", ""),
     "mean_dwell_time_ms": ("Mittlere Verweilzeit", "ms"),
+
+    # Gesten-Batterie (Gesture Lab)
+    "battery_score": ("Batterie-Score (korrekt/getestet)", ""),
+    "mean_similarity": ("Mittlere Ähnlichkeit", ""),
+    "n_poses_tested": ("Getestete Posen", ""),
+    "n_correct": ("Korrekt", ""),
+    "n_partial": ("Teilweise", ""),
+    "n_incorrect": ("Falsch", ""),
+    "n_skipped": ("Übersprungen", ""),
 }
+
+# Per-pose scores (pose_01_score …) get readable names lazily.
+for _n in range(1, 13):
+    FEATURE_META[f"pose_{_n:02d}_score"] = (f"Pose #{_n} Ähnlichkeit", "")
+del _n
 
 
 # mm-based units are METRIC ESTIMATES on camera sources: MediaPipe world

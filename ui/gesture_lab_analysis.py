@@ -665,6 +665,10 @@ class AnalysisPanel(QWidget):
         capture = self.lab_screen.capture
         if not capture or not capture.is_connected():
             return
+        # Source-aware skeleton projection (Leap = top-down, Kamera = frontal).
+        from capture.source import source_kind
+        self.ist_viz.set_projection(
+            "frontal" if source_kind(capture) == "webcam" else "topdown")
         self._stop_playback()
         self._detecting = True
         self.live_btn.setText("Stop")

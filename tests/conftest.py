@@ -14,6 +14,19 @@ from storage.database import (
 
 # ── In-memory database fixtures ────────────────────────────────────
 
+def _count_seeded_concepts() -> int:
+    import sqlite3 as _sq
+    c = _sq.connect(":memory:")
+    _create_tables(c)
+    _seed_concepts(c)
+    n = c.execute("SELECT COUNT(*) FROM CONCEPT_DIMENSION").fetchone()[0]
+    c.close()
+    return n
+
+
+EXPECTED_CONCEPT_COUNT = _count_seeded_concepts()
+
+
 @pytest.fixture()
 def conn():
     """Fresh in-memory SQLite connection with star schema + seed data."""

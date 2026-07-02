@@ -71,6 +71,9 @@ class DetectPanel(QWidget):
         self._battery_mode = False
         self._battery_index = 0
         self._battery_results: list[tuple[int, str, float]] = []  # (pose_num, result, score)
+        self._battery_started = 0.0
+        self._battery_hands: dict[str, int] = {}   # hand_type -> frames seen
+        self._battery_saved = False
 
         self._build_ui()
 
@@ -145,10 +148,6 @@ class DetectPanel(QWidget):
         self.hand_viz = HandVisualizationWidget()
         right_layout.addWidget(self.hand_viz, stretch=2)
 
-        # Scoring area
-        right = QVBoxLayout()
-        right.setSpacing(6)
-
         # Right: scoring results
         right = QVBoxLayout()
         right.setSpacing(10)
@@ -219,6 +218,13 @@ class DetectPanel(QWidget):
         )
         self.summary_label.setVisible(False)
         right_layout.addWidget(self.summary_label)
+
+        self.save_btn = QPushButton("💾 In Patientenakte speichern")
+        self.save_btn.setProperty("cssClass", "accent")
+        self.save_btn.setFixedHeight(SZ.BTN_H)
+        self.save_btn.setVisible(False)
+        self.save_btn.clicked.connect(self._save_battery_to_db)
+        right_layout.addWidget(self.save_btn)
 
         layout.addWidget(right_widget, stretch=1)
 
@@ -347,14 +353,23 @@ class DetectPanel(QWidget):
         self._detecting = True
         self._reset_hold()
 
+        # Source-aware skeleton projection (Leap = top-down, Kamera = frontal).
+        from capture.source import source_kind
+        self.hand_viz.set_projection(
+            "frontal" if source_kind(capture) == "webcam" else "topdown")
+
         # Battery mode setup
         self._battery_mode = self.mode_combo.currentIndex() == 1
         if self._battery_mode:
             self._battery_index = 0
             self._battery_results.clear()
+            self._battery_started = time.monotonic()
+            self._battery_hands = {}
+            self._battery_saved = False
             self._setup_battery_pose()
             self.next_btn.setVisible(True)
             self.summary_label.setVisible(False)
+            self.save_btn.setVisible(False)
 
         self.start_btn.setText("⏹  Erkennung stoppen")
         self.start_btn.setStyleSheet(
@@ -389,6 +404,9 @@ class DetectPanel(QWidget):
 
     def _on_frame(self, frame: HandFrame) -> None:
         self._latest_frame = frame
+        if self._battery_mode and frame.confidence >= 0.5:
+            self._battery_hands[frame.hand_type] = \
+                self._battery_hands.get(frame.hand_type, 0) + 1
 
     def _poll_live(self) -> None:
         frame = self._latest_frame
@@ -601,6 +619,74 @@ class DetectPanel(QWidget):
 
         self.summary_label.setText("\n".join(lines))
         self.summary_label.setVisible(True)
+
+        # Offer saving into the patient record (only with a selected patient).
+        patient = getattr(self.lab_screen, "patient", None)
+        tested = [r for r in self._battery_results if r[1] != "ÜBERSPRUNGEN"]
+        if patient is not None and patient.id and tested and not self._battery_saved:
+            self.save_btn.setText(f"💾 In Patientenakte speichern ({patient.display_name})")
+            self.save_btn.setVisible(True)
+        elif patient is None or not getattr(patient, "id", None):
+            self.summary_label.setText(
+                self.summary_label.text()
+                + "\n\nℹ Kein Patient gewählt — zum Speichern das Gesture Lab "
+                  "aus der Patienten-Detailansicht öffnen.")
+
+    def _battery_features(self) -> dict[str, float]:
+        """Aggregate the battery run into a numeric feature dict (DB/Verlauf)."""
+        tested = [r for r in self._battery_results if r[1] != "ÜBERSPRUNGEN"]
+        n_correct = sum(1 for _p, res, _s in tested if res == "KORREKT")
+        n_partial = sum(1 for _p, res, _s in tested if res == "TEILWEISE")
+        n_wrong = sum(1 for _p, res, _s in tested if res == "FALSCH")
+        feats: dict[str, float] = {
+            "battery_score": (n_correct / len(tested)) if tested else 0.0,
+            "mean_similarity": (sum(s for _p, _r, s in tested) / len(tested)) if tested else 0.0,
+            "n_poses_tested": float(len(tested)),
+            "n_correct": float(n_correct),
+            "n_partial": float(n_partial),
+            "n_incorrect": float(n_wrong),
+            "n_skipped": float(len(self._battery_results) - len(tested)),
+        }
+        for pose_num, result, score in self._battery_results:
+            if result != "ÜBERSPRUNGEN":
+                feats[f"pose_{pose_num:02d}_score"] = round(float(score), 4)
+        return feats
+
+    def _save_battery_to_db(self) -> None:
+        patient = getattr(self.lab_screen, "patient", None)
+        if patient is None or not patient.id or not self._battery_results:
+            return
+        from capture.source import source_kind
+        from storage.database import Measurement, create_session, save_measurement
+
+        hands = sorted(self._battery_hands, key=self._battery_hands.get, reverse=True)
+        hand = hands[0] if len(hands) == 1 else ("both" if len(hands) > 1 else "right")
+        duration = max(0.0, time.monotonic() - self._battery_started)
+
+        m = Measurement(
+            patient_id=patient.id,
+            test_type="gesture_battery",
+            hand=hand,
+            duration_s=round(duration, 1),
+            source_kind=source_kind(self.lab_screen.capture),
+        )
+        m.features = self._battery_features()
+        conn = get_db()
+        try:
+            session = create_session(conn, patient.id)
+            m.session_id = session.id
+            save_measurement(conn, m)
+        except Exception as e:   # noqa: BLE001
+            log.exception("Gesten-Batterie konnte nicht gespeichert werden")
+            self.save_btn.setText(f"Speichern fehlgeschlagen: {e}")
+            return
+        finally:
+            conn.close()
+        self._battery_saved = True
+        self.save_btn.setVisible(False)
+        self.summary_label.setText(
+            self.summary_label.text()
+            + f"\n\n✓ Als Messung gespeichert (ID {m.id}, {patient.display_name}).")
 
     # ── Cleanup ───────────────────────────────────────────────────
 

@@ -188,3 +188,84 @@ def _row_to_template(row: sqlite3.Row | tuple) -> GestureTemplate:
         dynamic_sample_rate=blob_data.get("dynamic_sample_rate", 50.0),
         created_at=r[12] or "",
     )
+
+
+# ---------------------------------------------------------------------------
+# Library export / import (share the recorded reference library between
+# installations as a single JSON file)
+# ---------------------------------------------------------------------------
+
+LIBRARY_FORMAT = "motryx-gesture-library"
+LIBRARY_VERSION = 1
+
+
+def export_library(conn: sqlite3.Connection, path: str) -> int:
+    """Write all templates to a JSON library file. Returns the count."""
+    templates = list_templates(conn)
+    payload = {
+        "format": LIBRARY_FORMAT,
+        "version": LIBRARY_VERSION,
+        "exported_at": datetime.now().isoformat(timespec="seconds"),
+        "templates": [
+            {
+                "name": t.name,
+                "description": t.description,
+                "clinical_source": t.clinical_source,
+                "gesture_type": t.gesture_type,
+                "hand_type": t.hand_type,
+                "pose_number": t.pose_number,
+                "threshold_good": t.threshold_good,
+                "threshold_partial": t.threshold_partial,
+                "scoring_criteria": t.scoring_criteria,
+                "blob": _blob_to_template_fields(_template_to_blob(t)),
+            }
+            for t in templates
+        ],
+    }
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(payload, f)
+    return len(templates)
+
+
+def import_library(conn: sqlite3.Connection, path: str,
+                   replace: bool = False) -> int:
+    """Import templates from a library file. Returns the imported count.
+
+    ``replace=True`` deletes all existing templates first; otherwise the
+    imported recordings are added alongside the existing ones.
+    """
+    with open(path, "r", encoding="utf-8") as f:
+        payload = json.load(f)
+    if payload.get("format") != LIBRARY_FORMAT:
+        raise ValueError("Keine Motryx-Gesten-Bibliothek (format-Feld fehlt/falsch)")
+    ensure_gesture_table(conn)
+    if replace:
+        conn.execute("DELETE FROM GESTURE_TEMPLATE")
+    n = 0
+    for entry in payload.get("templates", []):
+        blob = entry.get("blob", {})
+        t = GestureTemplate(
+            name=entry.get("name", ""),
+            description=entry.get("description", ""),
+            clinical_source=entry.get("clinical_source", ""),
+            gesture_type=entry.get("gesture_type", "static"),
+            hand_type=entry.get("hand_type", "any"),
+            pose_number=int(entry.get("pose_number", 0)),
+            threshold_good=float(entry.get("threshold_good", 0.85)),
+            threshold_partial=float(entry.get("threshold_partial", 0.60)),
+            scoring_criteria=entry.get("scoring_criteria", ""),
+            pose_vector=blob.get("pose_vector", []),
+            pose_variance=blob.get("pose_variance", []),
+            finger_weights=blob.get("finger_weights", {}),
+            finger_tolerances=blob.get("finger_tolerances", {}),
+            param_enabled=blob.get("param_enabled", {}),
+            expected_extensions=blob.get("expected_extensions", []),
+            raw_frames=blob.get("raw_frames", []),
+            dynamic_frames=blob.get("dynamic_frames", []),
+            dynamic_duration_s=float(blob.get("dynamic_duration_s", 0.0)),
+            dynamic_sample_rate=float(blob.get("dynamic_sample_rate", 0.0)),
+        )
+        save_template(conn, t)
+        n += 1
+    conn.commit()
+    return n

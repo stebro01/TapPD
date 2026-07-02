@@ -202,8 +202,9 @@ class TestMigrationDataIntegrity:
 
     def test_concepts_seeded_after_migration(self, v1_conn):
         self._run_migration(v1_conn)
+        from tests.conftest import EXPECTED_CONCEPT_COUNT
         count = v1_conn.execute("SELECT COUNT(*) FROM CONCEPT_DIMENSION").fetchone()[0]
-        assert count == 9
+        assert count == EXPECTED_CONCEPT_COUNT
 
     def test_code_lookup_seeded_after_migration(self, v1_conn):
         self._run_migration(v1_conn)
@@ -341,7 +342,8 @@ class TestMigrationEdgeCases:
         v1_conn.executescript("DROP TABLE IF EXISTS measurements; DROP TABLE IF EXISTS sessions; DROP TABLE IF EXISTS patients;")
         v1_conn.commit()
         assert v1_conn.execute("SELECT COUNT(*) FROM PATIENT_DIMENSION").fetchone()[0] == 0
-        assert v1_conn.execute("SELECT COUNT(*) FROM CONCEPT_DIMENSION").fetchone()[0] == 9
+        from tests.conftest import EXPECTED_CONCEPT_COUNT
+        assert v1_conn.execute("SELECT COUNT(*) FROM CONCEPT_DIMENSION").fetchone()[0] == EXPECTED_CONCEPT_COUNT
 
     def test_patient_with_empty_gender(self, v1_conn):
         v1_conn.execute(

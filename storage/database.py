@@ -232,6 +232,9 @@ def _migrate_v2(conn: sqlite3.Connection) -> None:
         conn.commit()
         log.info("CODE_LOOKUP: LOOKUP_BLOB Spalte hinzugefuegt")
 
+    # Concepts added after the initial v2 rollout (INSERT OR IGNORE → idempotent).
+    _seed_concepts(conn)
+
     # Mirror blob source_kind into SOURCESYSTEM_CD ('TAPPD:<kind>') so
     # provenance is SQL-filterable; idempotent, only touches plain-'TAPPD' rows.
     try:
@@ -376,6 +379,7 @@ def _seed_concepts(conn: sqlite3.Connection) -> None:
         ("TAPPD:SPATIAL_SRT", "/TapPD/Cognitive/Spatial SRT/", "Spatial Serial Reaction Time", "B", None, "COGNITIVE_TEST"),
         ("TAPPD:TRAIL_MAKING_A", "/TapPD/Cognitive/Trail Making A/", "Trail Making Test Part A", "B", None, "COGNITIVE_TEST"),
         ("TAPPD:TRAIL_MAKING_B", "/TapPD/Cognitive/Trail Making B/", "Trail Making Test Part B", "B", None, "COGNITIVE_TEST"),
+        ("TAPPD:GESTURE_BATTERY", "/TapPD/Gesture/Battery/", "Gesten-Batterie (klinische Handposen)", "B", None, "GESTURE_TEST"),
     ]
     conn.executemany(
         "INSERT OR IGNORE INTO CONCEPT_DIMENSION "

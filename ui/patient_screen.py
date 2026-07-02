@@ -200,12 +200,13 @@ class PatientScreen(QWidget):
 
         # Bottom bar: LAB button (left) + copyright (right)
         bottom_bar = QHBoxLayout()
-        lab_btn = QPushButton("LAB")
+        lab_btn = QPushButton("✋ Gesture Lab")
         lab_btn.setProperty("cssClass", "flat")
-        lab_btn.setFixedWidth(80)
+        lab_btn.setFixedWidth(150)
         lab_btn.setFixedHeight(SZ.BTN_H)
-        lab_btn.setToolTip("Gesture Lab – Gesten-Erkennung")
-        lab_btn.clicked.connect(lambda: self.main_window.show_gesture_lab())
+        lab_btn.setToolTip("Gesten-Bibliothek pflegen (Referenzposen aufnehmen). "
+                           "Patientenbezogene Batterie: aus der Patienten-Detailansicht öffnen.")
+        lab_btn.clicked.connect(lambda: self.main_window.show_gesture_lab("patients"))
         bottom_bar.addWidget(lab_btn)
 
         bottom_bar.addStretch()

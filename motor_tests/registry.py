@@ -89,7 +89,9 @@ def all_keys() -> list[str]:
 
 
 def category_str(key: str) -> str:
-    """DB category string ("MOTOR_TEST"/"COGNITIVE_TEST") for a paradigm key."""
+    """DB category string ("MOTOR_TEST"/"COGNITIVE_TEST"/"GESTURE_TEST") for a test key."""
+    if key.startswith("gesture"):
+        return "GESTURE_TEST"   # Gesture Lab results (not a registry paradigm)
     spec = BY_KEY.get(key)
     return (spec.category if spec else Category.MOTOR).value
 

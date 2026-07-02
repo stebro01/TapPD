@@ -43,16 +43,21 @@ class GestureLabScreen(QWidget):
 
         top_bar.addStretch()
 
-        title = QLabel("Gesture Lab")
+        title = QLabel("✋ Gesture Lab")
         title.setFont(QFont("Helvetica Neue", 18, QFont.Weight.Bold))
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         top_bar.addWidget(title)
 
         top_bar.addStretch()
 
-        spacer = QWidget()
-        spacer.setFixedWidth(120)
-        top_bar.addWidget(spacer)
+        # Patient/source context (right side, mirrors the back button width)
+        self._context_lbl = QLabel("")
+        self._context_lbl.setFixedWidth(260)
+        self._context_lbl.setAlignment(
+            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        self._context_lbl.setStyleSheet(
+            f"color: {theme.TEXT_SECONDARY}; font-size: 12px;")
+        top_bar.addWidget(self._context_lbl)
 
         root.addLayout(top_bar)
 
@@ -112,6 +117,15 @@ class GestureLabScreen(QWidget):
         if not self._panels_built:
             self._build_panels()
             self._panels_built = True
+        self._update_context_label()
+
+    def _update_context_label(self) -> None:
+        from capture.source import source_kind
+        src = {"leap": "Leap", "webcam": "Kamera", "mock": "Simulation"}.get(
+            source_kind(self.capture), "?")
+        p = self.patient
+        who = p.display_name if p is not None else "kein Patient (nur Bibliothek)"
+        self._context_lbl.setText(f"{who}  ·  Quelle: {src}")
 
     def _build_panels(self) -> None:
         from ui.gesture_lab_gesten import GestenPanel
@@ -146,8 +160,17 @@ class GestureLabScreen(QWidget):
             self.gesten_panel.stop_recording()
         if self._panels_built and hasattr(self.detect_panel, 'stop_detection'):
             self.detect_panel.stop_detection()
-        self.main_window.show_patient_screen()
+        if getattr(self, "return_screen", "patients") == "detail" \
+                and self.main_window.current_patient is not None:
+            self.main_window.select_patient(self.main_window.current_patient)
+        else:
+            self.main_window.show_patient_screen()
 
     @property
     def capture(self):
         return self.main_window.capture_device
+
+    @property
+    def patient(self):
+        """Currently selected patient (None → library work only, no saving)."""
+        return getattr(self.main_window, "current_patient", None)

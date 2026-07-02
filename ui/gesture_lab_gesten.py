@@ -176,6 +176,21 @@ class GestenPanel(QWidget):
         scroll.setWidget(self._list_widget)
         left_layout.addWidget(scroll, stretch=1)
 
+        # Library export/import (share recorded reference poses between installs)
+        lib_row = QHBoxLayout()
+        lib_row.setSpacing(4)
+        self.export_btn = QPushButton("⬆ Export")
+        self.export_btn.setToolTip("Alle aufgenommenen Referenzposen als JSON-Bibliothek exportieren")
+        self.export_btn.setFixedHeight(SZ.BTN_H)
+        self.export_btn.clicked.connect(self._on_export_library)
+        lib_row.addWidget(self.export_btn)
+        self.import_btn = QPushButton("⬇ Import")
+        self.import_btn.setToolTip("Gesten-Bibliothek (JSON) importieren")
+        self.import_btn.setFixedHeight(SZ.BTN_H)
+        self.import_btn.clicked.connect(self._on_import_library)
+        lib_row.addWidget(self.import_btn)
+        left_layout.addLayout(lib_row)
+
         root.addWidget(left_widget)
 
         # Separator
@@ -430,6 +445,11 @@ class GestenPanel(QWidget):
             self.rec_status.setText("Kein Sensor verbunden")
             self.rec_status.setStyleSheet(f"color: {theme.DANGER};")
             return
+
+        # Source-aware skeleton projection (Leap = top-down, Kamera = frontal).
+        from capture.source import source_kind
+        self.hand_viz.set_projection(
+            "frontal" if source_kind(capture) == "webcam" else "topdown")
 
         battery = get_battery_definitions()
         defn = next((d for d in battery if d.pose_number == self._selected_pose), None)
@@ -686,3 +706,58 @@ class GestenPanel(QWidget):
         if hasattr(self.lab_screen, 'detect_panel'):
             self.lab_screen.detect_panel.select_pose(self._selected_pose)
             self.lab_screen._switch_mode(2)
+
+    # ── Library export / import ───────────────────────────────────
+
+    def _on_export_library(self) -> None:
+        from PyQt6.QtWidgets import QFileDialog
+        from gesture_lab.gesture_db import export_library
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Gesten-Bibliothek exportieren", "gesten_bibliothek.json",
+            "Gesten-Bibliothek (*.json)")
+        if not path:
+            return
+        conn = get_db()
+        try:
+            n = export_library(conn, path)
+        except Exception as e:   # noqa: BLE001
+            log.exception("Bibliothek-Export fehlgeschlagen")
+            QMessageBox.critical(self, "Gesture Lab", f"Export fehlgeschlagen:\n{e}")
+            return
+        finally:
+            conn.close()
+        QMessageBox.information(self, "Gesture Lab",
+                                f"{n} Referenzaufnahme(n) exportiert nach:\n{path}")
+
+    def _on_import_library(self) -> None:
+        from PyQt6.QtWidgets import QFileDialog
+        from gesture_lab.gesture_db import import_library
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Gesten-Bibliothek importieren", "",
+            "Gesten-Bibliothek (*.json);;Alle Dateien (*)")
+        if not path:
+            return
+        replace = QMessageBox.question(
+            self, "Gesten-Bibliothek importieren",
+            "Bestehende Referenzaufnahmen vorher LÖSCHEN?\n\n"
+            "Ja = Bibliothek ersetzen · Nein = zusätzlich importieren",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+            | QMessageBox.StandardButton.Cancel,
+            QMessageBox.StandardButton.No)
+        if replace == QMessageBox.StandardButton.Cancel:
+            return
+        conn = get_db()
+        try:
+            n = import_library(conn, path,
+                               replace=replace == QMessageBox.StandardButton.Yes)
+        except Exception as e:   # noqa: BLE001
+            log.exception("Bibliothek-Import fehlgeschlagen")
+            QMessageBox.critical(self, "Gesture Lab", f"Import fehlgeschlagen:\n{e}")
+            return
+        finally:
+            conn.close()
+        self._refresh_list()
+        if self._selected_pose:
+            self._update_detail(self._selected_pose)
+        QMessageBox.information(self, "Gesture Lab",
+                                f"{n} Referenzaufnahme(n) importiert.")

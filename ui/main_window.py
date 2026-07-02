@@ -492,7 +492,8 @@ class MotryxMainWindow(QMainWindow):
         self.patient_screen.refresh_list()
         self.stack.setCurrentWidget(self.patient_screen)
 
-    def show_gesture_lab(self) -> None:
+    def show_gesture_lab(self, return_screen: str = "patients") -> None:
+        self.gesture_lab_screen.return_screen = return_screen
         self.stack.setCurrentWidget(self.gesture_lab_screen)
 
     def show_video_lab(self) -> None:
