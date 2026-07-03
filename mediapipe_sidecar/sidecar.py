@@ -469,6 +469,7 @@ class Sidecar:
             "corners_px": [[px(_EYE_L[0]), px(_EYE_L[1])],
                            [px(_EYE_R[0]), px(_EYE_R[1])]],
             "ear": [ear(_EYE_L), ear(_EYE_R)],
+            "nose_px": px(1),   # nose tip — head-yaw proxy for the head guard
             "w": w, "h": h,
         }
 

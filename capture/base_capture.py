@@ -106,6 +106,7 @@ class FacePose:
     corners_right: tuple[tuple[float, float], tuple[float, float]]
     ear_left: float = 0.0     # eye aspect ratio (small = closed/blink)
     ear_right: float = 0.0
+    nose: tuple[float, float] | None = None   # nose tip px (head-yaw proxy)
 
     @property
     def ipd_px(self) -> float:
@@ -134,6 +135,26 @@ class FacePose:
         ix = (self.iris_left[0] + self.iris_right[0]) / 2.0
         iy = (self.iris_left[1] + self.iris_right[1]) / 2.0
         return ((ix - cx) / ipd, (iy - cy) / ipd)
+
+    @property
+    def eye_roll_deg(self) -> float:
+        """Tilt of the inter-iris line (head roll proxy)."""
+        import math
+        dx = self.iris_right[0] - self.iris_left[0]
+        dy = self.iris_right[1] - self.iris_left[1]
+        return math.degrees(math.atan2(dy, dx)) if abs(dx) > 1e-6 else 0.0
+
+    @property
+    def nose_shift_ipd(self) -> float | None:
+        """Horizontal nose offset from the iris midpoint, in IPD units
+        (head-yaw proxy; None when the source sends no nose point)."""
+        if self.nose is None:
+            return None
+        ipd = self.ipd_px
+        if ipd < 1e-6:
+            return None
+        ix = (self.iris_left[0] + self.iris_right[0]) / 2.0
+        return (self.nose[0] - ix) / ipd
 
 
 @dataclass

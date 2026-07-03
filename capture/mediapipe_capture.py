@@ -260,12 +260,14 @@ class WebcamSource(BaseCaptureDevice):
             iris = msg["iris_px"]
             corners = msg["corners_px"]
             ear = msg.get("ear", [0.0, 0.0])
+            nose = msg.get("nose_px")
             return FacePose(
                 timestamp_us=int(msg.get("ts", 0)),
                 iris_left=tuple(iris[0]), iris_right=tuple(iris[1]),
                 corners_left=(tuple(corners[0][0]), tuple(corners[0][1])),
                 corners_right=(tuple(corners[1][0]), tuple(corners[1][1])),
                 ear_left=float(ear[0]), ear_right=float(ear[1]),
+                nose=tuple(nose) if nose else None,
             )
         except (KeyError, IndexError, TypeError, ValueError):
             return None

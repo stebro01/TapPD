@@ -423,6 +423,8 @@ class MotryxMainWindow(QMainWindow):
         self.hanoi_screen = HanoiScreen(self)
         self.srt_screen = SRTScreen(self)
         self.tmt_screen = TMTScreen(self)
+        from ui.saccade_screen import SaccadeScreen
+        self.saccade_screen = SaccadeScreen(self)
         self.gesture_lab_screen = GestureLabScreen(self)
         self.tracking_screen = TrackingScreen(self)
         self.video_lab_screen = VideoLabScreen(self)
@@ -435,6 +437,7 @@ class MotryxMainWindow(QMainWindow):
         self.stack.addWidget(self.hanoi_screen)
         self.stack.addWidget(self.srt_screen)
         self.stack.addWidget(self.tmt_screen)
+        self.stack.addWidget(self.saccade_screen)
         self.stack.addWidget(self.gesture_lab_screen)
         self.stack.addWidget(self.tracking_screen)
         self.stack.addWidget(self.video_lab_screen)
@@ -597,6 +600,7 @@ class MotryxMainWindow(QMainWindow):
             registry.SCREEN_HANOI: self.hanoi_screen,
             registry.SCREEN_SRT: self.srt_screen,
             registry.SCREEN_TMT: self.tmt_screen,
+            registry.SCREEN_SACCADE: self.saccade_screen,
             registry.SCREEN_METRIC: self.test_screen,
         }[spec.screen]
         screen.start_test(test, self.current_patient.patient_code)

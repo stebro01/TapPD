@@ -105,6 +105,16 @@ FEATURE_META: dict[str, tuple[str, str]] = {
     "mean_ear": ("Mittlere Lidspalte (EAR)", ""),
     "n_face_frames": ("Face-Frames", ""),
     "face_coverage": ("Face-Abdeckung", ""),
+
+    # Sakkaden-Test
+    "n_targets_acquired": ("Ziele erreicht", ""),
+    "targets_per_min": ("Ziele pro Minute", "/min"),
+    "median_latency_ms": ("Sakkaden-Latenz (Median)", "ms"),
+    "mean_latency_ms": ("Sakkaden-Latenz (Mittel)", "ms"),
+    "direction_error_rate": ("Richtungsfehler-Rate", ""),
+    "head_invalid_pct": ("Kopfbewegung (ungültig)", ""),
+    "blink_pct": ("Blink-Anteil", ""),
+    "calibration_ok": ("Eichung gültig", ""),
 }
 
 # Per-pose scores (pose_01_score …) get readable names lazily.

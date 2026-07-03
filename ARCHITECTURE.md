@@ -251,6 +251,8 @@ migration shim).
   double-export guarded by the `measurement_id` stamp).
 - ~~Rename package → `paradigms/`~~ done; ~~`OCULAR` category + `FacePose`
   paradigm~~ done (`ocular_fixation`: Fixationsstabilität, Blinkrate,
-  sakkadische Intrusionen). Next: `FACIAL` (Blendshapes/Hypomimie), Sakkaden-/
-  Pursuit-Paradigmen mit Stimulus-Screen, kalibrierte `GazePose`.
+  sakkadische Intrusionen). `saccade_test` (5-Punkt-Eichung → gaze-contingente
+  Zufallsziele, Latenz/Ziele-pro-Minute/Richtungsfehler, Kopfpose-Wächter)
+  ist da. Next: `FACIAL` (Blendshapes/Hypomimie), Smooth Pursuit,
+  kalibrierte `GazePose`.
 - YAML-ify `ui/theme.py` + `mock_capture.py` simulation params.

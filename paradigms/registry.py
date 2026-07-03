@@ -28,6 +28,7 @@ SCREEN_METRIC = "metric"   # ui/test_screen.py (live-metric motor tests)
 SCREEN_HANOI = "hanoi"
 SCREEN_SRT = "srt"
 SCREEN_TMT = "tmt"
+SCREEN_SACCADE = "saccade"  # ui/saccade_screen.py (gaze-contingent targets)
 
 
 @dataclass(frozen=True)
@@ -79,6 +80,9 @@ PARADIGMS: list[ParadigmSpec] = [
     ParadigmSpec("ocular_fixation", "Fixation &\nBlinzeln", "Okulo.", "Blick ruhig halten",
                  Category.OCULAR, False, "ocular_fixation", SCREEN_METRIC,
                  "paradigms.ocular_fixation:OcularFixationTest"),
+    ParadigmSpec("saccade_test", "Sakkaden", "Okulo.", "Blicksprünge auf Ziele",
+                 Category.OCULAR, False, "ocular_fixation", SCREEN_SACCADE,
+                 "paradigms.saccade_test:SaccadeTest"),
 ]
 
 BY_KEY: dict[str, ParadigmSpec] = {p.key: p for p in PARADIGMS}

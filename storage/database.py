@@ -381,6 +381,7 @@ def _seed_concepts(conn: sqlite3.Connection) -> None:
         ("TAPPD:TRAIL_MAKING_B", "/TapPD/Cognitive/Trail Making B/", "Trail Making Test Part B", "B", None, "COGNITIVE_TEST"),
         ("TAPPD:GESTURE_BATTERY", "/TapPD/Gesture/Battery/", "Gesten-Batterie (klinische Handposen)", "B", None, "GESTURE_TEST"),
         ("TAPPD:OCULAR_FIXATION", "/TapPD/Ocular/Fixation/", "Fixationsstabilität & Blinzeln", "B", None, "OCULAR_TEST"),
+        ("TAPPD:SACCADE_TEST", "/TapPD/Ocular/Saccades/", "Sakkaden-Test (gaze-contingent)", "B", None, "OCULAR_TEST"),
     ]
     conn.executemany(
         "INSERT OR IGNORE INTO CONCEPT_DIMENSION "
