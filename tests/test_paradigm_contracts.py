@@ -37,7 +37,9 @@ def test_simulation_source_satisfies_protocol():
 @pytest.mark.parametrize("spec", registry.PARADIGMS, ids=lambda s: s.key)
 def test_paradigm_records_frames_from_simulation(spec):
     test = _run(spec)
-    if spec.bilateral:
+    if spec.category is registry.Category.OCULAR:
+        assert test.face_frames, f"{spec.key}: no face frames collected"
+    elif spec.bilateral:
         assert test.left_frames and test.right_frames, \
             f"{spec.key}: bilateral paradigm got no left/right frames"
     else:
@@ -47,9 +49,13 @@ def test_paradigm_records_frames_from_simulation(spec):
 @pytest.mark.parametrize("spec", registry.PARADIGMS, ids=lambda s: s.key)
 def test_live_metric_is_finite(spec):
     test = _run(spec)
-    frames = test.right_frames if spec.bilateral else test.frames
-    assert frames
-    value = test.get_live_metric(frames[-1])
+    if spec.category is registry.Category.OCULAR:
+        assert test.face_frames
+        value = test.get_face_metric(test.face_frames[-1])
+    else:
+        frames = test.right_frames if spec.bilateral else test.frames
+        assert frames
+        value = test.get_live_metric(frames[-1])
     assert isinstance(value, (int, float))
     assert math.isfinite(value), f"{spec.key}: non-finite live metric {value}"
 

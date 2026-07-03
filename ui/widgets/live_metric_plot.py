@@ -11,8 +11,9 @@ from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
 from ui import theme
 
-_COLORS = {"right": f"{theme.PRIMARY}", "left": f"{theme.DANGER}"}
-_LABELS = {"right": "Rechts", "left": "Links"}
+_COLORS = {"right": f"{theme.PRIMARY}", "left": f"{theme.DANGER}",
+           "face": f"{theme.ACCENT_DARK}"}
+_LABELS = {"right": "Rechts", "left": "Links", "face": "Blick"}
 
 
 class LiveMetricPlot(FigureCanvasQTAgg):
@@ -31,7 +32,7 @@ class LiveMetricPlot(FigureCanvasQTAgg):
                     window_s: float | None = None, window_points: int | None = None) -> None:
         """Redraw from `live` ({hand: [(t_s, value)]}). Window by seconds or points."""
         self._ax.clear()
-        present = [h for h in ("right", "left") if live.get(h)]
+        present = [h for h in ("right", "left", "face") if live.get(h)]
         for hand in present:
             data = live[hand]
             if window_s and data and data[-1][0] > window_s:

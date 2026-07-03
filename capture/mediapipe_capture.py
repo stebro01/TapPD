@@ -72,6 +72,7 @@ class WebcamSource(BaseCaptureDevice):
         self._sample_rate = 30.0
         self._sensor_issues: list[str] = []
         self._face_on = False   # face tracking supplies the eye reference
+        self._last_face = None  # most recent FacePose from the face stream
 
     # ── preconditions ─────────────────────────────────────────────
     @staticmethod
@@ -240,11 +241,34 @@ class WebcamSource(BaseCaptureDevice):
         if self.is_connected():
             self._send({"cmd": "preview", "on": bool(on)})
 
-    def enable_face(self, on: bool) -> None:
-        """Toggle the (optional) face landmarker in the sidecar."""
+    def enable_face(self, on: bool, full_rate: bool = False) -> None:
+        """Toggle the (optional) face landmarker in the sidecar.
+
+        ``full_rate=True`` runs it on every frame and streams dedicated
+        ``face`` messages (ocular paradigms); default is the ~5 Hz eye
+        reference used for tremor."""
         self._face_on = bool(on)
         if self.is_connected():
-            self._send({"cmd": "face", "on": bool(on)})
+            self._send({"cmd": "face", "on": bool(on),
+                        "rate": "full" if full_rate else "eco"})
+
+    @staticmethod
+    def _face_from_message(msg: dict):
+        """Build a FacePose from a sidecar ``face`` message (None if malformed)."""
+        from capture.base_capture import FacePose
+        try:
+            iris = msg["iris_px"]
+            corners = msg["corners_px"]
+            ear = msg.get("ear", [0.0, 0.0])
+            return FacePose(
+                timestamp_us=int(msg.get("ts", 0)),
+                iris_left=tuple(iris[0]), iris_right=tuple(iris[1]),
+                corners_left=(tuple(corners[0][0]), tuple(corners[0][1])),
+                corners_right=(tuple(corners[1][0]), tuple(corners[1][1])),
+                ear_left=float(ear[0]), ear_right=float(ear[1]),
+            )
+        except (KeyError, IndexError, TypeError, ValueError):
+            return None
 
     @property
     def extra_capabilities(self) -> set[str]:
@@ -319,10 +343,21 @@ class WebcamSource(BaseCaptureDevice):
                 if frames:
                     from capture.base_capture import TrackingFrame
                     tcb(TrackingFrame(timestamp_us=int(msg.get("ts", 0)),
-                                      hands=frames))
+                                      hands=frames, face=self._last_face))
                 return
             for frame in frames:
                 self._frame_callback(frame)
+        elif mtype == "face":
+            face = self._face_from_message(msg)
+            if face is None:
+                return
+            self._last_face = face
+            tcb = self._tracking_callback
+            if tcb is not None and self._recording:
+                # Face-only envelope at the face stream's own rate — ocular
+                # paradigms consume this even when no hand is in the picture.
+                from capture.base_capture import TrackingFrame
+                tcb(TrackingFrame(timestamp_us=face.timestamp_us, face=face))
         elif mtype == "preview":
             if self._preview_callback is not None:
                 self._preview_callback(msg)

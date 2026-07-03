@@ -67,6 +67,11 @@ _DEFAULT_MODEL = os.path.join(_HERE, "models", "hand_landmarker.task")
 _FACE_MODEL = os.path.join(_HERE, "models", "face_landmarker.task")
 _IRIS_L, _IRIS_R = 468, 473        # MediaPipe iris-centre landmark indices
 _PALM_ANCHORS = (0, 1, 5, 9, 13, 17)   # wrist + thumb-CMC + four MCPs
+# FaceMesh eye landmarks (image person's left eye = viewer right side etc. —
+# we keep MediaPipe's own left/right naming, matching the iris indices):
+# per eye: (outer corner, inner corner, upper lid, lower lid)
+_EYE_L = (33, 133, 159, 145)
+_EYE_R = (263, 362, 386, 374)
 
 PREVIEW_FPS = 15.0          # throttle for the (heavy) JPEG preview stream
 PREVIEW_MAX_W = 640         # downscale preview frames to at most this width
@@ -151,6 +156,7 @@ class Sidecar:
         self._last_iris_ts_ms = -1
         self._last_face_result = None        # reused by the preview payload
         self._last_face_t = 0.0
+        self._face_interval = 0.2            # s between face detections (0 = full rate)
 
     # ── lifecycle ────────────────────────────────────────────────
     def _ensure_landmarker(self) -> None:
@@ -206,6 +212,9 @@ class Sidecar:
             self._preview_on = bool(msg.get("on", False))
         elif cmd == "face":
             self._face_on = bool(msg.get("on", True))
+            # "eco" (~5 Hz, eye reference for tremor) or "full" (every frame,
+            # dedicated {"type":"face"} stream for ocular paradigms).
+            self._face_interval = 0.0 if msg.get("rate") == "full" else 0.2
         elif cmd == "record":
             # Record the live frames to a clip for ~`seconds`, for later replay.
             self._record_path = msg.get("path")
@@ -357,9 +366,10 @@ class Sidecar:
                     continue
 
                 now = time.perf_counter()
-                # Eye reference at its own low cadence (~5 Hz): the iris scale/
-                # origin varies slowly, while the hand stream stays full-rate.
-                if self._face_on and (now - self._last_face_t) >= 0.2:
+                # Face at its own cadence: "eco" ~5 Hz (eye reference for the
+                # hand stream) or "full" (every frame → dedicated face stream
+                # for ocular paradigms).
+                if self._face_on and (now - self._last_face_t) >= self._face_interval:
                     self._last_face_t = now
                     fl = self._ensure_face_landmarker()
                     if fl is not None:
@@ -375,6 +385,7 @@ class Sidecar:
                                 [lms[_IRIS_L].x * w0, lms[_IRIS_L].y * h0],
                                 [lms[_IRIS_R].x * w0, lms[_IRIS_R].y * h0]]
                             self._last_iris_ts_ms = ts_ms
+                            self._send(self._face_payload(lms, w0, h0))
 
                 h0, w0 = frame_bgr.shape[:2]
                 hands = self._hands_payload(result, w0, h0)
@@ -434,6 +445,32 @@ class Sidecar:
                 ]
             hands.append(entry)
         return hands
+
+    @staticmethod
+    def _face_payload(lms, w: int, h: int) -> dict:
+        """Dedicated face message: iris centres, eye corners (PIXELS) and the
+        eye-aspect-ratio per eye (blink detection) — enough for fixation/
+        blink paradigms without shipping all 478 landmarks at full rate."""
+        def px(i):
+            return [lms[i].x * w, lms[i].y * h]
+
+        def ear(eye):
+            outer, inner, top, bottom = (px(i) for i in eye)
+            hx, hy = inner[0] - outer[0], inner[1] - outer[1]
+            vx, vy = bottom[0] - top[0], bottom[1] - top[1]
+            horiz = (hx * hx + hy * hy) ** 0.5
+            vert = (vx * vx + vy * vy) ** 0.5
+            return round(vert / horiz, 4) if horiz > 1e-6 else 0.0
+
+        return {
+            "type": "face",
+            "ts": int(time.time() * 1_000_000),
+            "iris_px": [px(_IRIS_L), px(_IRIS_R)],
+            "corners_px": [[px(_EYE_L[0]), px(_EYE_L[1])],
+                           [px(_EYE_R[0]), px(_EYE_R[1])]],
+            "ear": [ear(_EYE_L), ear(_EYE_R)],
+            "w": w, "h": h,
+        }
 
     def _preview_payload(self, frame_bgr, result, face_result=None) -> dict:
         h, w = frame_bgr.shape[:2]

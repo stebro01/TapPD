@@ -94,15 +94,57 @@ HandFrame = HandPose
 
 
 @dataclass
+class FacePose:
+    """Eye-centric face state of one camera frame (from the sidecar's
+    ``face`` message): iris centres + eye corners in image PIXELS and the
+    eye-aspect-ratio per eye. Enough for fixation stability, saccadic
+    intrusions and blink metrics without shipping 478 landmarks."""
+    timestamp_us: int
+    iris_left: tuple[float, float]
+    iris_right: tuple[float, float]
+    corners_left: tuple[tuple[float, float], tuple[float, float]]   # outer, inner
+    corners_right: tuple[tuple[float, float], tuple[float, float]]
+    ear_left: float = 0.0     # eye aspect ratio (small = closed/blink)
+    ear_right: float = 0.0
+
+    @property
+    def ipd_px(self) -> float:
+        dx = self.iris_right[0] - self.iris_left[0]
+        dy = self.iris_right[1] - self.iris_left[1]
+        return (dx * dx + dy * dy) ** 0.5
+
+    @property
+    def ear(self) -> float:
+        return (self.ear_left + self.ear_right) / 2.0
+
+    @property
+    def gaze_offset_ipd(self) -> tuple[float, float]:
+        """Iris midpoint relative to the eye-corner midpoint, in IPD units.
+
+        Head-motion-robust fixation proxy: corners move with the head, so the
+        offset isolates eye-in-head movement; dividing by the IPD makes it
+        scale-(distance-)invariant."""
+        ipd = self.ipd_px
+        if ipd < 1e-6:
+            return (0.0, 0.0)
+        cx = (self.corners_left[0][0] + self.corners_left[1][0]
+              + self.corners_right[0][0] + self.corners_right[1][0]) / 4.0
+        cy = (self.corners_left[0][1] + self.corners_left[1][1]
+              + self.corners_right[0][1] + self.corners_right[1][1]) / 4.0
+        ix = (self.iris_left[0] + self.iris_right[0]) / 2.0
+        iy = (self.iris_left[1] + self.iris_right[1]) / 2.0
+        return ((ix - cx) / ipd, (iy - cy) / ipd)
+
+
+@dataclass
 class TrackingFrame:
-    """Multimodal envelope for one timestamp: the unit a future multimodal
-    callback delivers. Today sources still push per-hand ``HandPose`` objects;
-    this type is the target that makes hands/face/gaze uniform (see ARCHITECTURE.md).
-    """
+    """Multimodal envelope for one sensor frame: all hands of that instant,
+    plus face/gaze on capable sources. Delivered via
+    ``MotionSource.start_tracking``."""
     timestamp_us: int
     hands: list[HandPose] = field(default_factory=list)
-    face: object | None = None   # Stage-2: FacePose
-    gaze: object | None = None   # Stage-2: GazePose
+    face: FacePose | None = None
+    gaze: object | None = None   # future: GazePose (calibrated gaze ray)
 
     @property
     def left(self) -> HandPose | None:

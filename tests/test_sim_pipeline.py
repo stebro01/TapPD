@@ -171,11 +171,24 @@ def test_webcam_native_tracking_envelopes(fake_video):
     got = []
     dev.connect()
     dev.start_tracking(got.append)
-    time.sleep(3)
+    # Face landmarker loads lazily in the sidecar — poll until the first
+    # face envelope arrives (up to 10 s) instead of a fixed sleep.
+    deadline = time.time() + 10
+    while time.time() < deadline:
+        if any(tf.face is not None for tf in list(got)):
+            break
+        time.sleep(0.25)
     dev.stop_tracking()
     dev.disconnect()
-    # Synthetic content may or may not yield hand detections; if it did,
-    # every delivery must be an envelope (never a bare HandFrame).
+    # Detection on synthetic content is not reliable (same caveat as the
+    # loop test above), so we assert envelope INTEGRITY, not detection:
+    # every delivery is a TrackingFrame carrying hands and/or a face, and
+    # when the drawn face IS detected, its FacePose content is sane.
+    # (Deterministic face-envelope coverage lives in the mock/unit tests.)
     assert all(isinstance(tf, TrackingFrame) for tf in got)
     for tf in got:
-        assert tf.timestamp_us > 0 and len(tf.hands) >= 1
+        assert tf.timestamp_us > 0
+        assert tf.hands or tf.face is not None
+    for tf in got:
+        if tf.face is not None:
+            assert 0.02 < tf.face.ear < 0.8 and tf.face.ipd_px > 5

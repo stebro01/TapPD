@@ -461,3 +461,18 @@ hand_detection:
     message_waiting: "Bitte Hand vor die Kamera halten..."
     message_detected: "Hand erkannt!"
     message_timeout: "Keine Hand erkannt. Bitte halten Sie die Hand vor die Kamera."
+
+
+ocular_fixation:
+  bilateral: false
+
+  instructions: |
+    Fixation & Blinzeln (Okulomotorik)
+
+    Schauen Sie ruhig und entspannt direkt in die Kamera.
+    Kopf möglichst still halten, normal blinzeln.
+
+  analysis:
+    blink_ear_threshold: 0.18      # EAR unterhalb = Auge geschlossen (Blink)
+    intrusion_threshold_ipd: 0.05  # Blicksprung > 5% IPD zwischen Samples
+    min_face_frames: 30            # darunter: leeres Ergebnis

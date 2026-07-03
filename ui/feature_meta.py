@@ -97,6 +97,14 @@ FEATURE_META: dict[str, tuple[str, str]] = {
     "n_partial": ("Teilweise", ""),
     "n_incorrect": ("Falsch", ""),
     "n_skipped": ("Übersprungen", ""),
+
+    # Okulomotorik (Fixation & Blinzeln)
+    "blink_rate_per_min": ("Blinkrate", "/min"),
+    "gaze_dispersion_pct_ipd": ("Fixationsstreuung", "%IPD"),
+    "saccadic_intrusions_per_min": ("Sakkadische Intrusionen", "/min"),
+    "mean_ear": ("Mittlere Lidspalte (EAR)", ""),
+    "n_face_frames": ("Face-Frames", ""),
+    "face_coverage": ("Face-Abdeckung", ""),
 }
 
 # Per-pose scores (pose_01_score …) get readable names lazily.

@@ -20,6 +20,7 @@ class Category(Enum):
     """Paradigm category. The value is the DB CATEGORY_CHAR string (unchanged)."""
     MOTOR = "MOTOR_TEST"
     COGNITIVE = "COGNITIVE_TEST"
+    OCULAR = "OCULAR_TEST"
 
 
 # Which screen handles a paradigm.
@@ -75,6 +76,9 @@ PARADIGMS: list[ParadigmSpec] = [
     ParadigmSpec("trail_making_b", "Trail Making\nTeil B", "Kogn.", "Zahlen & Buchstaben",
                  Category.COGNITIVE, False, "trail_making", SCREEN_TMT,
                  "paradigms.trail_making:TrailMakingTest", {"part": "B"}),
+    ParadigmSpec("ocular_fixation", "Fixation &\nBlinzeln", "Okulo.", "Blick ruhig halten",
+                 Category.OCULAR, False, "ocular_fixation", SCREEN_METRIC,
+                 "paradigms.ocular_fixation:OcularFixationTest"),
 ]
 
 BY_KEY: dict[str, ParadigmSpec] = {p.key: p for p in PARADIGMS}

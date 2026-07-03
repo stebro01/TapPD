@@ -85,6 +85,16 @@ class ParadigmRunner:
                 with self._lock:
                     self.live.setdefault(frame.hand_type, []).append((t, m))
                     self.last_frame[frame.hand_type] = frame
+            # Face live metric (ocular paradigms expose get_face_metric).
+            if tf.face is not None:
+                gfm = getattr(self.test, "get_face_metric", None)
+                if gfm is not None:
+                    try:
+                        m = float(gfm(tf.face))
+                    except Exception:
+                        m = 0.0
+                    with self._lock:
+                        self.live.setdefault("face", []).append((t, m))
         except Exception:
             log.exception("Fehler im Paradigma-Frame-Pump")
 

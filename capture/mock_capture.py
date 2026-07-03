@@ -93,12 +93,16 @@ class SimulationSource(BaseCaptureDevice):
             t = frame_index * interval
             timestamp_us = int((start_time + t) * 1_000_000)
 
-            frames = self._build_frames(t, timestamp_us)
+            if self._mode == "ocular_fixation":
+                frames, face = [], self._build_face(t, timestamp_us)
+            else:
+                frames, face = self._build_frames(t, timestamp_us), None
             tcb = self._tracking_callback
             if tcb is not None:           # multimodal envelope: all hands at once
-                if frames:
+                if frames or face is not None:
                     from capture.base_capture import TrackingFrame
-                    tcb(TrackingFrame(timestamp_us=timestamp_us, hands=frames))
+                    tcb(TrackingFrame(timestamp_us=timestamp_us, hands=frames,
+                                      face=face))
             else:
                 for frame in frames:
                     if self._callback:
@@ -109,6 +113,28 @@ class SimulationSource(BaseCaptureDevice):
             sleep_dur = next_time - time.perf_counter()
             if sleep_dur > 0:
                 time.sleep(sleep_dur)
+
+    def _build_face(self, t: float, timestamp_us: int):
+        """Synthetic FacePose for the ocular_fixation scenario: small gaze
+        jitter, a saccadic intrusion every ~5 s, a blink every ~4 s."""
+        from capture.base_capture import FacePose
+        # Physiologic micro-jitter (two incommensurate sines ≈ noise) + an
+        # occasional larger intrusion pulse.
+        jitter_x = 0.4 * math.sin(2 * math.pi * 3.7 * t) + 0.25 * math.sin(2 * math.pi * 7.3 * t)
+        jitter_y = 0.3 * math.sin(2 * math.pi * 4.1 * t + 1.0)
+        intrusion = 4.0 if (t % 5.0) < 0.12 else 0.0
+        ix = jitter_x + intrusion
+        iy = jitter_y
+        blink = (t % 4.0) < 0.15
+        ear = 0.06 if blink else 0.30 + 0.02 * math.sin(2 * math.pi * 0.3 * t)
+        return FacePose(
+            timestamp_us=timestamp_us,
+            iris_left=(315.0 + ix, 200.0 + iy),
+            iris_right=(365.0 + ix, 200.0 + iy),
+            corners_left=((300.0, 200.0), (330.0, 200.0)),
+            corners_right=((350.0, 200.0), (380.0, 200.0)),
+            ear_left=ear, ear_right=ear,
+        )
 
     def _build_frames(self, t: float, timestamp_us: int) -> list[HandFrame]:
         """Build one or two frames depending on mode."""

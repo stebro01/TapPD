@@ -64,13 +64,17 @@ def get_task_requirements(test_key: str) -> set[str]:
     ``use_palm_position`` -> absolute position.  See capture.source for tokens.
     """
     from capture.source import (
-        CAP_FINGERTIPS, CAP_HAND_POSE, CAP_ABS_POSITION,
+        CAP_FINGERTIPS, CAP_HAND_POSE, CAP_ABS_POSITION, CAP_FACE_LANDMARKS,
     )
     # Spatial / cognitive tasks track the hand's position in space and live
     # outside test_config.yaml — they fundamentally need absolute position.
-    from paradigms.registry import is_cognitive
+    from paradigms.registry import BY_KEY, Category, is_cognitive
     if is_cognitive(test_key):
         return {CAP_ABS_POSITION}
+    # Ocular paradigms need the face/iris stream, no hand capabilities.
+    spec = BY_KEY.get(test_key)
+    if spec is not None and spec.category is Category.OCULAR:
+        return {CAP_FACE_LANDMARKS}
 
     cfg = get_test_config(test_key)
     explicit = cfg.get("requires")

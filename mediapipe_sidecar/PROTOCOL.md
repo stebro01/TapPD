@@ -16,7 +16,7 @@ modalities (face/eye) can be added without breaking changes.
 | `{"cmd":"start","video":"/path.mp4","start_s":2.0,"end_s":7.5,"loop":false}` | play only `[start_s,end_s]` once, then emit `done` (VideoLab). `start_s`/`end_s`/`loop` are optional; no range + `loop:true` (default) = legacy looping |
 | `{"cmd":"stop"}` | stop streaming, keep source warm |
 | `{"cmd":"preview","on":true}` | enable/disable the throttled `preview` JPEG stream |
-| `{"cmd":"face","on":true}` | enable/disable the (optional) face landmarker in the preview |
+| `{"cmd":"face","on":true,"rate":"eco"}` | face landmarker on/off; `rate`: `"eco"` (~5 Hz eye reference) or `"full"` (every frame → dedicated `face` stream for ocular paradigms) |
 | `{"cmd":"record","path":"/clip.mp4","seconds":10}` | record live frames to an mp4 for `seconds` |
 | `{"cmd":"quit"}` | stop and exit |
 
@@ -44,6 +44,13 @@ modalities (face/eye) can be added without breaking changes.
  "landmarks":[[[x,y], ...21...]],             // normalized image coords, per hand
  "face":[[x,y], ...478...]}                   // first face, normalized; 468-477 = iris/eyes
 
+// per face detection (eco: ~5 Hz, full: every frame) — eye-centric subset
+{"type":"face","ts":1719_650_000_000,
+ "iris_px":[[xL,yL],[xR,yR]],                 // iris centres, PIXELS
+ "corners_px":[[[xo,yo],[xi,yi]], [[...],[...]]],  // eye corners L/R (outer, inner)
+ "ear":[0.31,0.30],                           // eye aspect ratio L/R (blink)
+ "w":640,"h":360}
+
 // recording finished (reply to record)
 {"type":"recorded","path":"/clip.mp4"}
 
@@ -67,12 +74,14 @@ modalities (face/eye) can be added without breaking changes.
 - `handedness` is from the image's perspective; front-facing webcams mirror, so
   the main app exposes a left/right flip setting.
 
-## Face landmarks (implemented via `preview`)
+## Face landmarks
 
-The sidecar already runs a Face Landmarker (478 landmarks incl. iris) alongside
-the hand tracker at its own low cadence (~5 Hz — the eye reference varies
-slowly); it is toggled with `{"cmd":"face","on":bool}`. The full landmark set
-rides in the throttled `preview` message's `face` field (see above); the iris
-centres additionally ride on every full-rate `hand` message (`iris_px`). A
-dedicated full-rate `{"type":"face", ...}` stream (plus the 52 blendshapes)
-remains an additive future extension — no protocol change needed.
+The sidecar runs a Face Landmarker (478 landmarks incl. iris) alongside the
+hand tracker. Three delivery paths:
+- **`preview.face`** — full landmark set in the throttled preview (display).
+- **`hand.iris_px`** — last iris centres on every hand message (eye reference
+  for absolute hand position / tremor).
+- **`{"type":"face"}`** — dedicated eye-centric stream (iris, corners, EAR)
+  at eco (~5 Hz) or full rate; ocular paradigms consume this.
+The 52 blendshapes (facial-expression battery) remain an additive future
+extension — no protocol change needed.

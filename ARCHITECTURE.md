@@ -233,8 +233,10 @@ migration shim).
   (`BaseCaptureDevice`/`HandFrame` remain, tied to the callback migration).
 
 **Remaining / future**
-- Migrate consumers to the `Callable[[TrackingFrame], None]` callback; then drop
-  `BaseCaptureDevice`/`HandFrame` aliases.
+- ~~Migrate consumers to the TrackingFrame callback~~ — done: `start_tracking`
+  streams envelopes (all hands per sensor frame + `FacePose`); paradigms/
+  TestScreen/VideoLab consume them. `BaseCaptureDevice`/`HandFrame` aliases
+  remain for the per-hand convenience API (gesture lab, gates).
 - ~~**Unlock tremor on video**~~ — done, live variant: the sidecar attaches
   iris centres (`iris_px`, ~5 Hz cadence) + per-hand `palm_px` to the full-rate
   `hand` stream; `mediapipe_mapping.eye_ref_position_mm` derives an absolute
@@ -247,6 +249,8 @@ migration shim).
 - ~~**Export** VideoLab segment results into patient Sessions~~ — done:
   `video/export.py` (one DB Session per video session, `source_kind="video"`,
   double-export guarded by the `measurement_id` stamp).
-- Rename package `paradigms/ → paradigms/`; add `OCULAR`/`FACIAL` categories +
-  multimodal sidecar `FaceLandmarker` → `FacePose`/`GazePose` paradigms.
+- ~~Rename package → `paradigms/`~~ done; ~~`OCULAR` category + `FacePose`
+  paradigm~~ done (`ocular_fixation`: Fixationsstabilität, Blinkrate,
+  sakkadische Intrusionen). Next: `FACIAL` (Blendshapes/Hypomimie), Sakkaden-/
+  Pursuit-Paradigmen mit Stimulus-Screen, kalibrierte `GazePose`.
 - YAML-ify `ui/theme.py` + `mock_capture.py` simulation params.

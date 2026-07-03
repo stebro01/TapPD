@@ -116,6 +116,17 @@ class TestScreen(QWidget):
 
         # Unified pre-test gate: hand model + 1-2-3 countdown, source-agnostic.
         self.status_label.setText("")
+        from capture.source import CAP_FACE_LANDMARKS
+        from paradigms.config import get_task_requirements
+        if get_task_requirements(test.test_type()) == {CAP_FACE_LANDMARKS}:
+            # Ocular paradigm: no hand to wait for — face stream on, short
+            # countdown, then record.
+            enable = getattr(test.capture, "enable_face", None)
+            if enable is not None:
+                enable(True, full_rate=True)
+            self.status_label.setText("Bitte in die Kamera schauen …")
+            QTimer.singleShot(3000, lambda: self._on_gate_ready("both"))
+            return
         require_hand = "both" if test.bilateral else test.hand
         profile = profile_for(test.capture)
         self.readiness_gate.begin(test.capture, profile, require_hand=require_hand)

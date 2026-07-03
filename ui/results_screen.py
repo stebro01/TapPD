@@ -80,6 +80,9 @@ def save_raw_data(test: BaseParadigm, patient_id: str, features: dict | None = N
         else:
             data["frames"] = [asdict(f) for f in test.get_frames()]
 
+        if getattr(test, "face_frames", None):
+            data["face_frames"] = [asdict(f) for f in test.face_frames]
+
         if test.test_type() == "tower_of_hanoi":
             from paradigms.tower_of_hanoi import TowerOfHanoiTest
             if isinstance(test, TowerOfHanoiTest):
@@ -282,7 +285,9 @@ class ResultsScreen(QWidget):
         self.figure.clear()
         fs = test.capture.sample_rate
 
-        if test.bilateral:
+        if getattr(test, "face_frames", None):
+            self._plot_face(test)
+        elif test.bilateral:
             self._plot_bilateral(test, fs)
         elif test.test_type() == "pronation_supination":
             self._plot_timeseries(test, fs, color="#7B1FA2", ylabel="Rotationswinkel (°)")
@@ -291,6 +296,32 @@ class ResultsScreen(QWidget):
 
         self.figure.tight_layout()
         self.canvas.draw()
+
+    def _plot_face(self, test) -> None:
+        """Ocular paradigms: gaze offset + eye aspect ratio over time."""
+        faces = list(test.face_frames)
+        if len(faces) < 2:
+            return
+        t0 = faces[0].timestamp_us
+        ts = [(f.timestamp_us - t0) / 1e6 for f in faces]
+        gaze = [test.get_face_metric(f) for f in faces]
+        ears = [f.ear for f in faces]
+
+        ax1 = self.figure.add_subplot(1, 2, 1)
+        self._style_ax(ax1)
+        ax1.plot(ts, gaze, color=PRIMARY, linewidth=0.9)
+        ax1.set_xlabel("Zeit (s)", fontsize=9, color=TEXT_SECONDARY)
+        ax1.set_ylabel("Blickversatz (%IPD)", fontsize=9, color=TEXT_SECONDARY)
+        ax1.set_title("Fixation", fontsize=10, fontweight="bold")
+
+        ax2 = self.figure.add_subplot(1, 2, 2)
+        self._style_ax(ax2)
+        ax2.plot(ts, ears, color=f"{theme.ACCENT_DARK}", linewidth=0.9)
+        thr = getattr(test, "_blink_ear", 0.18)
+        ax2.axhline(thr, color=f"{theme.DANGER}", linewidth=0.8, linestyle="--")
+        ax2.set_xlabel("Zeit (s)", fontsize=9, color=TEXT_SECONDARY)
+        ax2.set_ylabel("Lidspalte (EAR)", fontsize=9, color=TEXT_SECONDARY)
+        ax2.set_title("Blinzeln", fontsize=10, fontweight="bold")
 
     def _style_ax(self, ax):
         ax.set_facecolor(f"{theme.BG}")

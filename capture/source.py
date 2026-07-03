@@ -31,6 +31,7 @@ CAP_FINGERTIPS = "fingertips"        # relative fingertip positions
 CAP_FINGER_FLEXION = "finger_flexion"  # per-joint flexion angles
 CAP_HAND_POSE = "hand_pose"          # palm orientation (roll/pitch/yaw)
 CAP_ABS_POSITION = "abs_position"    # absolute hand position in space (mm)
+CAP_FACE_LANDMARKS = "face_landmarks"  # iris/eye tracking (FacePose stream)
 CAP_FOREARM = "forearm"              # forearm/elbow — no source provides this yet
 
 # MediaPipe-Hand world landmarks are hand-relative (origin at the hand centre),
@@ -38,13 +39,18 @@ CAP_FOREARM = "forearm"              # forearm/elbow — no source provides this
 # for development) can.  Forearm is provided by nobody until Pose/`hand.arm` lands.
 _SOURCE_CAPS = {
     LEAP: {CAP_FINGERTIPS, CAP_FINGER_FLEXION, CAP_HAND_POSE, CAP_ABS_POSITION},
-    WEBCAM: {CAP_FINGERTIPS, CAP_FINGER_FLEXION, CAP_HAND_POSE},
-    MOCK: {CAP_FINGERTIPS, CAP_FINGER_FLEXION, CAP_HAND_POSE, CAP_ABS_POSITION},
+    # The webcam CAN always deliver face landmarks (ocular paradigms switch
+    # the face stream on themselves) — unlike abs_position, which is only
+    # claimed dynamically while the eye reference is running.
+    WEBCAM: {CAP_FINGERTIPS, CAP_FINGER_FLEXION, CAP_HAND_POSE, CAP_FACE_LANDMARKS},
+    MOCK: {CAP_FINGERTIPS, CAP_FINGER_FLEXION, CAP_HAND_POSE, CAP_ABS_POSITION,
+           CAP_FACE_LANDMARKS},
 }
 
 # Human-readable reason shown when a capability is missing.
 CAP_LABELS = {
     CAP_ABS_POSITION: "absolute Handposition im Raum",
+    CAP_FACE_LANDMARKS: "Gesichts-/Augen-Tracking",
     CAP_FOREARM: "Unterarm-/Ellbogen-Tracking",
     CAP_HAND_POSE: "Hand-Orientierung",
     CAP_FINGERTIPS: "Fingerspitzen-Tracking",
