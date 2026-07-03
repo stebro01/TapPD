@@ -117,10 +117,27 @@ class PatientScreen(QWidget):
         self.mode_btn.clicked.connect(self.main_window.toggle_ui_mode)
         top_bar.addWidget(self.mode_btn)
 
-        about_btn = QPushButton("Über Motryx")
+        # "Über Motryx" mit kleiner Versionszeile im Button (Labels sind
+        # mausdurchlässig, der Klick trifft den Button darunter).
+        from app_settings import APP_VERSION
+        about_btn = QPushButton("")
         about_btn.setFixedWidth(160)
-        about_btn.setFixedHeight(SZ.BTN_H)
+        about_btn.setFixedHeight(max(SZ.BTN_H, 40))
+        about_btn.setToolTip("Info, Version und unterstützte Tests")
         about_btn.clicked.connect(self._on_about)
+        _about_l = QVBoxLayout(about_btn)
+        _about_l.setContentsMargins(4, 3, 4, 3)
+        _about_l.setSpacing(0)
+        _t = QLabel("Über Motryx")
+        _t.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        _t.setStyleSheet("background: transparent; font-size: 13px;")
+        _v = QLabel(f"Version {APP_VERSION}")
+        _v.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        _v.setStyleSheet(
+            f"background: transparent; font-size: 9px; color: {theme.TEXT_SECONDARY};")
+        for _lbl in (_t, _v):
+            _lbl.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+            _about_l.addWidget(_lbl)
         top_bar.addWidget(about_btn)
         layout.addLayout(top_bar)
 
@@ -280,14 +297,23 @@ class PatientScreen(QWidget):
             self.main_window.select_patient(dialog.patient)
 
     def _on_about(self) -> None:
+        from app_settings import APP_VERSION
         about_path = Path(__file__).parent.parent / "ABOUT.md"
         try:
             md_text = about_path.read_text(encoding="utf-8")
         except FileNotFoundError:
             md_text = "# Motryx\n\nMovement Lab – Kontaktlose Bewegungsanalyse"
+        # Version + Laufzeitinfo dynamisch anhängen (eine Quelle: app_settings).
+        import platform
+        import sys
+        md_text += (
+            f"\n\n---\n\n**Version {APP_VERSION}**  ·  "
+            f"Python {sys.version.split()[0]}  ·  {platform.system()} "
+            f"{platform.release()}\n"
+        )
 
         dlg = QDialog(self)
-        dlg.setWindowTitle("Über Motryx")
+        dlg.setWindowTitle(f"Über Motryx – Version {APP_VERSION}")
         dlg.setMinimumSize(560, 480)
         layout = QVBoxLayout(dlg)
         layout.setContentsMargins(24, 24, 24, 24)

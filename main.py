@@ -53,9 +53,10 @@ def _install_excepthook() -> None:
 
 def main() -> None:
     _install_excepthook()
-    from app_settings import APP_NAME, app_settings
+    from app_settings import APP_NAME, APP_VERSION, app_settings
     app = QApplication(sys.argv)
     app.setApplicationName(APP_NAME)
+    app.setApplicationVersion(APP_VERSION)
 
     # Restore saved UI mode (dense/touch) — migrates legacy TapPD settings once.
     settings = app_settings()
@@ -66,7 +67,8 @@ def main() -> None:
         app.setWindowIcon(QIcon(str(ICON_PATH)))
 
     setup_logging()
-    log.info("%s wird gestartet (Python %s, Plattform: %s)", APP_NAME, sys.version.split()[0], sys.platform)
+    log.info("%s %s wird gestartet (Python %s, Plattform: %s)",
+             APP_NAME, APP_VERSION, sys.version.split()[0], sys.platform)
 
     # Capture mode: --mock wins; else the last source the user picked on the
     # Tracking screen (persisted in QSettings); else auto (Leap -> mock).

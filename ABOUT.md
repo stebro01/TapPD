@@ -4,13 +4,14 @@
 
 ## Beschreibung
 
-Motryx digitalisiert klinische Bewegungstests mithilfe kontaktloser Hand-Tracking-Quellen. Handbewegungen werden erfasst und quantitative Parameter automatisch berechnet. Die Eingabequelle ist zur Laufzeit umschaltbar:
+Motryx digitalisiert klinische Bewegungstests mithilfe kontaktloser Tracking-Quellen. Handbewegungen werden erfasst und quantitative Parameter automatisch berechnet — live am Gerät oder nachträglich aus Handy-Videos. Die Eingabequelle ist zur Laufzeit umschaltbar:
 
 - **Leap Motion Controller** – höchste Präzision (absolute 3D-Position).
-- **Webcam** (Google MediaPipe) – Standard-Hardware, ohne Spezialsensor.
+- **Webcam** (Google MediaPipe) – Standard-Hardware; Tremor über Augen-Referenz (Iris-Skala), mm-Werte als Modellschätzung gekennzeichnet (≈mm).
+- **Video** – Handy-Videos im VideoLab schneiden, anonymisieren (hand-schonendes Defacing) und auswerten; Ergebnisse wandern in die Patientenakte.
 - **Simulation** – synthetische Daten für Entwicklung und Demonstration.
 
-Die erfasste Quelle wird mit jeder Messung gespeichert (Simulationsdaten sind klar als solche markiert).
+Die Quelle wird mit jeder Messung gespeichert (Simulationsdaten sind klar als solche markiert) und ist in der Datenbank filterbar.
 
 ### Unterstützte Tests
 
@@ -26,15 +27,24 @@ Die erfasste Quelle wird mit jeder Messung gespeichert (Simulationsdaten sind kl
 - **Räumliche Reaktionszeit (S-SRT)** – Implizites Sequenz-Lernen
 - **Trail Making Test (dTMT)** – Verarbeitungsgeschwindigkeit & Set-Shifting
 
+**Gesten:**
+- **Gesten-Batterie (Gesture Lab)** – 12 klinische Handposen mit Referenz-Bibliothek, Ähnlichkeits-Scoring und Fehleranalyse pro Finger
+
+### Auswertung
+
+- Automatische Feature-Berechnung (YAML-konfigurierbar) mit **Motor Performance Index** als Komposit-Verlaufsmarker
+- **Verlaufsansicht**: jedes Merkmal über die Zeit, pro Hand, quellenbewusst
+- Patientenverwaltung mit i2b2-Sternschema (SQLite), CSV-Export, JSON-Rohdaten
+
 ## Entwickler
 
 **Stefan Brodoehl**
 
 ## Technologie
 
-- Python 3.14 / PyQt6
-- Tracking-Quellen: Leap Motion (Ultraleap Gemini v5) · Webcam (MediaPipe Hand Landmarker, via Python-3.12-Sidecar)
-- SQLite-Datenbank (i2b2-Sternschema) für Patienten und Messungen
+- Python 3.14 / PyQt6; CV-Sidecar (Python 3.12) mit MediaPipe Hand- + Face-Landmarker und OpenCV
+- Tracking-Quellen: Leap Motion (Ultraleap Gemini v5) · Webcam/Video (MediaPipe)
+- SQLite-Datenbank (i2b2-Sternschema) für Patienten, Messungen und Gesten-Vorlagen
 - Echtzeit-Signalverarbeitung (NumPy, SciPy)
 
 ## Dokumentation
@@ -45,7 +55,3 @@ Technischer Einstieg: [BLUEPRINT.md](BLUEPRINT.md) (Komponenten-Gesamtkarte) ·
 ## Hinweis
 
 Dieses Werkzeug ist ein Forschungsprototyp und nicht für den klinischen Einsatz zugelassen. Es ersetzt keine ärztliche Untersuchung.
-
----
-
-Version 0.1.0

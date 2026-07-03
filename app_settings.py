@@ -14,6 +14,9 @@ from __future__ import annotations
 APP_ORG = "Motryx"
 APP_NAME = "Motryx"
 APP_TITLE = "Motryx – Movement Lab"
+# Single source of truth for the app version (pyproject.toml mirrors this;
+# shown in the Über-Dialog, the about button and the startup log).
+APP_VERSION = "0.2.0"
 _LEGACY_ORG = "TapPD"
 
 # App-owned settings keys to carry across the rename.
