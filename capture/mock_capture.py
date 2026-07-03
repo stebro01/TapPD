@@ -77,6 +77,7 @@ class SimulationSource(BaseCaptureDevice):
 
     def stop_recording(self) -> None:
         self._recording = False
+        self._tracking_callback = None
         self._stop_event.set()
         if self._thread is not None:
             self._thread.join(timeout=2.0)
@@ -93,9 +94,15 @@ class SimulationSource(BaseCaptureDevice):
             timestamp_us = int((start_time + t) * 1_000_000)
 
             frames = self._build_frames(t, timestamp_us)
-            for frame in frames:
-                if self._callback:
-                    self._callback(frame)
+            tcb = self._tracking_callback
+            if tcb is not None:           # multimodal envelope: all hands at once
+                if frames:
+                    from capture.base_capture import TrackingFrame
+                    tcb(TrackingFrame(timestamp_us=timestamp_us, hands=frames))
+            else:
+                for frame in frames:
+                    if self._callback:
+                        self._callback(frame)
 
             frame_index += 1
             next_time = start_time + frame_index * interval

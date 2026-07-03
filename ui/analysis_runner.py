@@ -96,19 +96,20 @@ class AnalysisRunner(QObject):
         src.set_done_callback(lambda: self._doneSignal.emit())
         src.enable_preview(True)
         src.enable_face(with_face)
-        src.start_recording(self._feed)
+        src.start_tracking(self._feed)
         from video.config import cfg
         margin = float(cfg("analysis", "done_fallback_margin_s", default=4.0))
         self._fallback.start(int((end_s - start_s + margin) * 1000))
 
-    def _feed(self, frame) -> None:        # reader thread
+    def _feed(self, tf) -> None:           # reader thread (TrackingFrame envelope)
         with self._raw_lock:
-            self._raw.setdefault(frame.hand_type, []).append(frame)
-            self._frames_total += 1
-            if getattr(frame, "eye_ref_mm", None) is not None:
-                self._frames_eyeref += 1
+            for frame in tf.hands:
+                self._raw.setdefault(frame.hand_type, []).append(frame)
+                self._frames_total += 1
+                if getattr(frame, "eye_ref_mm", None) is not None:
+                    self._frames_eyeref += 1
         if self._pr is not None:
-            self._pr.feed(frame)           # live metric for both hands (the plot)
+            self._pr.feed(tf)              # live metric for both hands (the plot)
 
     def eye_ref_coverage(self) -> float:
         """Fraction of frames that carried an eye reference (0..1)."""

@@ -133,12 +133,20 @@ class MotionSource(ABC):
         thread-safe (stash + poll from a QTimer, as the UI does). One frame today
         carries a single hand; bilateral tests receive two callbacks per tick.
       * ``stop_recording()`` halts the stream. ``sample_rate`` is the live Hz.
+      * ``start_tracking(callback)`` is the **multimodal envelope** variant:
+        ``callback`` receives one ``TrackingFrame`` per sensor frame carrying
+        ALL hands of that instant (and, on capable sources, face/gaze). The
+        concrete sources emit envelopes natively at their per-sensor-frame
+        point; this base class provides a single-hand fallback wrapper.
 
     Naming note: this is the canonical name; ``BaseCaptureDevice`` is a
-    backward-compatible alias. The hand-only callback signature is the Stage-2
-    migration point toward a multimodal ``TrackingFrame`` envelope (see
-    ARCHITECTURE.md).
+    backward-compatible alias.
     """
+
+    # Multimodal consumer (set by start_tracking). Native sources check this
+    # at their emission point; their stop_recording() MUST reset it so a later
+    # plain start_recording() gets per-hand frames again.
+    _tracking_callback: Callable[["TrackingFrame"], None] | None = None
 
     @abstractmethod
     def connect(self) -> None: ...
@@ -158,6 +166,23 @@ class MotionSource(ABC):
     @property
     @abstractmethod
     def sample_rate(self) -> float: ...
+
+    # ── multimodal envelope stream ─────────────────────────────────
+    def start_tracking(self, callback: Callable[["TrackingFrame"], None]) -> None:
+        """Stream TrackingFrames (all hands of one sensor frame, + face/gaze
+        where available). Same threading rules as ``start_recording``."""
+        self._tracking_callback = callback
+        self.start_recording(self._fallback_hand_to_tracking)
+
+    def stop_tracking(self) -> None:
+        self._tracking_callback = None
+        self.stop_recording()
+
+    def _fallback_hand_to_tracking(self, frame: HandFrame) -> None:
+        """Per-hand → envelope fallback for sources without a native emitter."""
+        cb = self._tracking_callback
+        if cb is not None:
+            cb(TrackingFrame(timestamp_us=frame.timestamp_us, hands=[frame]))
 
 
 # Backward-compatible alias (pre-consolidation name). Stage 2 removes it.

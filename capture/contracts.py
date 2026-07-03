@@ -10,14 +10,16 @@ from __future__ import annotations
 
 from typing import Callable, Protocol, runtime_checkable
 
-from capture.base_capture import HandFrame
+from capture.base_capture import HandFrame, TrackingFrame
 
-# The per-frame consumer a source pushes to. One call per hand per frame, on a
-# background thread (consumers must be thread-safe).
-#
-# Stage-2 target: ``Callable[[TrackingFrame], None]`` where a single TrackingFrame
-# carries hands[] plus optional face/gaze — see ARCHITECTURE.md.
+# Per-hand consumer: one call per hand per frame, on a background thread
+# (consumers must be thread-safe). Fine for single-hand use cases.
 FrameConsumer = Callable[[HandFrame], None]
+
+# Multimodal consumer: ONE call per sensor frame with all hands of that
+# instant (plus face/gaze on capable sources). Preferred for paradigms —
+# bilateral tasks get both hands from a single envelope.
+TrackingConsumer = Callable[[TrackingFrame], None]
 
 
 @runtime_checkable
@@ -29,6 +31,8 @@ class MotionSourceProtocol(Protocol):
     def is_connected(self) -> bool: ...
     def start_recording(self, callback: FrameConsumer) -> None: ...
     def stop_recording(self) -> None: ...
+    def start_tracking(self, callback: TrackingConsumer) -> None: ...
+    def stop_tracking(self) -> None: ...
 
     @property
     def sample_rate(self) -> float: ...

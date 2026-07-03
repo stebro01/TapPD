@@ -60,6 +60,7 @@ class ReplaySource(MotionSource):
         self._thread.start()
 
     def stop_recording(self) -> None:
+        self._tracking_callback = None
         self._stop.set()
         if self._thread is not None:
             self._thread.join(timeout=2.0)

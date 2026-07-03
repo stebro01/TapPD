@@ -15,6 +15,9 @@ from __future__ import annotations
 import logging
 import threading
 import time
+from dataclasses import replace
+
+from capture.base_capture import TrackingFrame
 
 log = logging.getLogger(__name__)
 
@@ -51,30 +54,37 @@ class ParadigmRunner:
         self._wall_start = time.perf_counter()
         self.duration_reached = False
 
-    def feed(self, frame) -> None:
-        """Frame callback: gate, accumulate into the paradigm, extract live metric."""
+    def feed(self, obj) -> None:
+        """Frame callback: gate, accumulate into the paradigm, extract live metric.
+
+        Accepts a multimodal ``TrackingFrame`` envelope (all hands of one
+        sensor frame, + face/gaze) or — backward compatible — a single
+        ``HandFrame``."""
         try:
+            tf = obj if isinstance(obj, TrackingFrame) else \
+                TrackingFrame(timestamp_us=obj.timestamp_us, hands=[obj])
             if self._settle_s and (time.perf_counter() - self._wall_start) < self._settle_s:
                 return   # discard stale frames buffered before recording began
             if self._t0_us is None:
-                self._t0_us = frame.timestamp_us
+                self._t0_us = tf.timestamp_us
             if not self._sidecar_bounded and self._duration_s is not None:
-                if (frame.timestamp_us - self._t0_us) > self._duration_s * 1_000_000:
+                if (tf.timestamp_us - self._t0_us) > self._duration_s * 1_000_000:
                     self.duration_reached = True
                     return
             # Adapt once (source seam, e.g. webcam eye-referenced position) so
             # paradigm AND live metric see the same view. adapt_frame is
-            # idempotent, so the paradigm's own _on_frame adapt is a no-op.
-            adapted = self.test._profile.adapt_frame(frame)
-            self.test._on_frame(adapted)
-            t = (frame.timestamp_us - self._t0_us) / 1e6
-            try:
-                m = float(self.test.get_live_metric(adapted))
-            except Exception:
-                m = 0.0
-            with self._lock:
-                self.live.setdefault(frame.hand_type, []).append((t, m))
-                self.last_frame[frame.hand_type] = frame
+            # idempotent, so the paradigm's own per-hand adapt is a no-op.
+            adapted = [self.test._profile.adapt_frame(h) for h in tf.hands]
+            self.test._on_tracking(replace(tf, hands=adapted))
+            t = (tf.timestamp_us - self._t0_us) / 1e6
+            for frame in adapted:
+                try:
+                    m = float(self.test.get_live_metric(frame))
+                except Exception:
+                    m = 0.0
+                with self._lock:
+                    self.live.setdefault(frame.hand_type, []).append((t, m))
+                    self.last_frame[frame.hand_type] = frame
         except Exception:
             log.exception("Fehler im Paradigma-Frame-Pump")
 

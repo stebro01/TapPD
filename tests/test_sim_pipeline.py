@@ -161,3 +161,21 @@ def test_transcode_manual_rotation_swaps_dimensions(fake_video, tmp_path):
     out = tc.transcode_video(fake_video, dest, rotate_deg=90)
     assert out and out["ok"]
     assert (out["w"], out["h"]) == (240, 320)
+
+
+def test_webcam_native_tracking_envelopes(fake_video):
+    """start_tracking on the webcam source yields TrackingFrame envelopes
+    (all hands of one sidecar message at once)."""
+    from capture.base_capture import TrackingFrame
+    dev = WebcamSource(replay_path=fake_video)
+    got = []
+    dev.connect()
+    dev.start_tracking(got.append)
+    time.sleep(3)
+    dev.stop_tracking()
+    dev.disconnect()
+    # Synthetic content may or may not yield hand detections; if it did,
+    # every delivery must be an envelope (never a bare HandFrame).
+    assert all(isinstance(tf, TrackingFrame) for tf in got)
+    for tf in got:
+        assert tf.timestamp_us > 0 and len(tf.hands) >= 1

@@ -5,7 +5,7 @@ import threading
 from abc import ABC, abstractmethod
 from pathlib import Path
 
-from capture.base_capture import BaseCaptureDevice, HandFrame
+from capture.base_capture import BaseCaptureDevice, HandFrame, TrackingFrame
 
 log = logging.getLogger(__name__)
 
@@ -39,8 +39,16 @@ class BaseParadigm(ABC):
         from capture.source import profile_for
         self._profile = profile_for(capture)
 
+    def _on_tracking(self, tf: TrackingFrame) -> None:
+        """Multimodal envelope callback (one sensor frame: all hands [+face]).
+
+        Hand paradigms just consume the hands; face/gaze paradigms override
+        this to read ``tf.face`` / ``tf.gaze``."""
+        for frame in tf.hands:
+            self._on_frame(frame)
+
     def _on_frame(self, frame: HandFrame) -> None:
-        """Callback invoked by capture device for each frame."""
+        """Per-hand callback (also reachable directly, e.g. VideoLab re-run)."""
         frame = self._profile.adapt_frame(frame)
         if self.bilateral:
             with self._lock:
@@ -59,7 +67,7 @@ class BaseParadigm(ABC):
         self.frames.clear()
         self.left_frames.clear()
         self.right_frames.clear()
-        self.capture.start_recording(self._on_frame)
+        self.capture.start_tracking(self._on_tracking)
         log.info("Aufnahme gestartet: %s (Hand: %s, Dauer: %.1fs, bilateral: %s)",
                  self.test_type(), self.hand, self.duration, self.bilateral)
 

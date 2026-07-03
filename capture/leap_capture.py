@@ -134,6 +134,7 @@ class LeapSource(BaseCaptureDevice):
 
     def stop_recording(self) -> None:
         self._recording = False
+        self._tracking_callback = None
         self._stop_event.set()
         if self._thread is not None:
             self._thread.join(timeout=2.0)
@@ -151,9 +152,15 @@ class LeapSource(BaseCaptureDevice):
 
     def _handle_tracking(self, tracking) -> None:
         self._current_fps = tracking.framerate
-        for i in range(tracking.nHands):
-            hand = tracking.pHands[i]
-            frame = self._convert_hand(hand, tracking.info.timestamp)
+        frames = [self._convert_hand(tracking.pHands[i], tracking.info.timestamp)
+                  for i in range(tracking.nHands)]
+        tcb = self._tracking_callback
+        if tcb is not None:               # multimodal envelope: all hands at once
+            if frames:
+                from capture.base_capture import TrackingFrame
+                tcb(TrackingFrame(timestamp_us=tracking.info.timestamp, hands=frames))
+            return
+        for frame in frames:
             if self._callback:
                 self._callback(frame)
 

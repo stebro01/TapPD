@@ -227,6 +227,7 @@ class WebcamSource(BaseCaptureDevice):
 
     def stop_recording(self) -> None:
         self._recording = False
+        self._tracking_callback = None
         if self.is_connected():
             self._send({"cmd": "stop"})
         log.debug("MediaPipe-Aufnahme gestoppt")
@@ -313,6 +314,13 @@ class WebcamSource(BaseCaptureDevice):
                 msg, flip_handedness=self.flip_handedness,
                 prev_by_hand=self._prev_by_hand,
             )
+            tcb = self._tracking_callback
+            if tcb is not None:           # multimodal envelope: all hands at once
+                if frames:
+                    from capture.base_capture import TrackingFrame
+                    tcb(TrackingFrame(timestamp_us=int(msg.get("ts", 0)),
+                                      hands=frames))
+                return
             for frame in frames:
                 self._frame_callback(frame)
         elif mtype == "preview":

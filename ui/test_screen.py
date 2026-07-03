@@ -144,7 +144,7 @@ class TestScreen(QWidget):
         self._runner = ParadigmRunner(self.test, settle_s=self.SETTLE_S,
                                       duration_s=self.test.duration)
         self._runner.begin()
-        self.test.capture.start_recording(self._runner.feed)
+        self.test.capture.start_tracking(self._runner.feed)
         self._ui_timer.start(33)
         # Safety timeout: settle + duration + 3s margin.
         QTimer.singleShot(int((self.SETTLE_S + self.test.duration + 3) * 1000), self._on_done)
