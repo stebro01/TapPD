@@ -229,7 +229,7 @@ class PatientScreen(QWidget):
         bottom_bar.addStretch()
 
         copy_label = QLabel("\u00a9 Stefan Brodoehl 2026")
-        copy_label.setStyleSheet("font-size: 10px; color: #BDBDBD;")
+        copy_label.setStyleSheet(f"font-size: 10px; color: {theme.DISABLED};")
         bottom_bar.addWidget(copy_label)
         layout.addLayout(bottom_bar)
 
@@ -323,8 +323,8 @@ class PatientScreen(QWidget):
         browser.setMarkdown(md_text)
         browser.setStyleSheet(
             "QTextBrowser {"
-            "  background-color: #FAFAFA;"
-            "  border: 1px solid #E0E0E0;"
+            f"  background-color: {theme.BG};"
+            f"  border: 1px solid {theme.BORDER};"
             "  border-radius: 8px;"
             "  padding: 16px;"
             "  font-size: 13px;"

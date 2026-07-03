@@ -9,8 +9,9 @@ from __future__ import annotations
 
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
+from ui import theme
 
-_COLORS = {"right": "#1976D2", "left": "#E53935"}
+_COLORS = {"right": f"{theme.PRIMARY}", "left": f"{theme.DANGER}"}
 _LABELS = {"right": "Rechts", "left": "Links"}
 
 

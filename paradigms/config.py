@@ -68,8 +68,8 @@ def get_task_requirements(test_key: str) -> set[str]:
     )
     # Spatial / cognitive tasks track the hand's position in space and live
     # outside test_config.yaml — they fundamentally need absolute position.
-    from motor_tests.registry import is_spatial
-    if is_spatial(test_key):
+    from paradigms.registry import is_cognitive
+    if is_cognitive(test_key):
         return {CAP_ABS_POSITION}
 
     cfg = get_test_config(test_key)

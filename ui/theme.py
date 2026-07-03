@@ -16,6 +16,11 @@ TEXT = "#212121"
 TEXT_SECONDARY = "#757575"
 BORDER = "#E0E0E0"
 HOVER_BG = "#F5F5F5"
+# Semantic tints (status backgrounds) + neutrals used across screens
+SUCCESS_BG = "#E8F5E9"     # light green behind "OK/korrekt"
+DANGER_BG = "#FFEBEE"      # light red behind errors
+WARN_DARK = "#E65100"      # emphasized warning text (e.g. simulation banner)
+DISABLED = "#BDBDBD"       # disabled/placeholder gray
 
 # ── UI Size Profiles ───────────────────────────────────────────
 _PROFILES = {

@@ -29,7 +29,7 @@ HandFrame (pro Frame: ~800 Bytes)
    │  └─ confidence
    │
    ▼
-BaseMotorTest.frames[] (akkumuliert im RAM)
+BaseParadigm.frames[] (akkumuliert im RAM)
    │
    ▼
 feature_extraction → dict (6-12 Zahlen)

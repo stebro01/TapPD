@@ -10,8 +10,8 @@ from capture.base_capture import BaseCaptureDevice, HandFrame
 log = logging.getLogger(__name__)
 
 
-class BaseMotorTest(ABC):
-    """Base class for all motor tests.
+class BaseParadigm(ABC):
+    """Base class for all paradigms (motor, cognitive, …).
 
     For unilateral tests (finger_tapping, hand_open_close, pronation_supination),
     only frames matching self.hand are collected.
@@ -116,3 +116,7 @@ class BaseMotorTest(ABC):
         """Path to instruction image, or None."""
         p = Path(__file__).parent.parent / "assets" / f"instr_{self.test_type()}.png"
         return p if p.exists() else None
+
+
+# Historical alias (pre paradigms/ rename)
+BaseMotorTest = BaseParadigm

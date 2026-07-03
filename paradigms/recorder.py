@@ -14,7 +14,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from capture.base_capture import BaseCaptureDevice, HandFrame
-from motor_tests.config import get_test_config, get_hand_detection_config
+from paradigms.config import get_test_config, get_hand_detection_config
 from analysis.signal_processing import (
     bandpass_filter,
     compute_amplitude_decrement,

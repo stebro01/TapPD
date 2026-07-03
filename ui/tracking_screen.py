@@ -48,6 +48,7 @@ from capture.config import cfg as capture_cfg
 from capture.mediapipe_capture import WebcamSource
 from ui.hand_visualization import HandVisualizationWidget
 from ui.widgets.webcam_preview import WebcamPreview
+from ui import theme
 
 HAND_STALE_S = float(capture_cfg("preview", "hand_stale_s", default=0.3))
 
@@ -73,7 +74,7 @@ class _FaceView(QWidget):
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
         w, h = self.width(), self.height()
-        p.fillRect(0, 0, w, h, QColor("#212121"))
+        p.fillRect(0, 0, w, h, QColor(f"{theme.TEXT}"))
         if not self._face:
             p.setPen(QColor("#9E9E9E"))
             p.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, "Kein Gesicht erkannt")
@@ -221,16 +222,16 @@ class TrackingScreen(QWidget):
         controls.addSpacing(12)
         self._apply_btn = QPushButton("Übernehmen")
         self._apply_btn.setStyleSheet(
-            "QPushButton { background: #1976D2; color: white; border: none; border-radius: 6px; "
+            f"QPushButton {{ background: {theme.PRIMARY}; color: white; border: none; border-radius: 6px; "
             "padding: 12px 18px; font-size: 15px; font-weight: 600; }"
-            "QPushButton:hover { background: #1565C0; }"
+            f"QPushButton:hover {{ background: {theme.PRIMARY_DARK}; }}"
         )
         self._apply_btn.clicked.connect(self._on_apply)
         controls.addWidget(self._apply_btn)
 
         self._status = QLabel("")
         self._status.setWordWrap(True)
-        self._status.setStyleSheet("font-size: 12px; color: #757575;")
+        self._status.setStyleSheet(f"font-size: 12px; color: {theme.TEXT_SECONDARY};")
         controls.addWidget(self._status)
         controls.addStretch(1)
 
@@ -765,6 +766,6 @@ class TrackingScreen(QWidget):
 
     # ── helpers ───────────────────────────────────────────────────
     def _set_status(self, text: str, error: bool = False) -> None:
-        color = "#E53935" if error else "#757575"
+        color = f"{theme.DANGER}" if error else f"{theme.TEXT_SECONDARY}"
         self._status.setStyleSheet(f"font-size: 12px; color: {color};")
         self._status.setText(text)

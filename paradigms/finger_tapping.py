@@ -3,11 +3,11 @@
 import math
 
 from capture.base_capture import BaseCaptureDevice, HandFrame
-from motor_tests.base_test import BaseMotorTest
-from motor_tests.recorder import compute_features_from_config
+from paradigms.base_test import BaseParadigm
+from paradigms.recorder import compute_features_from_config
 
 
-class FingerTappingTest(BaseMotorTest):
+class FingerTappingTest(BaseParadigm):
     bilateral = False
 
     def __init__(self, capture: BaseCaptureDevice, duration: float = 10.0, hand: str = "right") -> None:

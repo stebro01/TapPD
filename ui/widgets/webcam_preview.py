@@ -11,6 +11,7 @@ import base64
 from PyQt6.QtCore import Qt, QPointF
 from PyQt6.QtGui import QImage, QPixmap, QPainter, QColor, QPen
 from PyQt6.QtWidgets import QWidget
+from ui import theme
 
 # MediaPipe hand-skeleton connections (landmark index pairs) for the overlay.
 HAND_CONNECTIONS = [
@@ -57,7 +58,7 @@ class WebcamPreview(QWidget):
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
         w, h = self.width(), self.height()
-        p.fillRect(0, 0, w, h, QColor("#212121"))
+        p.fillRect(0, 0, w, h, QColor(f"{theme.TEXT}"))
 
         if self._pixmap is None:
             p.setPen(QColor("#9E9E9E"))

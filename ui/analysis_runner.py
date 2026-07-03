@@ -61,9 +61,9 @@ class AnalysisRunner(QObject):
               paradigm_key: str, hand: str = "right", with_face: bool = False) -> None:
         from capture.mediapipe_capture import WebcamSource
         from capture.source import CAP_ABS_POSITION
-        from motor_tests import registry
-        from motor_tests.config import get_task_requirements
-        from motor_tests.runner import ParadigmRunner
+        from paradigms import registry
+        from paradigms.config import get_task_requirements
+        from paradigms.runner import ParadigmRunner
         try:
             if self._src is None:
                 self._src = WebcamSource()

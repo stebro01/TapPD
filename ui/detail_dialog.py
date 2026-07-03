@@ -33,6 +33,7 @@ from analysis.signal_processing import (
 from storage.database import Measurement, Patient
 from ui.feature_meta import FEATURE_META, unit_label, has_estimated_scale, SCALE_NOTE
 from ui.theme import SZ, ACCENT, PRIMARY, TEXT_SECONDARY
+from ui import theme
 
 COLOR_RIGHT = QColor(227, 242, 253)
 COLOR_LEFT = QColor(255, 235, 238)
@@ -95,7 +96,7 @@ class DetailDialog(QDialog):
         self._feature_table.setMaximumWidth(450)
 
         # Plot canvas
-        self._figure = Figure(figsize=(7, 5), facecolor="#FAFAFA")
+        self._figure = Figure(figsize=(7, 5), facecolor=f"{theme.BG}")
         self._canvas = FigureCanvasQTAgg(self._figure)
 
         content = QHBoxLayout()
@@ -183,17 +184,17 @@ class DetailDialog(QDialog):
             ax = self._figure.add_subplot(111)
             ax.text(0.5, 0.5, "Keine Rohdaten vorhanden",
                     ha="center", va="center", fontsize=12, color="#999")
-            ax.set_facecolor("#FAFAFA")
+            ax.set_facecolor(f"{theme.BG}")
             ax.axis("off")
 
         self._figure.tight_layout()
         self._canvas.draw()
 
     def _style_ax(self, ax):
-        ax.set_facecolor("#FAFAFA")
+        ax.set_facecolor(f"{theme.BG}")
         ax.tick_params(labelsize=8, colors=TEXT_SECONDARY)
         for spine in ax.spines.values():
-            spine.set_color("#E0E0E0")
+            spine.set_color(f"{theme.BORDER}")
         ax.grid(True, alpha=0.2)
 
     def _plot_from_json(self, path: str, test_type: str) -> None:
@@ -247,7 +248,7 @@ class DetailDialog(QDialog):
                 mean_rt = np.mean(rts)
                 x_vals.append(i)
                 y_vals.append(mean_rt)
-                colors.append("#43A047" if block_types[bid] == "sequence" else "#E53935")
+                colors.append(f"{theme.ACCENT}" if block_types[bid] == "sequence" else f"{theme.DANGER}")
         if x_vals:
             ax1.bar(range(len(x_vals)), y_vals, color=colors, alpha=0.7)
             ax1.set_xlabel("Block", fontsize=8)
@@ -265,7 +266,7 @@ class DetailDialog(QDialog):
                     seq_means.append(np.mean(rts))
         if seq_means:
             ax2.plot(range(1, len(seq_means) + 1), seq_means, "o-",
-                     color="#43A047", linewidth=1.5, markersize=5)
+                     color=f"{theme.ACCENT}", linewidth=1.5, markersize=5)
             ax2.set_xlabel("Sequenz-Block", fontsize=8)
             ax2.set_ylabel("RT (ms)", fontsize=8)
         ax2.set_title("Lernkurve", fontsize=10, fontweight="bold")
@@ -294,7 +295,7 @@ class DetailDialog(QDialog):
                     effs.append(r["straight_distance_mm"] / r["path_length_mm"])
             if effs:
                 eff_vals.append(np.mean(effs))
-                eff_colors.append("#43A047" if block_types[bid] == "sequence" else "#E53935")
+                eff_colors.append(f"{theme.ACCENT}" if block_types[bid] == "sequence" else f"{theme.DANGER}")
         if eff_vals:
             ax4.bar(range(len(eff_vals)), eff_vals, color=eff_colors, alpha=0.7)
             ax4.set_xlabel("Block", fontsize=8)
@@ -334,7 +335,7 @@ class DetailDialog(QDialog):
             ax2.bar(range(1, len(mts) + 1), mts, color=PRIMARY, alpha=0.7)
             if len(mts) > 1:
                 mean_mt = np.mean(mts)
-                ax2.axhline(y=mean_mt, color="#E53935", linestyle="--", linewidth=1,
+                ax2.axhline(y=mean_mt, color=f"{theme.DANGER}", linestyle="--", linewidth=1,
                             label=f"Mittel: {mean_mt:.0f}ms")
                 ax2.legend(fontsize=7, frameon=False)
             ax2.set_xlabel("Segment", fontsize=8)
@@ -351,7 +352,7 @@ class DetailDialog(QDialog):
                     effs.append(s["straight_distance_mm"] / s["path_length_mm"])
                 else:
                     effs.append(0)
-            ax3.bar(range(1, len(effs) + 1), effs, color="#43A047", alpha=0.7)
+            ax3.bar(range(1, len(effs) + 1), effs, color=f"{theme.ACCENT}", alpha=0.7)
             ax3.set_ylim(0, 1.1)
             ax3.set_xlabel("Segment", fontsize=8)
             ax3.set_ylabel("Pfad-Effizienz", fontsize=8)
@@ -362,7 +363,7 @@ class DetailDialog(QDialog):
         self._style_ax(ax4)
         if segments:
             errors = [s["n_wrong_approaches"] for s in segments]
-            ax4.bar(range(1, len(errors) + 1), errors, color="#E53935", alpha=0.7)
+            ax4.bar(range(1, len(errors) + 1), errors, color=f"{theme.DANGER}", alpha=0.7)
             ax4.set_xlabel("Segment", fontsize=8)
             ax4.set_ylabel("Fehler", fontsize=8)
         ax4.set_title("Fehler pro Segment", fontsize=10, fontweight="bold")
@@ -381,7 +382,7 @@ class DetailDialog(QDialog):
         self._style_ax(ax1)
         for frames, color, label in [
             (right_frames, PRIMARY, "Rechts"),
-            (left_frames, "#E53935", "Links"),
+            (left_frames, f"{theme.DANGER}", "Links"),
         ]:
             if frames:
                 ts = np.array([f["timestamp_us"] for f in frames], dtype=np.int64)
@@ -396,7 +397,7 @@ class DetailDialog(QDialog):
             t0 = right_frames[0]["timestamp_us"] / 1e6
             for m in valid_moves:
                 ax1.axvline(x=m["timestamp_s"] - t0 if t0 < m["timestamp_s"] else m["timestamp_s"],
-                            color="#43A047", linewidth=0.5, alpha=0.4)
+                            color=f"{theme.ACCENT}", linewidth=0.5, alpha=0.4)
         ax1.set_ylabel("Hand X (mm)", fontsize=8)
         ax1.set_xlabel("Zeit (s)", fontsize=8)
         ax1.set_title("Handposition", fontsize=10, fontweight="bold")
@@ -407,7 +408,7 @@ class DetailDialog(QDialog):
         self._style_ax(ax2)
         for frames, color, label in [
             (right_frames, PRIMARY, "Rechts"),
-            (left_frames, "#E53935", "Links"),
+            (left_frames, f"{theme.DANGER}", "Links"),
         ]:
             if frames:
                 ts = np.array([f["timestamp_us"] for f in frames], dtype=np.int64)
@@ -415,7 +416,7 @@ class DetailDialog(QDialog):
                     t = (ts - ts[0]) / 1e6
                     pd = np.array([f.get("pinch_distance", 50) for f in frames])
                     ax2.plot(t, pd, color=color, linewidth=0.6, alpha=0.7, label=label)
-        ax2.axhline(y=25, color="#BDBDBD", linestyle="--", linewidth=1, alpha=0.5)
+        ax2.axhline(y=25, color=f"{theme.DISABLED}", linestyle="--", linewidth=1, alpha=0.5)
         ax2.set_ylabel("Pinch-Distanz (mm)", fontsize=8)
         ax2.set_xlabel("Zeit (s)", fontsize=8)
         ax2.set_title("Greifverhalten", fontsize=10, fontweight="bold")
@@ -430,7 +431,7 @@ class DetailDialog(QDialog):
                 intervals.append(valid_moves[i]["timestamp_s"] - valid_moves[i - 1]["timestamp_s"])
             bars = ax3.bar(range(1, len(intervals) + 1), intervals, color=PRIMARY, alpha=0.7)
             mean_int = np.mean(intervals)
-            ax3.axhline(y=mean_int, color="#E53935", linestyle="--", linewidth=1,
+            ax3.axhline(y=mean_int, color=f"{theme.DANGER}", linestyle="--", linewidth=1,
                         label=f"Mittel: {mean_int:.1f}s")
             ax3.set_xlabel("Zug #", fontsize=8)
             ax3.set_ylabel("Zeit (s)", fontsize=8)
@@ -442,7 +443,7 @@ class DetailDialog(QDialog):
         self._style_ax(ax4)
         for frames, color, label in [
             (right_frames, PRIMARY, "R Jitter"),
-            (left_frames, "#E53935", "L Jitter"),
+            (left_frames, f"{theme.DANGER}", "L Jitter"),
         ]:
             if len(frames) > 10:
                 ts = np.array([f["timestamp_us"] for f in frames], dtype=np.int64)
@@ -519,7 +520,7 @@ class DetailDialog(QDialog):
         ax1 = self.figure.add_subplot(2, 2, 1)
         self._style_ax(ax1)
         ax1.plot(t_u, v_u, color=color, linewidth=0.5, alpha=0.5, label="raw")
-        ax1.plot(t_u, v_clean, color="#E53935", linewidth=0.8, label="cleaned")
+        ax1.plot(t_u, v_clean, color=f"{theme.DANGER}", linewidth=0.8, label="cleaned")
         self._draw_onset_offset(ax1)
         ax1.set_ylabel(ylabel, fontsize=8)
         ax1.set_xlabel("Zeit (s)", fontsize=8)
@@ -569,10 +570,10 @@ class DetailDialog(QDialog):
         self._style_ax(ax4)
         if len(peaks) > 2:
             peak_vals = v_clean[peaks]
-            ax4.plot(t_u[peaks], peak_vals, "o-", color="#E53935", markersize=4, linewidth=1)
+            ax4.plot(t_u[peaks], peak_vals, "o-", color=f"{theme.DANGER}", markersize=4, linewidth=1)
             z = np.polyfit(np.arange(len(peak_vals)), peak_vals, 1)
             ax4.plot(t_u[peaks], np.polyval(z, np.arange(len(peak_vals))),
-                     "--", color="#BDBDBD", linewidth=1.5)
+                     "--", color=f"{theme.DISABLED}", linewidth=1.5)
             ax4.set_xlabel("Zeit (s)", fontsize=8)
             ax4.set_ylabel("Peak-Amplitude", fontsize=8)
             ax4.set_title("Amplituden-Dekrement", fontsize=10, fontweight="bold")
@@ -590,7 +591,7 @@ class DetailDialog(QDialog):
         # Top left: Bandpassed magnitude over time (both hands)
         ax1 = self.figure.add_subplot(2, 2, 1)
         self._style_ax(ax1)
-        for frames, color, label in [(right_frames, PRIMARY, "Rechts"), (left_frames, "#E53935", "Links")]:
+        for frames, color, label in [(right_frames, PRIMARY, "Rechts"), (left_frames, f"{theme.DANGER}", "Links")]:
             t_u, mag = self._tremor_magnitude(frames, fs)
             if mag is not None:
                 ax1.plot(t_u, mag, color=color, linewidth=0.7, label=label)
@@ -602,7 +603,7 @@ class DetailDialog(QDialog):
         # Top right: 3D FFT spectrum
         ax2 = self.figure.add_subplot(2, 2, 2)
         self._style_ax(ax2)
-        for frames, color, label in [(right_frames, PRIMARY, "Rechts"), (left_frames, "#E53935", "Links")]:
+        for frames, color, label in [(right_frames, PRIMARY, "Rechts"), (left_frames, f"{theme.DANGER}", "Links")]:
             freqs, combined = self._tremor_spectrum(frames, fs)
             if freqs is not None:
                 mask = (freqs >= 1.0) & (freqs <= 15.0)

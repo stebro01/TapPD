@@ -14,7 +14,7 @@ import pytest
 
 from capture.mock_capture import SimulationSource
 from capture.contracts import MotionSourceProtocol
-from motor_tests import registry
+from paradigms import registry
 
 RECORD_S = 0.7  # ~84 frames at 120 Hz — enough for min_frames on every paradigm
 

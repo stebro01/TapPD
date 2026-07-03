@@ -23,9 +23,10 @@ from matplotlib.figure import Figure
 from storage.database import Measurement, Patient
 from ui.feature_meta import FEATURE_META, unit_label
 from ui.theme import SZ, TEXT_SECONDARY
+from ui import theme
 
 _HAND_STYLE = {                      # colour per hand series
-    "right": ("#1976D2", "Rechts"),
+    "right": (f"{theme.PRIMARY}", "Rechts"),
     "left": ("#C62828", "Links"),
     "both": ("#6A1B9A", "Bilateral"),
 }
@@ -72,7 +73,7 @@ class TrendDialog(QDialog):
         picker.addStretch()
         root.addLayout(picker)
 
-        self._figure = Figure(figsize=(8, 5), facecolor="#FAFAFA")
+        self._figure = Figure(figsize=(8, 5), facecolor=f"{theme.BG}")
         self._canvas = FigureCanvasQTAgg(self._figure)
         root.addWidget(self._canvas, stretch=1)
 

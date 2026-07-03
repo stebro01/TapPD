@@ -34,4 +34,4 @@ if [ -d leapc_cffi ]; then
 fi
 
 export DYLD_LIBRARY_PATH="$(pwd)/leapc_cffi"
-python main.py "$@"
+exec "$(pwd)/.venv/bin/python" main.py "$@"

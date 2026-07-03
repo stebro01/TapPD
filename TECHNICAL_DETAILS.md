@@ -105,20 +105,20 @@ Speicher-Topologie und eine Analyse jeder Komponente) steht in
 
 ### Config-getriebene Feature-Berechnung
 
-Die gesamte Analyse-Pipeline wird durch `motor_tests/test_config.yaml` gesteuert.
+Die gesamte Analyse-Pipeline wird durch `paradigms/test_config.yaml` gesteuert.
 Jeder Test definiert:
 - **capture**: Welche Metrik aus dem HandFrame extrahiert wird
 - **analysis**: Signal-Processing-Parameter (Trimming, Detrend, Onset-Detection, Peak-Detection)
 - **features**: Welche Features berechnet werden (Methoden-Name → Berechnung)
 
-`motor_tests/recorder.py` implementiert `compute_features_from_config()`, das anhand
+`paradigms/recorder.py` implementiert `compute_features_from_config()`, das anhand
 des YAML-Configs die richtige Pipeline ausfuehrt. Die Test-Klassen delegieren `compute_features()`
 an diese Funktion.
 
 ### Datenfluss
 
 ```
-Sensor (120 Hz) → HandFrame → BaseMotorTest.frames[]
+Sensor (120 Hz) → HandFrame → BaseParadigm.frames[]
                                     │
                                     ▼
                         recorder.py: compute_features_from_config()
@@ -457,7 +457,7 @@ Fuer invertierte Metriken (z.B. CV, wo niedriger = besser): `norm(x) = 1.0 - nor
 | Hand Oeffnen/Schliessen | 0.5-3.5 Hz | 10-60 mm | -0.15 bis 0.0 /Zyklus | 30-300 mm/s |
 | Pronation/Supination | 0.5-3.0 Hz | 20-120 Grad | -0.15 bis 0.0 /Zyklus | 40-400 Grad/s |
 
-Referenzwerte sind in `motor_tests/test_config.yaml` unter der `mpi:`-Sektion jedes Tests konfigurierbar
+Referenzwerte sind in `paradigms/test_config.yaml` unter der `mpi:`-Sektion jedes Tests konfigurierbar
 und sollten mit klinischen Daten kalibriert werden.
 
 ### Validierungsbeispiele
@@ -477,8 +477,8 @@ Der MPI erscheint als **erste Zeile** in der Ergebnistabelle (fett, farbcodiert)
 
 ### Implementation
 
-- Konfiguration: `motor_tests/test_config.yaml` (pro Test: `mpi:` Sektion)
-- Berechnung: `motor_tests/recorder.py` → `_compute_mpi()`
+- Konfiguration: `paradigms/test_config.yaml` (pro Test: `mpi:` Sektion)
+- Berechnung: `paradigms/recorder.py` → `_compute_mpi()`
 - Wird am Ende von `_compute_unilateral()` aufgerufen
 - Propagiert automatisch in DB, CSV-Export, Detail-Dialog, Data-Browser
 
@@ -518,8 +518,8 @@ Alle relevanten Module loggen Ereignisse auf passenden Levels:
 | `capture` | Sensor-Diagnose, Device-Erstellung, Verbindung |
 | `capture.leap_capture` | Connect/Disconnect, Aufnahme Start/Stop |
 | `capture.mock_capture` | Mock-Modus, Aufnahme Start/Stop |
-| `motor_tests.base_test` | Test Start/Stop, Frame-Anzahl |
-| `motor_tests.recorder` | Feature-Berechnung, Bilateral-Infos |
+| `paradigms.base_test` | Test Start/Stop, Frame-Anzahl |
+| `paradigms.recorder` | Feature-Berechnung, Bilateral-Infos |
 | `storage.database` | CRUD-Operationen (Patient, Session, Measurement) |
 | `storage.session_store` | Session-Speicherung, CSV-Export |
 | `analysis.signal_processing` | Resampling, Bandpass-Skip |

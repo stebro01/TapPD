@@ -5,11 +5,11 @@ import math
 import numpy as np
 
 from capture.base_capture import BaseCaptureDevice, HandFrame
-from motor_tests.base_test import BaseMotorTest
-from motor_tests.srt_logic import SRTTaskState
+from paradigms.base_test import BaseParadigm
+from paradigms.srt_logic import SRTTaskState
 
 
-class SpatialSRTTest(BaseMotorTest):
+class SpatialSRTTest(BaseParadigm):
     """Spatial reaching SRT with embedded sequence learning."""
 
     bilateral = False

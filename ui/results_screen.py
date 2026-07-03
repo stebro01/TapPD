@@ -26,7 +26,7 @@ from PyQt6.QtWidgets import (
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
 
-from motor_tests.base_test import BaseMotorTest
+from paradigms.base_test import BaseParadigm
 from storage.session_store import SessionResult, export_csv
 from storage.database import get_db, delete_measurement, update_raw_data_path
 from analysis.signal_processing import (
@@ -39,6 +39,7 @@ from analysis.signal_processing import (
 )
 from ui.feature_meta import FEATURE_META, unit_label, has_estimated_scale, SCALE_NOTE
 from ui.theme import SZ, PRIMARY, TEXT_SECONDARY
+from ui import theme
 
 log = logging.getLogger(__name__)
 
@@ -48,7 +49,7 @@ COLOR_RIGHT = QColor(227, 242, 253)  # light blue
 COLOR_LEFT = QColor(255, 235, 238)   # light red
 
 
-def save_raw_data(test: BaseMotorTest, patient_id: str, features: dict | None = None) -> Path | None:
+def save_raw_data(test: BaseParadigm, patient_id: str, features: dict | None = None) -> Path | None:
     """Save raw HandFrame + test-specific data to JSON. Returns file path or None."""
     try:
         SAMPLES_DIR.mkdir(parents=True, exist_ok=True)
@@ -80,7 +81,7 @@ def save_raw_data(test: BaseMotorTest, patient_id: str, features: dict | None = 
             data["frames"] = [asdict(f) for f in test.get_frames()]
 
         if test.test_type() == "tower_of_hanoi":
-            from motor_tests.tower_of_hanoi import TowerOfHanoiTest
+            from paradigms.tower_of_hanoi import TowerOfHanoiTest
             if isinstance(test, TowerOfHanoiTest):
                 data["move_history"] = [
                     {"from_peg": m.from_peg, "to_peg": m.to_peg,
@@ -91,7 +92,7 @@ def save_raw_data(test: BaseMotorTest, patient_id: str, features: dict | None = 
 
         if test.test_type() == "spatial_srt":
             from dataclasses import asdict as _asdict
-            from motor_tests.spatial_srt import SpatialSRTTest
+            from paradigms.spatial_srt import SpatialSRTTest
             if isinstance(test, SpatialSRTTest):
                 data["trial_results"] = [_asdict(r) for r in test.task.trial_results]
                 data["blocks"] = [
@@ -103,7 +104,7 @@ def save_raw_data(test: BaseMotorTest, patient_id: str, features: dict | None = 
 
         if test.test_type().startswith("trail_making"):
             from dataclasses import asdict as _asdict
-            from motor_tests.trail_making import TrailMakingTest
+            from paradigms.trail_making import TrailMakingTest
             if isinstance(test, TrailMakingTest):
                 data["segment_results"] = [_asdict(r) for r in test.task.segment_results]
                 data["targets"] = [
@@ -155,7 +156,7 @@ class ResultsScreen(QWidget):
         layout.addWidget(self.table)
 
         # Plots
-        self.figure = Figure(figsize=(8, 3.5), facecolor="#FAFAFA")
+        self.figure = Figure(figsize=(8, 3.5), facecolor=f"{theme.BG}")
         self.canvas = FigureCanvasQTAgg(self.figure)
         layout.addWidget(self.canvas)
 
@@ -165,7 +166,7 @@ class ResultsScreen(QWidget):
         btn_row.addStretch()
 
         discard_btn = QPushButton("Verwerfen")
-        discard_btn.setStyleSheet("color: #E53935;")
+        discard_btn.setStyleSheet(f"color: {theme.DANGER};")
         discard_btn.setFixedHeight(SZ.BTN_H)
         discard_btn.clicked.connect(self._on_discard)
         btn_row.addWidget(discard_btn)
@@ -198,7 +199,7 @@ class ResultsScreen(QWidget):
         layout.addLayout(btn_row)
 
     def show_results(
-        self, test: BaseMotorTest, patient_id: str,
+        self, test: BaseParadigm, patient_id: str,
         measurement_id: int | None = None,
         features: dict[str, float] | None = None,
     ) -> None:
@@ -220,7 +221,7 @@ class ResultsScreen(QWidget):
         self.saved_label.setText(f"{_saved}  ·  {_prov}" if _saved else _prov)
         self.saved_label.setWordWrap(True)
         if _src == "mock":
-            self.saved_label.setStyleSheet("color: #E65100; font-weight: 700;")
+            self.saved_label.setStyleSheet(f"color: {theme.WARN_DARK}; font-weight: 700;")
         else:
             self.saved_label.setStyleSheet("")
 
@@ -277,7 +278,7 @@ class ResultsScreen(QWidget):
 
         self._plot(test)
 
-    def _plot(self, test: BaseMotorTest) -> None:
+    def _plot(self, test: BaseParadigm) -> None:
         self.figure.clear()
         fs = test.capture.sample_rate
 
@@ -292,10 +293,10 @@ class ResultsScreen(QWidget):
         self.canvas.draw()
 
     def _style_ax(self, ax):
-        ax.set_facecolor("#FAFAFA")
+        ax.set_facecolor(f"{theme.BG}")
         ax.tick_params(labelsize=8, colors=TEXT_SECONDARY)
         for spine in ax.spines.values():
-            spine.set_color("#E0E0E0")
+            spine.set_color(f"{theme.BORDER}")
 
     def _plot_timeseries(self, test, fs, color=PRIMARY, ylabel=None):
         frames = test.get_frames()
@@ -316,9 +317,9 @@ class ResultsScreen(QWidget):
         self._style_ax(ax2)
         peaks, peak_vals = detect_peaks(m_u, min_distance=max(1, int(fs / 6)))
         if len(peaks) > 1:
-            ax2.plot(t_u[peaks], peak_vals, "o-", color="#E53935", markersize=4, linewidth=1)
+            ax2.plot(t_u[peaks], peak_vals, "o-", color=f"{theme.DANGER}", markersize=4, linewidth=1)
             z = np.polyfit(np.arange(len(peak_vals)), peak_vals, 1)
-            ax2.plot(t_u[peaks], np.polyval(z, np.arange(len(peak_vals))), "--", color="#BDBDBD")
+            ax2.plot(t_u[peaks], np.polyval(z, np.arange(len(peak_vals))), "--", color=f"{theme.DISABLED}")
             ax2.set_xlabel("Zeit (s)", fontsize=9, color=TEXT_SECONDARY)
             ax2.set_ylabel("Amplitude", fontsize=9, color=TEXT_SECONDARY)
             ax2.set_title("Dekrement", fontsize=10, fontweight="bold")
@@ -330,7 +331,7 @@ class ResultsScreen(QWidget):
         # Left plot: bandpass-filtered tremor magnitude over time
         ax1 = self.figure.add_subplot(1, 2, 1)
         self._style_ax(ax1)
-        for frames, color, label in [(right_frames, PRIMARY, "Rechts"), (left_frames, "#E53935", "Links")]:
+        for frames, color, label in [(right_frames, PRIMARY, "Rechts"), (left_frames, f"{theme.DANGER}", "Links")]:
             if len(frames) < 30:
                 continue
             t_u, mag_f = self._tremor_magnitude(frames, fs)
@@ -344,7 +345,7 @@ class ResultsScreen(QWidget):
         # Right plot: 3D combined FFT spectrum
         ax2 = self.figure.add_subplot(1, 2, 2)
         self._style_ax(ax2)
-        for frames, color, label in [(right_frames, PRIMARY, "Rechts"), (left_frames, "#E53935", "Links")]:
+        for frames, color, label in [(right_frames, PRIMARY, "Rechts"), (left_frames, f"{theme.DANGER}", "Links")]:
             if len(frames) < 30:
                 continue
             freqs, combined = self._tremor_spectrum(frames, fs)

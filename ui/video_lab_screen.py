@@ -18,14 +18,15 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtMultimedia import QAudioOutput, QMediaPlayer
 from PyQt6.QtMultimediaWidgets import QVideoWidget
 
-from motor_tests import registry
-from motor_tests.config import get_unmet_capabilities
+from paradigms import registry
+from paradigms.config import get_unmet_capabilities
 from ui.analysis_runner import AnalysisRunner
 from ui.widgets.live_metric_plot import LiveMetricPlot
 from ui.widgets.webcam_preview import WebcamPreview
 from ui.video_timeline import VideoTimeline
 from video.config import cfg, video_filter
 from video.store import VideoSession, load_for_patient
+from ui import theme
 
 log = logging.getLogger(__name__)
 
@@ -333,7 +334,7 @@ class VideoLabScreen(QWidget):
         right.addWidget(self._result_lbl)
 
         self._status = QLabel("")
-        self._status.setStyleSheet("font-size:12px; color:#757575;")
+        self._status.setStyleSheet(f"font-size:12px; color:{theme.TEXT_SECONDARY};")
         right.addWidget(self._status)
         bottom.addLayout(right, 2)
 

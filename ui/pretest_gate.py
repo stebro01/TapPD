@@ -28,6 +28,7 @@ log = logging.getLogger(__name__)
 from capture.base_capture import HandFrame
 from capture.source import SourceProfile
 from ui.hand_visualization import HandVisualizationWidget
+from ui import theme
 
 STABLE_S = 0.6          # hand must stay "ready" this long before the countdown
 COUNTDOWN_FROM = 3      # 3-2-1
@@ -102,7 +103,7 @@ class ReadinessGate(QWidget):
         self._countdown_label = QLabel("")
         self._countdown_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._countdown_label.setStyleSheet(
-            "font-size: 64px; color: #1976D2; font-weight: 800;"
+            f"font-size: 64px; color: {theme.PRIMARY}; font-weight: 800;"
         )
         self._countdown_label.setMinimumHeight(80)
         pl.addWidget(self._countdown_label)

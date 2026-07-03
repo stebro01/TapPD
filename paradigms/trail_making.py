@@ -5,11 +5,11 @@ import math
 import numpy as np
 
 from capture.base_capture import BaseCaptureDevice, HandFrame
-from motor_tests.base_test import BaseMotorTest
-from motor_tests.tmt_logic import TMTTaskState
+from paradigms.base_test import BaseParadigm
+from paradigms.tmt_logic import TMTTaskState
 
 
-class TrailMakingTest(BaseMotorTest):
+class TrailMakingTest(BaseParadigm):
     """Digital Trail Making Test with contactless hand pointing."""
 
     bilateral = False

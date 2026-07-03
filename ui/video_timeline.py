@@ -10,6 +10,7 @@ from __future__ import annotations
 from PyQt6.QtCore import Qt, pyqtSignal, QRectF
 from PyQt6.QtGui import QPainter, QColor, QBrush, QPen
 from PyQt6.QtWidgets import QWidget
+from ui import theme
 
 _HANDLE_HIT = 7   # px grab tolerance around a handle
 _PAD = 10         # horizontal padding so end handles stay clickable
@@ -112,10 +113,10 @@ class VideoTimeline(QWidget):
         p.setBrush(QBrush(QColor(25, 118, 210, 70)))
         p.drawRect(QRectF(x0, cy - 9, x1 - x0, 18))
         # onset/offset handles
-        p.setBrush(QBrush(QColor("#1976D2")))
+        p.setBrush(QBrush(QColor(f"{theme.PRIMARY}")))
         for x in (x0, x1):
             p.drawRoundedRect(QRectF(x - 3, cy - 14, 6, 28), 2, 2)
         # playhead
         px = self._ms_to_x(self._pos_ms)
-        p.setPen(QPen(QColor("#E53935"), 2))
+        p.setPen(QPen(QColor(f"{theme.DANGER}"), 2))
         p.drawLine(int(px), int(cy - 16), int(px), int(cy + 16))

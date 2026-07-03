@@ -2,8 +2,8 @@
 
 from capture.base_capture import HandPose, FingerData, BoneData
 from capture.mock_capture import SimulationSource
-from motor_tests.finger_tapping import FingerTappingTest
-from motor_tests.runner import ParadigmRunner
+from paradigms.finger_tapping import FingerTappingTest
+from paradigms.runner import ParadigmRunner
 
 
 def _frame(t_us, hand="right", x=0.0):

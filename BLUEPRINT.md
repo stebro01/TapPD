@@ -39,9 +39,9 @@
                                    └────────────────────┘                │
                  PARADIGM-LAYER                                          │
 ┌────────────────────────────────────────────────────────────┐          │
-│                    motor_tests/  (Paradigm)                │          │
+│                    paradigms/  (Paradigm)                │          │
 │  registry.py (SINGLE SOURCE OF TRUTH: 9 ParadigmSpecs)     │          │
-│  BaseMotorTest ── ParadigmRunner (geteilter Frame-Pump)    │──────────┘
+│  BaseParadigm ── ParadigmRunner (geteilter Frame-Pump)    │──────────┘
 │  recorder.py (config-getriebene Feature-Berechnung + MPI)  │  features
 │       │  nutzt                                             │
 │       ▼                                                    │
@@ -57,7 +57,7 @@ Sensor ──► MotionSource ──callback──► ParadigmRunner.feed()
                                         │  SETTLE-Gate, Dauer-Gate
                                         │  adapt_frame (SourceProfile-Seam:
                                         │   Webcam+EyeRef → absolute ≈mm-Position)
-                                        ├─► BaseMotorTest._on_frame  → frames[]
+                                        ├─► BaseParadigm._on_frame  → frames[]
                                         └─► get_live_metric → live{}  → LiveMetricPlot
 Ende (Dauer erreicht / done):
   compute_features_from_config(test_config.yaml) ──► features{} + MPI
@@ -113,7 +113,7 @@ data/
 | Konzept | Bedeutung |
 |---|---|
 | **Source** | Austauschbare Datenquelle (`MotionSource`-Contract: connect/disconnect/is_connected/start_recording(cb)/stop_recording/sample_rate). Hot-swap zur Laufzeit über die Eingabequelle. |
-| **Paradigm** | Klinische/kognitive Aufgabe (`BaseMotorTest`), konsumiert Frames, liefert `compute_features()`. Einmalig deklariert in der **Registry** — Dashboard, Routing, Storage-Kategorie und Gating leiten sich daraus ab. |
+| **Paradigm** | Klinische/kognitive Aufgabe (`BaseParadigm`), konsumiert Frames, liefert `compute_features()`. Einmalig deklariert in der **Registry** — Dashboard, Routing, Storage-Kategorie und Gating leiten sich daraus ab. |
 | **Capability-Gating** | Sources deklarieren Fähigkeiten (`fingertips`, `finger_flexion`, `hand_pose`, `abs_position`), Paradigmen ihren Bedarf (`test_config.yaml → requires`). UI sperrt Unerfülltes (🔒). **Dynamisch:** Webcam meldet `abs_position` nur bei aktivem Face-Tracking (`extra_capabilities`). |
 | **adapt_frame-Seam** | `SourceProfile.adapt_frame` ist DIE Stelle für Quell-Normalisierung. Aktiv: Webcam ersetzt `palm_position` durch die Augen-referenzierte Absolutposition (Kopie, idempotent). |
 | **Eye-Referenz** | Iris-Zentren (IPD Ø 63 mm) liefern mm-pro-Pixel + Ursprung → absolute Handposition aus RGB. Schaltet Tremor auf Kamera-Quellen frei; Coverage wird gespeichert, <50 % ⇒ Warnung. |
@@ -175,7 +175,7 @@ vorbereitete nächste Ausbauschritt.
 trägt. Analyse läuft grundsätzlich auf dem **Original** (voller Qualität, ungeblurrt); der
 Deface-Clip ist Archiv/Review und Fallback.
 
-### 3.4 `motor_tests/` — Paradigm-Layer (Motorik + Kognition)
+### 3.4 `paradigms/` — Paradigm-Layer (Motorik + Kognition)
 
 ```
 registry.py ─ 9 ParadigmSpecs (Key, Label, UPDRS, Kategorie, bilateral, Screen, Klasse)
@@ -186,7 +186,7 @@ registry.py ─ 9 ParadigmSpecs (Key, Label, UPDRS, Kategorie, bilateral, Screen
 
 | Datei | Rolle |
 |---|---|
-| `base_test.py` | `BaseMotorTest`: Frame-Sammlung (uni/bilateral, Lock), `_on_frame` → adapt_frame-Seam, Contract (`compute_features`, `get_live_metric(_label)`, `get_instructions`, `test_type`). |
+| `base_test.py` | `BaseParadigm`: Frame-Sammlung (uni/bilateral, Lock), `_on_frame` → adapt_frame-Seam, Contract (`compute_features`, `get_live_metric(_label)`, `get_instructions`, `test_type`). |
 | `runner.py` | `ParadigmRunner` — geteilter Frame-Pump (TestScreen **und** VideoLab): SETTLE-/Dauer-Gate bzw. `sidecar_bounded`, adaptiert einmal pro Frame, thread-sichere Live-Puffer (`live_snapshot`/`replace_live`). |
 | `recorder.py` | Config-getriebene Auswertung: Konfidenzfilter → Trim → Resampling → Detrend/Outlier → Bandpass (Ordnung aus YAML) → Peaks (Prominenz, `max_frequency_hz`-Cap) → Feature-Methoden (Frequenz, Amplitude, CV, Dekrement, Geschwindigkeit …) → **MPI**. Bilateral: pro Hand + Asymmetrie-Indizes (FFT-Band). |
 | `test_config.yaml` | Pro Paradigma: capture (Metrik, base_y, requires), analysis (Filter/Peaks/FFT), features, mpi-Gewichte. Metadaten-Duplikate zur Registry wurden entfernt. |
@@ -194,8 +194,8 @@ registry.py ─ 9 ParadigmSpecs (Key, Label, UPDRS, Kategorie, bilateral, Screen
 | `config.py` | YAML-Loader, Task-Requirements → `get_unmet_capabilities`, quellabhängige Hand-Prompts. |
 
 **Bewertung:** Registry-zentriert und config-getrieben — neue Paradigmen sind additiv
-(Spec + Klasse + YAML-Block). Bekannte Namensschuld: Paket heißt `motor_tests`, enthält
-aber Kognition; `BaseMotorTest`/`is_spatial` analog (Rename → `paradigms/` geplant).
+(Spec + Klasse + YAML-Block). Bekannte Namensschuld: Paket heißt `paradigms`, enthält
+aber Kognition; `BaseParadigm`/`is_spatial` analog (Rename → `paradigms/` geplant).
 
 ### 3.5 `analysis/` — DSP-Kern
 
@@ -254,7 +254,7 @@ PatientScreen ─► PatientDetailScreen ─┬─► TestDashboard ─► TestS
 | `feature_meta.py` | Anzeige-Namen + Einheiten aller Features; ≈mm-Logik (`unit_label`, `SCALE_NOTE`). |
 | `widgets/` | Geteilt: `WebcamPreview` (JPEG + Landmark-Overlay), `LiveMetricPlot`. |
 | `pretest_gate.py`, `hand_visualization.py`, `video_timeline.py`, `test_dashboard.py`, `log_viewer.py`, `theme.py` | Gate-Overlay, 3D-Hand, Zwei-Griff-Timeline, Kachel-Dashboard mit Gating, Log-GUI, Theme (Farben/Größen — teils noch inline dupliziert). |
-| `hanoi_screen.py`, `srt_screen.py`, `tmt_screen.py`, `gesture_lab_*.py` | Task-spezifische Screens (Spiel-Logik in `motor_tests/*_logic.py` gehalten). |
+| `hanoi_screen.py`, `srt_screen.py`, `tmt_screen.py`, `gesture_lab_*.py` | Task-spezifische Screens (Spiel-Logik in `paradigms/*_logic.py` gehalten). |
 
 **Bewertung:** Die frühere TestScreen↔VideoLab-Duplikation ist über Runner + geteilte
 Widgets beseitigt. Schwächste Stelle: Inline-Stylesheets mit hartkodierten Farben an
@@ -265,7 +265,7 @@ mehreren Orten statt konsequent `theme.py`.
 | Baustein | Rolle |
 |---|---|
 | `config_loader.py` | Ein Loader für alle Domänen-YAMLs: Code-Defaults ⊕ Datei (Deep-Merge) — fehlende Datei ist sicher. |
-| YAML-Landschaft | `capture/capture.yaml` (Sidecar/Readiness) · `video/video.yaml` (Import/Segment/Privacy/Analyse) · `motor_tests/test_config.yaml` (Klinik-Parameter) · `gesture_lab/gesture_config.yaml`. |
+| YAML-Landschaft | `capture/capture.yaml` (Sidecar/Readiness) · `video/video.yaml` (Import/Segment/Privacy/Analyse) · `paradigms/test_config.yaml` (Klinik-Parameter) · `gesture_lab/gesture_config.yaml`. |
 | `app_settings.py` | QSettings (ui_mode, capture_mode, camera_index, flip_handedness) inkl. TapPD→Motryx-Migration. |
 | `logging_config.py` | Zentrales Logging → `data/logs/` + GUI-Viewer; Unhandled-Exception-Hook hält die App am Leben. |
 | `main.py` | Bootstrap: Settings → Source (auto/persistiert) → Logging → MainWindow. |
@@ -285,7 +285,7 @@ Verlaufsansicht · 225 grüne Tests inkl. echter Sidecar-Integration.
 1. **TrackingFrame-Migration** — Envelope-Callback (hands+face+gaze) statt `HandFrame`
    pro Hand; danach fallen die Aliase; Voraussetzung für Face-/Okular-Paradigmen.
 2. **Face-/Okulomotorik-Paradigmen** (Sakkaden, Pursuit, Mimik) — Sidecar-Unterbau steht.
-3. **Rename** `motor_tests/` → `paradigms/` (+ `BaseMotorTest`, `is_spatial`).
+3. **Rename** `paradigms/` → `paradigms/` (+ `BaseParadigm`, `is_spatial`).
 4. **Theme-Zentralisierung** (Inline-Farben → `theme.py`/YAML); `mock_capture`-Parameter → YAML.
 5. Klinische **Validierung** der Eye-Ref-Tremor-Amplituden an realem Videomaterial
    (z-Achse prinzipbedingt nicht erfassbar; In-Plane-Messung).

@@ -15,13 +15,14 @@ from PyQt6.QtWidgets import (
 
 from ui.widgets.live_metric_plot import LiveMetricPlot
 
-from motor_tests.base_test import BaseMotorTest
-from motor_tests.config import get_test_config
-from motor_tests.recorder import extract_metric
+from paradigms.base_test import BaseParadigm
+from paradigms.config import get_test_config
+from paradigms.recorder import extract_metric
 from capture.source import profile_for
 from ui.hand_visualization import HandVisualizationWidget
 from ui.pretest_gate import ReadinessGate
 from ui.theme import SZ, ACCENT
+from ui import theme
 
 log = logging.getLogger(__name__)
 
@@ -30,7 +31,7 @@ class TestScreen(QWidget):
     def __init__(self, main_window) -> None:
         super().__init__()
         self.main_window = main_window
-        self.test: BaseMotorTest | None = None
+        self.test: BaseParadigm | None = None
         self.patient_id = ""
         self._recording = False
         self._runner = None   # ParadigmRunner (shared frame-pump), set per test
@@ -54,7 +55,7 @@ class TestScreen(QWidget):
         self.instruction_image.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.instruction_image.setFixedSize(330, 200)
         self.instruction_image.setScaledContents(True)
-        self.instruction_image.setStyleSheet("border: 1px solid #E0E0E0; border-radius: 10px;")
+        self.instruction_image.setStyleSheet(f"border: 1px solid {theme.BORDER}; border-radius: 10px;")
         top.addWidget(self.instruction_image)
 
         # Small live hand window, shown during recording (source-agnostic)
@@ -96,7 +97,7 @@ class TestScreen(QWidget):
         self.readiness_gate.ready.connect(self._on_gate_ready)
         self.readiness_gate.cancelled.connect(self._on_gate_cancelled)
 
-    def start_test(self, test: BaseMotorTest, patient_id: str) -> None:
+    def start_test(self, test: BaseParadigm, patient_id: str) -> None:
         self.test = test
         self.patient_id = patient_id
         self._runner = None
@@ -138,7 +139,7 @@ class TestScreen(QWidget):
 
     def _start_recording(self) -> None:
         """Start recording via the shared ParadigmRunner (SETTLE + duration gated)."""
-        from motor_tests.runner import ParadigmRunner
+        from paradigms.runner import ParadigmRunner
         self._recording = True
         self._runner = ParadigmRunner(self.test, settle_s=self.SETTLE_S,
                                       duration_s=self.test.duration)

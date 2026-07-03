@@ -285,7 +285,7 @@ class DetectPanel(QWidget):
             desc.setStyleSheet(f"color: {theme.TEXT_SECONDARY}; font-size: 10px;")
             cl.addWidget(desc)
 
-            bg = "#E8F5E9" if has else theme.CARD_BG
+            bg = f"{theme.SUCCESS_BG}" if has else theme.CARD_BG
             border = theme.ACCENT if has else theme.BORDER
             card.setStyleSheet(
                 f"QFrame {{ background-color: {bg}; border: 1px solid {border}; "
@@ -308,7 +308,7 @@ class DetectPanel(QWidget):
                 )
             else:
                 has = any(t.pose_number == pn for t in self._templates)
-                bg = "#E8F5E9" if has else theme.CARD_BG
+                bg = f"{theme.SUCCESS_BG}" if has else theme.CARD_BG
                 border = theme.ACCENT if has else theme.BORDER
                 card.setStyleSheet(
                     f"QFrame {{ background-color: {bg}; border: 1px solid {border}; "
@@ -470,13 +470,13 @@ class DetectPanel(QWidget):
             if i in error_by_finger:
                 self._finger_labels[i].setText(f"{FINGER_NAMES[i]}: ❌ {error_by_finger[i]}")
                 self._finger_labels[i].setStyleSheet(
-                    f"background-color: #FFEBEE; border: 1px solid {theme.DANGER}; "
+                    f"background-color: {theme.DANGER_BG}; border: 1px solid {theme.DANGER}; "
                     f"border-radius: 3px; padding: 4px 8px; font-size: 11px;"
                 )
             else:
                 self._finger_labels[i].setText(f"{FINGER_NAMES[i]}: ✓ OK")
                 self._finger_labels[i].setStyleSheet(
-                    f"background-color: #E8F5E9; border: 1px solid {theme.ACCENT}; "
+                    f"background-color: {theme.SUCCESS_BG}; border: 1px solid {theme.ACCENT}; "
                     f"border-radius: 3px; padding: 4px 8px; font-size: 11px;"
                 )
 
@@ -486,13 +486,13 @@ class DetectPanel(QWidget):
         if palm_error:
             self.palm_label.setText(f"Handfläche: ❌ {palm_error.detail}")
             self.palm_label.setStyleSheet(
-                f"background-color: #FFEBEE; border: 1px solid {theme.DANGER}; "
+                f"background-color: {theme.DANGER_BG}; border: 1px solid {theme.DANGER}; "
                 f"border-radius: 3px; padding: 4px 8px; font-size: 11px;"
             )
         else:
             self.palm_label.setText("Handfläche: ✓ OK")
             self.palm_label.setStyleSheet(
-                f"background-color: #E8F5E9; border: 1px solid {theme.ACCENT}; "
+                f"background-color: {theme.SUCCESS_BG}; border: 1px solid {theme.ACCENT}; "
                 f"border-radius: 3px; padding: 4px 8px; font-size: 11px;"
             )
 

@@ -1,6 +1,6 @@
 """Fast unit tests for VideoLab: session/segment store + paradigm gating."""
 
-from motor_tests.config import get_unmet_capabilities
+from paradigms.config import get_unmet_capabilities
 from video.store import VideoSession, Segment, load_for_patient
 
 

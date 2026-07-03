@@ -18,7 +18,8 @@ from storage.database import Patient
 from ui.theme import (SZ,
     PRIMARY, PRIMARY_LIGHT, ACCENT, BORDER, TEXT_SECONDARY)
 
-from motor_tests.registry import PARADIGMS
+from paradigms.registry import PARADIGMS
+from ui import theme
 
 # (key, label, updrs, bilateral, description) — single source of truth: registry.
 TESTS = [(p.key, p.label, p.updrs, p.bilateral, p.description) for p in PARADIGMS]
@@ -94,7 +95,7 @@ class TestCard(QFrame):
             )
         else:
             lbl.setStyleSheet(
-                f"background-color: #EEEEEE; color: #BDBDBD; border-radius: 6px; "
+                f"background-color: #EEEEEE; color: {theme.DISABLED}; border-radius: 6px; "
                 "padding: 4px 10px; font-size: 12px; font-weight: 600;"
             )
 
@@ -147,7 +148,7 @@ class TestCard(QFrame):
             effect.setOpacity(0.4)
             effect.setEnabled(True)
             self.setStyleSheet(
-                "TestCard { background: #F5F5F5; border: 2px dashed #CFD8DC; "
+                f"TestCard {{ background: {theme.HOVER_BG}; border: 2px dashed #CFD8DC; "
                 "border-radius: 12px; }"
             )
 
@@ -242,7 +243,7 @@ class TestDashboard(QWidget):
     def update_source_availability(self) -> None:
         """Gate cards whose required regions the active tracking source can't deliver."""
         from capture.source import source_kind, CAP_LABELS
-        from motor_tests.config import get_unmet_capabilities
+        from paradigms.config import get_unmet_capabilities
 
         kind = source_kind(self.main_window.capture_device)
         source_name = {"webcam": "Webcam", "leap": "Leap Motion", "mock": "Simulation"}.get(kind, kind)
@@ -259,10 +260,10 @@ class TestDashboard(QWidget):
                 card.set_supported(True)
 
     def _on_test_click(self, test_key: str, bilateral: bool) -> None:
-        from motor_tests.registry import is_spatial
+        from paradigms.registry import is_cognitive
         if bilateral:
             self.main_window.start_test(test_key, "both", self.duration_spin.value())
-        elif is_spatial(test_key):
+        elif is_cognitive(test_key):
             # Spatial/cognitive: hand is auto-detected during the readiness gate.
             self.main_window.start_test(test_key, "right", self.duration_spin.value())
         else:

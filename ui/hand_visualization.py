@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 from PyQt6.QtCore import Qt, QPointF, QRectF
 from PyQt6.QtGui import QPainter, QColor, QPen, QBrush, QFont, QPolygonF
 from PyQt6.QtWidgets import QWidget
+from ui import theme
 
 if TYPE_CHECKING:
     from capture.base_capture import HandFrame
@@ -53,7 +54,7 @@ class HandVisualizationWidget(QWidget):
 
         # Status text shown bottom-center
         self._status_text: str = ""
-        self._status_color: QColor = QColor("#757575")
+        self._status_color: QColor = QColor(f"{theme.TEXT_SECONDARY}")
 
     # ── Public API ────────────────────────────────────────────────
 
@@ -74,7 +75,7 @@ class HandVisualizationWidget(QWidget):
 
     def set_status(self, text: str, color: QColor | None = None) -> None:
         self._status_text = text
-        self._status_color = color or QColor("#757575")
+        self._status_color = color or QColor(f"{theme.TEXT_SECONDARY}")
 
     # ── Coordinate mapping ────────────────────────────────────────
 
@@ -125,10 +126,10 @@ class HandVisualizationWidget(QWidget):
         w, h = self.width(), self.height()
 
         # Background
-        p.fillRect(0, 0, w, h, QColor("#FAFAFA"))
+        p.fillRect(0, 0, w, h, QColor(f"{theme.BG}"))
 
         # Border
-        p.setPen(QPen(QColor("#E0E0E0"), 1))
+        p.setPen(QPen(QColor(f"{theme.BORDER}"), 1))
         p.drawRect(0, 0, w - 1, h - 1)
 
         # Ghost template overlay (semi-transparent)
@@ -140,7 +141,7 @@ class HandVisualizationWidget(QWidget):
             self._draw_hand(p, self._frame, w, h, ghost=False)
         else:
             # No hand detected
-            p.setPen(QColor("#BDBDBD"))
+            p.setPen(QColor(f"{theme.DISABLED}"))
             p.setFont(QFont("Helvetica Neue", 14))
             p.drawText(QRectF(0, 0, w, h), Qt.AlignmentFlag.AlignCenter,
                        "Keine Hand erkannt")
@@ -264,7 +265,7 @@ class HandVisualizationWidget(QWidget):
 
         # Background
         p.setPen(Qt.PenStyle.NoPen)
-        p.setBrush(QBrush(QColor("#E0E0E0")))
+        p.setBrush(QBrush(QColor(f"{theme.BORDER}")))
         p.drawRoundedRect(x, y, bar_w, bar_h, 2, 2)
 
         # Fill
@@ -273,13 +274,13 @@ class HandVisualizationWidget(QWidget):
         elif confidence > 0.4:
             fill_color = QColor("#FF9800")
         else:
-            fill_color = QColor("#E53935")
+            fill_color = QColor(f"{theme.DANGER}")
 
         fill_w = int(bar_w * min(confidence, 1.0))
         p.setBrush(QBrush(fill_color))
         p.drawRoundedRect(x, y, fill_w, bar_h, 2, 2)
 
         # Label
-        p.setPen(QColor("#757575"))
+        p.setPen(QColor(f"{theme.TEXT_SECONDARY}"))
         p.setFont(QFont("Helvetica Neue", 8))
         p.drawText(x - 30, y, 28, bar_h + 8, Qt.AlignmentFlag.AlignRight, "Conf")

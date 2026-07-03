@@ -124,7 +124,7 @@ eine Analyse jeder Komponente) steht in **[BLUEPRINT.md](BLUEPRINT.md)**. Kurzfa
 | `capture/` | Source-Layer: Leap / Webcam(MediaPipe) / Simulation / Replay, Factory, Capabilities |
 | `mediapipe_sidecar/` | Python-3.12-Prozess fuer cv2/MediaPipe (Hand- + Face-Tracking, Transcode, Extract) |
 | `video/` | Video-Service: Import, Schnitt, Defacing, Clip-Store, DB-Export (VideoLab + Sim-Quelle) |
-| `motor_tests/` | Paradigmen (Registry, Runner, config-getriebene Feature-Berechnung) |
+| `paradigms/` | Paradigmen (Registry, Runner, config-getriebene Feature-Berechnung) |
 | `analysis/` | Signalverarbeitung (Filter, FFT, Peaks, Onset) |
 | `gesture_lab/` | Gesten-Pipeline (Posen-Templates, Matching, Fehleranalyse) |
 | `storage/` | SQLite (i2b2-Sternschema) + Raw-JSON-Store |

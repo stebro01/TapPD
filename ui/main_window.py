@@ -21,7 +21,7 @@ log = logging.getLogger(__name__)
 from capture.base_capture import BaseCaptureDevice
 from capture.mock_capture import SimulationSource
 from capture.mediapipe_capture import WebcamSource
-from motor_tests.base_test import BaseMotorTest
+from paradigms.base_test import BaseParadigm
 from storage.database import (
     Measurement, Patient, Session,
     create_session, get_db, save_measurement, update_raw_data_path,
@@ -93,7 +93,7 @@ class MotryxMainWindow(QMainWindow):
         sensor_layout.addWidget(self._sensor_dot)
 
         self._sensor_label = QLabel()
-        self._sensor_label.setStyleSheet("font-size: 13px; color: #757575; border: none;")
+        self._sensor_label.setStyleSheet(f"font-size: 13px; color: {theme.TEXT_SECONDARY}; border: none;")
         sensor_layout.addWidget(self._sensor_label)
 
         self._sensor_widget.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -106,9 +106,9 @@ class MotryxMainWindow(QMainWindow):
         # "◉" reads as a sensor/lens, i.e. the input source (Leap or webcam).
         self._tracking_btn = QPushButton("◉  Eingabequelle")
         self._tracking_btn.setStyleSheet(
-            "QPushButton { background: transparent; color: #757575; border: 1px solid #E0E0E0; "
+            f"QPushButton {{ background: transparent; color: {theme.TEXT_SECONDARY}; border: 1px solid {theme.BORDER}; "
             "border-radius: 4px; padding: 8px 12px; font-size: 12px; min-height: 36px; }"
-            "QPushButton:hover { background: #E3F2FD; color: #1976D2; border-color: #1976D2; }"
+            f"QPushButton:hover {{ background: #E3F2FD; color: {theme.PRIMARY}; border-color: {theme.PRIMARY}; }}"
         )
         self._tracking_btn.setToolTip("Eingabequelle wählen (Leap Motion / Webcam) + Vorschau")
         self._tracking_btn.clicked.connect(self.show_tracking_screen)
@@ -120,9 +120,9 @@ class MotryxMainWindow(QMainWindow):
         # Reset Leap button (right side, before Log)
         self._reset_btn = QPushButton("Reset Leap")
         self._reset_btn.setStyleSheet(
-            "QPushButton { background: transparent; color: #757575; border: 1px solid #E0E0E0; "
+            f"QPushButton {{ background: transparent; color: {theme.TEXT_SECONDARY}; border: 1px solid {theme.BORDER}; "
             "border-radius: 4px; padding: 8px 12px; font-size: 12px; min-height: 36px; }"
-            "QPushButton:hover { background: #FFF3E0; color: #E65100; border-color: #E65100; }"
+            f"QPushButton:hover {{ background: #FFF3E0; color: {theme.WARN_DARK}; border-color: {theme.WARN_DARK}; }}"
         )
         self._reset_btn.setToolTip("Leap Motion Controller zurücksetzen und neu verbinden")
         self._reset_btn.clicked.connect(self._reset_leap)
@@ -131,9 +131,9 @@ class MotryxMainWindow(QMainWindow):
         # Log button (right side)
         self._log_btn = QPushButton("  Log  ")
         self._log_btn.setStyleSheet(
-            "QPushButton { background: transparent; color: #757575; border: 1px solid #E0E0E0; "
+            f"QPushButton {{ background: transparent; color: {theme.TEXT_SECONDARY}; border: 1px solid {theme.BORDER}; "
             "border-radius: 4px; padding: 8px 16px; font-size: 13px; font-weight: 600; min-height: 36px; }"
-            "QPushButton:hover { background: #F5F5F5; color: #1976D2; border-color: #1976D2; }"
+            f"QPushButton:hover {{ background: {theme.HOVER_BG}; color: {theme.PRIMARY}; border-color: {theme.PRIMARY}; }}"
         )
         self._log_btn.clicked.connect(self._show_log_viewer)
         self._status_bar.addPermanentWidget(self._log_btn)
@@ -176,7 +176,7 @@ class MotryxMainWindow(QMainWindow):
         return ""
 
     def _set_sensor_indicator(self, connected: bool, label: str) -> None:
-        color = "#43A047" if connected else "#E53935"
+        color = f"{theme.ACCENT}" if connected else f"{theme.DANGER}"
         self._sensor_dot.setStyleSheet(
             f"background-color: {color}; border-radius: 8px; border: none;"
         )
@@ -469,12 +469,12 @@ class MotryxMainWindow(QMainWindow):
         """Update status bar widget sizes to match current UI mode."""
         self._sensor_widget.setMinimumHeight(SZ.MIN)
         font_sz = SZ.STATUS_FONT
-        self._sensor_label.setStyleSheet(f"font-size: {font_sz}px; color: #757575; border: none;")
+        self._sensor_label.setStyleSheet(f"font-size: {font_sz}px; color: {theme.TEXT_SECONDARY}; border: none;")
         self._log_btn.setStyleSheet(
-            f"QPushButton {{ background: transparent; color: #757575; border: 1px solid #E0E0E0; "
+            f"QPushButton {{ background: transparent; color: {theme.TEXT_SECONDARY}; border: 1px solid {theme.BORDER}; "
             f"border-radius: 4px; padding: {SZ.STATUS_PAD}; font-size: {font_sz}px; "
             f"font-weight: 600; min-height: 0px; }}"
-            f"QPushButton:hover {{ background: #F5F5F5; color: #1976D2; border-color: #1976D2; }}"
+            f"QPushButton:hover {{ background: {theme.HOVER_BG}; color: {theme.PRIMARY}; border-color: {theme.PRIMARY}; }}"
         )
 
     # ── Navigation ──────────────────────────────────────────────────
@@ -582,7 +582,7 @@ class MotryxMainWindow(QMainWindow):
 
     def start_test(self, test_key: str, hand: str, duration: int) -> None:
         """Start a paradigm from the dashboard (everything via the registry)."""
-        from motor_tests import registry
+        from paradigms import registry
         log.info("Test gestartet: %s (Hand: %s, Dauer: %ds)", test_key, hand, duration)
         spec = registry.get(test_key)
 
@@ -602,7 +602,7 @@ class MotryxMainWindow(QMainWindow):
         screen.start_test(test, self.current_patient.patient_code)
         self.stack.setCurrentWidget(screen)
 
-    def show_results_silent(self, test: BaseMotorTest, patient_code: str) -> None:
+    def show_results_silent(self, test: BaseParadigm, patient_code: str) -> None:
         """Save results + raw data to database without navigating to results screen."""
         features = test.compute_features()
         measurement_id = None
@@ -638,7 +638,7 @@ class MotryxMainWindow(QMainWindow):
         if card:
             card.mark_completed(test.hand)
 
-    def show_results(self, test: BaseMotorTest, patient_code: str) -> None:
+    def show_results(self, test: BaseParadigm, patient_code: str) -> None:
         """Show results and auto-save to database."""
         log.info("Ergebnisse berechnen: %s %s für %s", test.test_type(), test.hand, patient_code)
         features = test.compute_features()

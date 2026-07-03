@@ -19,16 +19,17 @@ from PyQt6.QtWidgets import (
 
 from capture.base_capture import HandFrame
 from capture.source import profile_for
-from motor_tests.tmt_logic import TMTTaskState, TMTSegmentResult, TARGET_ZONE_RADIUS
-from motor_tests.trail_making import TrailMakingTest
+from paradigms.tmt_logic import TMTTaskState, TMTSegmentResult, TARGET_ZONE_RADIUS
+from paradigms.trail_making import TrailMakingTest
 from ui.hand_visualization import HandVisualizationWidget
 from ui.pretest_gate import ReadinessGate
 from ui.theme import SZ, ACCENT, DANGER, PRIMARY, TEXT_SECONDARY
+from ui import theme
 
 log = logging.getLogger(__name__)
 
 COLOR_HAND = QColor(PRIMARY)
-COLOR_VISITED = QColor("#43A047")
+COLOR_VISITED = QColor(f"{theme.ACCENT}")
 COLOR_ERROR = QColor(DANGER)
 COLOR_TRAIL = QColor(ACCENT)
 
@@ -81,7 +82,7 @@ class TMTCanvas(QWidget):
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
         w, h = self.width(), self.height()
-        p.fillRect(0, 0, w, h, QColor("#FAFAFA"))
+        p.fillRect(0, 0, w, h, QColor(f"{theme.BG}"))
 
         if self.show_positioning:
             self._draw_positioning(p, w, h)
@@ -209,8 +210,8 @@ class TMTCanvas(QWidget):
             p.setBrush(QBrush(QColor(ACCENT + "22")))
             p.setPen(QPen(QColor(ACCENT), 3))
         else:
-            p.setBrush(QBrush(QColor("#F5F5F5")))
-            p.setPen(QPen(QColor("#BDBDBD"), 2, Qt.PenStyle.DashLine))
+            p.setBrush(QBrush(QColor(f"{theme.HOVER_BG}")))
+            p.setPen(QPen(QColor(f"{theme.DISABLED}"), 2, Qt.PenStyle.DashLine))
         p.drawRoundedRect(zone_x, zone_y, zone_w, zone_h, 16, 16)
 
         label = ("Rechte Hand" if self.detected_hand == "right" else "Linke Hand") if self.hand_ok and self.detected_hand else "Hand"

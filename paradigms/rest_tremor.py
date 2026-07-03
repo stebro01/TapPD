@@ -1,38 +1,38 @@
-"""Postural Tremor test (MDS-UPDRS 3.15): both hands extended, bilateral analysis."""
+"""Rest Tremor test (MDS-UPDRS 3.17): both hands relaxed, bilateral analysis."""
 
 import math
 
 from capture.base_capture import BaseCaptureDevice, HandFrame
-from motor_tests.base_test import BaseMotorTest
-from motor_tests.config import get_test_config
-from motor_tests.recorder import compute_features_from_config
+from paradigms.base_test import BaseParadigm
+from paradigms.config import get_test_config
+from paradigms.recorder import compute_features_from_config
 
 
-class PosturalTremorTest(BaseMotorTest):
+class RestTremorTest(BaseParadigm):
     bilateral = True
 
     def __init__(self, capture: BaseCaptureDevice, duration: float = 10.0, hand: str = "both") -> None:
         super().__init__(capture, duration, hand)
         # Same baseline the feature computation uses (test_config.yaml capture.base_y).
-        self._base_y = float(get_test_config(self.test_type()).get("capture", {}).get("base_y", 200.0))
+        self._base_y = float(get_test_config(self.test_type()).get("capture", {}).get("base_y", 150.0))
 
     def test_type(self) -> str:
-        return "postural_tremor"
+        return "rest_tremor"
 
     def get_instructions(self) -> str:
         return (
-            "Posturaler Tremor – beide Hände (MDS-UPDRS 3.15)\n\n"
-            "Strecken Sie beide Hände vor sich aus, "
-            "Handflächen nach unten, Finger gespreizt.\n\n"
+            "Ruhetremor – beide Hände (MDS-UPDRS 3.17)\n\n"
+            "Legen Sie beide Hände entspannt auf die Oberschenkel, "
+            "Handflächen nach unten. "
+            "Halten Sie die Hände über dem Sensor.\n\n"
             "Wichtig:\n"
-            "- Beide Hände über dem Sensor\n"
-            "- Arme frei (nicht auf Lehne abstützen)\n"
-            "- Hände so still wie möglich halten\n"
-            "- Finger nicht verkrampfen, natürliche Haltung"
+            "- Beide Hände nebeneinander über dem Sensor\n"
+            "- Hände komplett entspannt, nicht anspannen\n"
+            "- Arme locker, Schultern entspannt\n"
+            "- Nicht versuchen, den Tremor zu unterdrücken"
         )
 
     def get_live_metric(self, frame: HandFrame) -> float:
-        """Palm displacement magnitude."""
         px, py, pz = frame.palm_position
         return math.sqrt(px**2 + (py - self._base_y) ** 2 + pz**2)
 
@@ -41,7 +41,7 @@ class PosturalTremorTest(BaseMotorTest):
 
     def compute_features(self) -> dict[str, float]:
         return compute_features_from_config(
-            "postural_tremor",
+            "rest_tremor",
             self.get_frames(),
             self.capture.sample_rate,
             left_frames=self.get_frames("left"),

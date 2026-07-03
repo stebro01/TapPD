@@ -17,7 +17,7 @@ toward multimodal support. The component-by-component map of the whole system
 ```
 ┌──────────────┐   frames    ┌───────────────┐  features  ┌──────────────┐
 │   SOURCE     │ ──────────► │   PARADIGM    │ ─────────► │   STORAGE    │
-│ capture/     │  callback   │ motor_tests/  │            │ storage/ +   │
+│ capture/     │  callback   │ paradigms/  │            │ storage/ +   │
 └──────────────┘             └───────────────┘            │ video/store  │
        ▲   ▲                    ▲        ▲                 └──────────────┘
        │   │ SourceProfile      │        │ ParadigmRunner (shared frame-pump)
@@ -37,7 +37,7 @@ toward multimodal support. The component-by-component map of the whole system
   playback orchestration. Used by **both** the Sim source (Eingabequelle) and
   **VideoLab**. Sits beside `capture/` and feeds clip paths to a `WebcamSource`
   for playback (`ui → video → capture`).
-- **Paradigm** (`motor_tests/`) — a clinical/cognitive task that consumes frames
+- **Paradigm** (`paradigms/`) — a clinical/cognitive task that consumes frames
   and computes features. Declared once in the **registry**. Driven by the shared
   **`ParadigmRunner`** (frame intake + gating + live-metric + buffers), used by
   both the live `TestScreen` and VideoLab's `AnalysisRunner`.
@@ -68,7 +68,7 @@ sample_rate: float           # live Hz
   (Leap: hand above sensor; webcam/mock: confident presence), `adapt_frame(frame)`
   (re-mapping seam), `prompts()`.
 
-### Paradigm — `motor_tests/base_test.py:BaseMotorTest`
+### Paradigm — `paradigms/base_test.py:BaseParadigm`
 ```python
 get_instructions() -> str
 get_live_metric(frame) -> float        # one number for the live plot
@@ -79,13 +79,13 @@ start()/stop()                         # records via capture.start_recording(_on
 ```
 - `_on_frame` routes each frame through `SourceProfile.adapt_frame` (the seam).
 
-### Registry — `motor_tests/registry.py` (single source of truth)
+### Registry — `paradigms/registry.py` (single source of truth)
 `PARADIGMS: list[ParadigmSpec]` declares each paradigm once: `key, label, updrs,
 description, category (MOTOR|COGNITIVE), bilateral, sim_scenario, screen,
 cls_path, cls_kwargs`. The dashboard, the main-window router, storage
 categorisation and the capability gating **all derive from it**.
 
-### ParadigmRunner — `motor_tests/runner.py` (shared frame-pump)
+### ParadigmRunner — `paradigms/runner.py` (shared frame-pump)
 `begin()` resets the paradigm + live buffers; `feed(frame)` gates (optional
 SETTLE + duration for live; none when `sidecar_bounded`), calls `test._on_frame`,
 computes the live metric, and stashes per-hand `live`/`last_frame`. Both
@@ -136,7 +136,7 @@ with the file):
   pyyaml).
 - `video/video.yaml` (`video/config.py`) — import format/resolution/fps, segment
   extraction + privacy (deface, eye-ref), Sim record durations, analysis knobs.
-- `motor_tests/test_config.yaml` — per-paradigm signal-processing + features.
+- `paradigms/test_config.yaml` — per-paradigm signal-processing + features.
 
 Remaining hardcoded (roadmap): `ui/theme.py` colours/sizes; `mock_capture.py`
 simulation parameters.
@@ -154,7 +154,7 @@ simulation parameters.
 | Per-source metadata | `SourceProfile` | capabilities/readiness/prompts |
 | Data model (now) | `HandFrame` / `FingerData` / `BoneData` | `HandFrame` aliases `HandPose` |
 | Data model (Stage 2) | `HandPose` + `TrackingFrame` envelope | `TrackingFrame(hands[], face?, gaze?)` |
-| Task | **Paradigm** (`ParadigmSpec`, registry) | class still `BaseMotorTest` |
+| Task | **Paradigm** (`ParadigmSpec`, registry) | class still `BaseParadigm` |
 | Frame-pump | `ParadigmRunner` | shared by TestScreen + VideoLab |
 | Preview widget | `WebcamPreview` (`ui/widgets/`) | was a private class in tracking_screen |
 | Live plot | `LiveMetricPlot` (`ui/widgets/`) | shared by TestScreen + VideoLab |
@@ -171,13 +171,13 @@ layer is **Source**. Only `BaseCaptureDevice` and `HandFrame` aliases remain
 
 - ✅ **Naming drift** (capture/device/source/sensor/tracking/mode) — unified on
   *Source* with backward-compatible aliases.
-- ✅ **Triple registration** of paradigms — collapsed into `motor_tests/registry.py`.
+- ✅ **Triple registration** of paradigms — collapsed into `paradigms/registry.py`.
 - ✅ **Category computed by a function** — now declared on `ParadigmSpec.category`.
 - ✅ **Simulation not contract-tested** — `SimulationSource` is first-class and
   `tests/test_paradigm_contracts.py` drives every paradigm through it.
 - ⚠️ **Hand-only frame callback** (`Callable[[HandFrame], None]`) — the structural
   blocker for face/oculomotor. Resolved in Stage 2 by the `TrackingFrame` envelope.
-- ⚠️ **`motor_tests/` package holds cognitive paradigms too** — rename to
+- ⚠️ **`paradigms/` package holds cognitive paradigms too** — rename to
   `paradigms/` in Stage 2.
 - ⚠️ **Bilateral asymmetry** — unilateral paradigms get one frame per callback,
   bilateral get two; the `TrackingFrame` envelope (one frame carries both hands)
@@ -247,6 +247,6 @@ migration shim).
 - ~~**Export** VideoLab segment results into patient Sessions~~ — done:
   `video/export.py` (one DB Session per video session, `source_kind="video"`,
   double-export guarded by the `measurement_id` stamp).
-- Rename package `motor_tests/ → paradigms/`; add `OCULAR`/`FACIAL` categories +
+- Rename package `paradigms/ → paradigms/`; add `OCULAR`/`FACIAL` categories +
   multimodal sidecar `FaceLandmarker` → `FacePose`/`GazePose` paradigms.
 - YAML-ify `ui/theme.py` + `mock_capture.py` simulation params.

@@ -1,11 +1,11 @@
 """Hand Opening/Closing test (MDS-UPDRS 3.5): repeated hand open/close cycles."""
 
 from capture.base_capture import BaseCaptureDevice, HandFrame
-from motor_tests.base_test import BaseMotorTest
-from motor_tests.recorder import compute_features_from_config, extract_metric
+from paradigms.base_test import BaseParadigm
+from paradigms.recorder import compute_features_from_config, extract_metric
 
 
-class HandOpenCloseTest(BaseMotorTest):
+class HandOpenCloseTest(BaseParadigm):
     bilateral = False
 
     def __init__(self, capture: BaseCaptureDevice, duration: float = 10.0, hand: str = "right") -> None:

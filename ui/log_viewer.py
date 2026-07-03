@@ -17,9 +17,11 @@ from PyQt6.QtWidgets import (
 )
 
 from logging_config import LOG_DIR, QtLogHandler
+from ui import theme
 from ui.theme import (
     SZ,
     ACCENT,
+    ACCENT_DARK,
     BG,
     BORDER,
     CARD_BG,
@@ -99,7 +101,7 @@ class LogViewerDialog(QDialog):
         self.level_combo.setCurrentText("DEBUG")
         self.level_combo.setFixedWidth(130)
         self.level_combo.setFixedHeight(SZ.INPUT_H)
-        self.level_combo.setStyleSheet("border: 1px solid #E0E0E0; border-radius: 6px;")
+        self.level_combo.setStyleSheet(f"border: 1px solid {theme.BORDER}; border-radius: 6px;")
         tb_layout.addWidget(self.level_combo)
 
         # Line count
@@ -122,7 +124,7 @@ class LogViewerDialog(QDialog):
                 font-weight: 600;
                 min-height: 0px;
             }}
-            QPushButton:hover {{ background-color: #388E3C; }}
+            QPushButton:hover {{ background-color: {ACCENT_DARK}; }}
         """)
         tb_layout.addWidget(self.scroll_btn)
 
@@ -141,7 +143,7 @@ class LogViewerDialog(QDialog):
                 font-weight: 600;
                 min-height: 0px;
             }}
-            QPushButton:hover {{ background-color: #FFEBEE; }}
+            QPushButton:hover {{ background-color: {theme.DANGER_BG}; }}
         """)
         clear_btn.clicked.connect(self._on_clear)
         tb_layout.addWidget(clear_btn)
@@ -168,7 +170,7 @@ class LogViewerDialog(QDialog):
         status = QWidget()
         status.setStyleSheet(f"""
             QWidget {{
-                background-color: #F5F5F5;
+                background-color: {theme.HOVER_BG};
                 border-top: 1px solid {BORDER};
             }}
         """)
@@ -260,7 +262,7 @@ class LogViewerDialog(QDialog):
                     font-size: 11px;
                     font-weight: 600;
                 }}
-                QPushButton:hover {{ background-color: #388E3C; }}
+                QPushButton:hover {{ background-color: {ACCENT_DARK}; }}
             """)
             scrollbar = self.text_edit.verticalScrollBar()
             scrollbar.setValue(scrollbar.maximum())

@@ -50,31 +50,31 @@ class ParadigmSpec:
 PARADIGMS: list[ParadigmSpec] = [
     ParadigmSpec("finger_tapping", "Finger Tapping", "3.4", "Daumen-Zeigefinger",
                  Category.MOTOR, False, "tapping", SCREEN_METRIC,
-                 "motor_tests.finger_tapping:FingerTappingTest"),
+                 "paradigms.finger_tapping:FingerTappingTest"),
     ParadigmSpec("hand_open_close", "Hand Öffnen/\nSchließen", "3.5", "Öffnen & Schließen",
                  Category.MOTOR, False, "open_close", SCREEN_METRIC,
-                 "motor_tests.hand_open_close:HandOpenCloseTest"),
+                 "paradigms.hand_open_close:HandOpenCloseTest"),
     ParadigmSpec("pronation_supination", "Pronation/\nSupination", "3.6", "Unterarm drehen",
                  Category.MOTOR, False, "pronation_supination", SCREEN_METRIC,
-                 "motor_tests.pronation_supination:PronationSupinationTest"),
+                 "paradigms.pronation_supination:PronationSupinationTest"),
     ParadigmSpec("postural_tremor", "Posturaler\nTremor", "3.15", "Hände vorgestreckt",
                  Category.MOTOR, True, "postural_tremor", SCREEN_METRIC,
-                 "motor_tests.tremor:PosturalTremorTest"),
+                 "paradigms.tremor:PosturalTremorTest"),
     ParadigmSpec("rest_tremor", "Ruhetremor", "3.17", "Hände entspannt",
                  Category.MOTOR, True, "rest_tremor", SCREEN_METRIC,
-                 "motor_tests.rest_tremor:RestTremorTest"),
+                 "paradigms.rest_tremor:RestTremorTest"),
     ParadigmSpec("tower_of_hanoi", "Türme von\nHanoi", "Kogn.", "Scheiben verschieben",
                  Category.COGNITIVE, False, "tower_of_hanoi", SCREEN_HANOI,
-                 "motor_tests.tower_of_hanoi:TowerOfHanoiTest"),
+                 "paradigms.tower_of_hanoi:TowerOfHanoiTest"),
     ParadigmSpec("spatial_srt", "Räumliche\nReaktionszeit", "Kogn.", "Sequenz-Lernen",
                  Category.COGNITIVE, False, "spatial_srt", SCREEN_SRT,
-                 "motor_tests.spatial_srt:SpatialSRTTest"),
+                 "paradigms.spatial_srt:SpatialSRTTest"),
     ParadigmSpec("trail_making_a", "Trail Making\nTeil A", "Kogn.", "Zahlen verbinden",
                  Category.COGNITIVE, False, "trail_making", SCREEN_TMT,
-                 "motor_tests.trail_making:TrailMakingTest", {"part": "A"}),
+                 "paradigms.trail_making:TrailMakingTest", {"part": "A"}),
     ParadigmSpec("trail_making_b", "Trail Making\nTeil B", "Kogn.", "Zahlen & Buchstaben",
                  Category.COGNITIVE, False, "trail_making", SCREEN_TMT,
-                 "motor_tests.trail_making:TrailMakingTest", {"part": "B"}),
+                 "paradigms.trail_making:TrailMakingTest", {"part": "B"}),
 ]
 
 BY_KEY: dict[str, ParadigmSpec] = {p.key: p for p in PARADIGMS}
@@ -96,7 +96,7 @@ def category_str(key: str) -> str:
     return (spec.category if spec else Category.MOTOR).value
 
 
-def is_spatial(key: str) -> bool:
-    """Spatial/cognitive paradigms need absolute position (capability gating)."""
+def is_cognitive(key: str) -> bool:
+    """True for cognitive paradigms (they need absolute position → gating)."""
     spec = BY_KEY.get(key)
     return bool(spec and spec.category == Category.COGNITIVE)

@@ -18,16 +18,17 @@ from PyQt6.QtWidgets import (
 
 from capture.base_capture import HandFrame
 from capture.source import profile_for
-from motor_tests.pinch_detector import PinchDetector, PinchEvent
-from motor_tests.tower_of_hanoi import TowerOfHanoiTest
+from paradigms.pinch_detector import PinchDetector, PinchEvent
+from paradigms.tower_of_hanoi import TowerOfHanoiTest
 from ui.hand_visualization import HandVisualizationWidget
 from ui.pretest_gate import ReadinessGate
 from ui.theme import SZ, ACCENT, DANGER, PRIMARY, PRIMARY_LIGHT, TEXT_SECONDARY
+from ui import theme
 
 log = logging.getLogger(__name__)
 
 # Disc colors
-DISC_COLORS = ["#E53935", "#FB8C00", "#FDD835", "#43A047", "#1E88E5", "#8E24AA", "#00ACC1"]
+DISC_COLORS = [f"{theme.DANGER}", f"{theme.WARN}", "#FDD835", f"{theme.ACCENT}", "#1E88E5", "#8E24AA", "#00ACC1"]
 
 # Peg X positions in Leap coordinate space (mm)
 PEG_X_MM = [-100.0, 0.0, 100.0]
@@ -35,7 +36,7 @@ PEG_ZONE_HALF = 65.0
 
 # Hand colors
 COLOR_RIGHT = QColor(PRIMARY)
-COLOR_LEFT = QColor("#E53935")
+COLOR_LEFT = QColor(f"{theme.DANGER}")
 
 
 def _x_to_norm(x_mm: float) -> float:
@@ -122,7 +123,7 @@ class HanoiCanvas(QWidget):
                 p.drawRoundedRect(px - 55, peg_top - 10, 110, peg_h + 20, 8, 8)
 
             p.setPen(Qt.PenStyle.NoPen)
-            p.setBrush(QBrush(QColor("#BDBDBD")))
+            p.setBrush(QBrush(QColor(f"{theme.DISABLED}")))
             p.drawRect(px - peg_w // 2, peg_top, peg_w, peg_h)
 
             p.setPen(QColor(TEXT_SECONDARY))
@@ -210,7 +211,7 @@ class HanoiCanvas(QWidget):
 
     def _draw_positioning(self, p: QPainter, w: int, h: int):
         """Draw hand positioning guide – single hand detection."""
-        p.fillRect(0, 0, w, h, QColor("#FAFAFA"))
+        p.fillRect(0, 0, w, h, QColor(f"{theme.BG}"))
 
         # Title
         p.setPen(QColor("#333333"))
@@ -235,8 +236,8 @@ class HanoiCanvas(QWidget):
             p.setBrush(QBrush(QColor(ACCENT + "22")))
             p.setPen(QPen(QColor(ACCENT), 3))
         else:
-            p.setBrush(QBrush(QColor("#F5F5F5")))
-            p.setPen(QPen(QColor("#BDBDBD"), 2, Qt.PenStyle.DashLine))
+            p.setBrush(QBrush(QColor(f"{theme.HOVER_BG}")))
+            p.setPen(QPen(QColor(f"{theme.DISABLED}"), 2, Qt.PenStyle.DashLine))
         p.drawRoundedRect(zone_x, zone_y, zone_w, zone_h, 16, 16)
 
         # Label

@@ -136,7 +136,7 @@ class SourceProfile:
 
     def prompts(self) -> dict[str, str]:
         """Source-aware hand-detection prompts (waiting / detected / timeout)."""
-        from motor_tests.config import get_hand_detection_messages
+        from paradigms.config import get_hand_detection_messages
         return get_hand_detection_messages(self.kind)
 
 

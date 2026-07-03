@@ -181,7 +181,7 @@ def _concept_cd_to_test_type(concept_cd: str) -> str:
 
 
 def _category_for_test(test_type: str) -> str:
-    from motor_tests.registry import category_str
+    from paradigms.registry import category_str
     return category_str(test_type)
 
 

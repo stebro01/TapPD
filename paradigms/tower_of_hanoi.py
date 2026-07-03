@@ -4,11 +4,11 @@ import math
 import numpy as np
 
 from capture.base_capture import BaseCaptureDevice, HandFrame
-from motor_tests.base_test import BaseMotorTest
-from motor_tests.hanoi_logic import HanoiGameState
+from paradigms.base_test import BaseParadigm
+from paradigms.hanoi_logic import HanoiGameState
 
 
-class TowerOfHanoiTest(BaseMotorTest):
+class TowerOfHanoiTest(BaseParadigm):
     """Interactive Tower of Hanoi task with pinch-based single-hand disc manipulation."""
 
     bilateral = False

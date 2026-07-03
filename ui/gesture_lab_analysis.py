@@ -297,7 +297,7 @@ class AnalysisPanel(QWidget):
                 self._weight_labels.append(w_lbl)
             else:
                 dash = QLabel("–")
-                dash.setStyleSheet("font-size: 9px; color: #BDBDBD;")
+                dash.setStyleSheet(f"font-size: 9px; color: {theme.DISABLED};")
                 self.compare_grid.addWidget(dash, i + 1, 3)
 
             # Tolerance slider (only for 5 fingers)
@@ -317,7 +317,7 @@ class AnalysisPanel(QWidget):
                 self._tol_labels.append(t_lbl)
             else:
                 dash2 = QLabel("–")
-                dash2.setStyleSheet("font-size: 9px; color: #BDBDBD;")
+                dash2.setStyleSheet(f"font-size: 9px; color: {theme.DISABLED};")
                 self.compare_grid.addWidget(dash2, i + 1, 4)
 
             # Ist
@@ -364,7 +364,7 @@ class AnalysisPanel(QWidget):
         self.formula_label = QLabel("")
         self.formula_label.setWordWrap(True)
         self.formula_label.setStyleSheet(
-            f"background-color: #F5F5F5; border: 1px solid {theme.BORDER}; "
+            f"background-color: {theme.HOVER_BG}; border: 1px solid {theme.BORDER}; "
             f"border-radius: 4px; padding: 6px; font-family: monospace; font-size: 10px;"
         )
         right.addWidget(self.formula_label)
@@ -524,7 +524,7 @@ class AnalysisPanel(QWidget):
             angles = vec[i * 4:(i + 1) * 4]
             mean_angle = float(np.mean(angles))
             self._soll_cells[i].setText(f"{ext_str} ({mean_angle:.2f})")
-            bg = "#E8F5E9" if ext else "#FFEBEE"
+            bg = f"{theme.SUCCESS_BG}" if ext else f"{theme.DANGER_BG}"
             self._soll_cells[i].setStyleSheet(f"font-size: 10px; background-color: {bg}; padding: 1px 3px; border-radius: 2px;")
 
         # Orientation
@@ -553,7 +553,7 @@ class AnalysisPanel(QWidget):
             angles = vec[i * 4:(i + 1) * 4]
             mean_angle = float(np.mean(angles))
             self._ist_cells[i].setText(f"{ext_str} ({mean_angle:.2f})")
-            bg = "#E8F5E9" if ext else "#FFEBEE"
+            bg = f"{theme.SUCCESS_BG}" if ext else f"{theme.DANGER_BG}"
             self._ist_cells[i].setStyleSheet(f"font-size: 10px; background-color: {bg}; padding: 1px 3px; border-radius: 2px;")
 
         o = N_JOINT_ANGLES + N_ABDUCTION + N_TIP_DISTANCES
@@ -811,11 +811,11 @@ class AnalysisPanel(QWidget):
         pct = int(score * 100)
         cell.setText(f"{pct}%")
         if score >= 0.85:
-            bg, border = "#E8F5E9", theme.ACCENT
+            bg, border = f"{theme.SUCCESS_BG}", theme.ACCENT
         elif score >= 0.60:
             bg, border = "#FFF8E1", theme.WARN
         else:
-            bg, border = "#FFEBEE", theme.DANGER
+            bg, border = f"{theme.DANGER_BG}", theme.DANGER
         cell.setStyleSheet(
             f"background-color: {bg}; border: 1px solid {border}; "
             f"border-radius: 2px; font-size: 9px; font-weight: bold;"

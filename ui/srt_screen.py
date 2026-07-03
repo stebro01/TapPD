@@ -18,16 +18,17 @@ from PyQt6.QtWidgets import (
 
 from capture.base_capture import HandFrame
 from capture.source import profile_for
-from motor_tests.srt_logic import SRTTaskState, SRTTrialResult, TARGET_POSITIONS, TARGET_ZONE_RADIUS
-from motor_tests.spatial_srt import SpatialSRTTest
+from paradigms.srt_logic import SRTTaskState, SRTTrialResult, TARGET_POSITIONS, TARGET_ZONE_RADIUS
+from paradigms.spatial_srt import SpatialSRTTest
 from ui.hand_visualization import HandVisualizationWidget
 from ui.pretest_gate import ReadinessGate
 from ui.theme import SZ, ACCENT, DANGER, PRIMARY, TEXT_SECONDARY
+from ui import theme
 
 log = logging.getLogger(__name__)
 
 # Target colors
-TARGET_COLORS = ["#E53935", "#1E88E5", "#43A047", "#FB8C00"]  # top, right, bottom, left
+TARGET_COLORS = [f"{theme.DANGER}", "#1E88E5", f"{theme.ACCENT}", f"{theme.WARN}"]  # top, right, bottom, left
 TARGET_ACTIVE_COLOR = "#FFD600"  # bright yellow for active target
 COLOR_HAND = QColor(PRIMARY)
 
@@ -88,7 +89,7 @@ class SRTCanvas(QWidget):
         w, h = self.width(), self.height()
 
         # Background
-        p.fillRect(0, 0, w, h, QColor("#FAFAFA"))
+        p.fillRect(0, 0, w, h, QColor(f"{theme.BG}"))
 
         if self.show_positioning:
             self._draw_positioning(p, w, h)
@@ -200,8 +201,8 @@ class SRTCanvas(QWidget):
             p.setBrush(QBrush(QColor(ACCENT + "22")))
             p.setPen(QPen(QColor(ACCENT), 3))
         else:
-            p.setBrush(QBrush(QColor("#F5F5F5")))
-            p.setPen(QPen(QColor("#BDBDBD"), 2, Qt.PenStyle.DashLine))
+            p.setBrush(QBrush(QColor(f"{theme.HOVER_BG}")))
+            p.setPen(QPen(QColor(f"{theme.DISABLED}"), 2, Qt.PenStyle.DashLine))
         p.drawRoundedRect(zone_x, zone_y, zone_w, zone_h, 12, 12)
 
         label = ("Rechte Hand" if self.detected_hand == "right" else "Linke Hand") if self.hand_ok and self.detected_hand else "Hand"
@@ -216,7 +217,7 @@ class SRTCanvas(QWidget):
 
         # Hint at bottom
         p.setFont(QFont("Helvetica Neue", 10))
-        p.setPen(QColor("#BDBDBD"))
+        p.setPen(QColor(f"{theme.DISABLED}"))
         p.drawText(QRectF(0, h - 30, w, 20),
                    Qt.AlignmentFlag.AlignCenter,
                    "Hand flach über den Sensor halten – startet automatisch")
