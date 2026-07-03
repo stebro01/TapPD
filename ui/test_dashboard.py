@@ -22,15 +22,19 @@ from paradigms.registry import PARADIGMS
 from ui import theme
 
 # (key, label, updrs, bilateral, description) — single source of truth: registry.
-TESTS = [(p.key, p.label, p.updrs, p.bilateral, p.description) for p in PARADIGMS]
+from paradigms.registry import Category
+
+TESTS = [(p.key, p.label, p.updrs, p.bilateral, p.description,
+          p.category is Category.OCULAR) for p in PARADIGMS]
 
 
 class TestCard(QFrame):
     def __init__(self, test_key: str, label: str, updrs: str, bilateral: bool,
-                 description: str, on_click) -> None:
+                 description: str, on_click, ocular: bool = False) -> None:
         super().__init__()
         self.test_key = test_key
         self.bilateral = bilateral
+        self.ocular = ocular
         self._on_click = on_click
         self._completed = {"left": False, "right": False, "both": False}
         self._supported = True
@@ -67,7 +71,11 @@ class TestCard(QFrame):
         ind_row.setAlignment(Qt.AlignmentFlag.AlignCenter)
         ind_row.setSpacing(6)
 
-        if bilateral:
+        if ocular:
+            # eyes, not hands — one completion chip
+            self.both_ind = self._make_indicator("👁 Augen")
+            ind_row.addWidget(self.both_ind)
+        elif bilateral:
             self.both_ind = self._make_indicator("L + R")
             ind_row.addWidget(self.both_ind)
         else:
@@ -101,7 +109,7 @@ class TestCard(QFrame):
 
     def _apply_card_style(self) -> None:
         all_done = (
-            self._completed.get("both") if self.bilateral
+            self._completed.get("both") if (self.bilateral or self.ocular)
             else self._completed.get("left") and self._completed.get("right")
         )
         any_done = any(self._completed.values())
@@ -120,7 +128,7 @@ class TestCard(QFrame):
 
     def mark_completed(self, hand: str) -> None:
         self._completed[hand] = True
-        if self.bilateral:
+        if self.bilateral or self.ocular:
             self._style_indicator(self.both_ind, True)
         elif hand == "left":
             self._style_indicator(self.left_ind, True)
@@ -189,7 +197,7 @@ class TestDashboard(QWidget):
         dur_row.addWidget(self.duration_spin)
         layout.addLayout(dur_row)
 
-        hint = QLabel("Test anklicken, dann Hand wählen")
+        hint = QLabel("Test anklicken — Handwahl folgt (Augen-Tests starten ohne Handwahl)")
         hint.setProperty("cssClass", "subtitle")
         hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(hint)
@@ -199,8 +207,9 @@ class TestDashboard(QWidget):
         grid.setSpacing(16)
         grid.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        for idx, (key, label, updrs, bilateral, desc) in enumerate(TESTS):
-            card = TestCard(key, label, updrs, bilateral, desc, self._on_test_click)
+        for idx, (key, label, updrs, bilateral, desc, ocular) in enumerate(TESTS):
+            card = TestCard(key, label, updrs, bilateral, desc, self._on_test_click,
+                            ocular=ocular)
             self.cards[key] = card
             grid.addWidget(card, idx // 3, idx % 3)
 
@@ -232,7 +241,7 @@ class TestDashboard(QWidget):
         self.patient_label.setText(f"{patient.display_name}{age_str}")
         for card in self.cards.values():
             card._completed = {"left": False, "right": False, "both": False}
-            if card.bilateral:
+            if card.bilateral or card.ocular:
                 card._style_indicator(card.both_ind, False)
             else:
                 card._style_indicator(card.left_ind, False)
@@ -260,8 +269,12 @@ class TestDashboard(QWidget):
                 card.set_supported(True)
 
     def _on_test_click(self, test_key: str, bilateral: bool) -> None:
-        from paradigms.registry import is_cognitive
-        if bilateral:
+        from paradigms.registry import BY_KEY, Category, is_cognitive
+        spec = BY_KEY.get(test_key)
+        if spec is not None and spec.category is Category.OCULAR:
+            # Ocular paradigms measure the eyes — no hand involved.
+            self.main_window.start_test(test_key, "both", self.duration_spin.value())
+        elif bilateral:
             self.main_window.start_test(test_key, "both", self.duration_spin.value())
         elif is_cognitive(test_key):
             # Spatial/cognitive: hand is auto-detected during the readiness gate.

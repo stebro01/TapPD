@@ -44,7 +44,10 @@ class OcularFixationTest(BaseParadigm):
             "- Kopf möglichst still halten\n"
             "- Blick auf die Kamera gerichtet lassen\n"
             "- Normal blinzeln, nichts unterdrücken\n"
-            "- Gesicht gut ausgeleuchtet und vollständig im Bild"
+            "- Gesicht gut ausgeleuchtet und vollständig im Bild\n\n"
+            "Hinweis: Keine Eichung nötig — gemessen wird die Blick-STABILITÄT "
+            "relativ zu den Augenwinkeln. Der Sakkaden-Test (eigene Kachel) "
+            "nutzt die 5-Punkt-Eichung."
         )
 
     # ── frame intake ───────────────────────────────────────────────

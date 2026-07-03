@@ -119,13 +119,9 @@ class TestScreen(QWidget):
         from capture.source import CAP_FACE_LANDMARKS
         from paradigms.config import get_task_requirements
         if get_task_requirements(test.test_type()) == {CAP_FACE_LANDMARKS}:
-            # Ocular paradigm: no hand to wait for — face stream on, short
-            # countdown, then record.
-            enable = getattr(test.capture, "enable_face", None)
-            if enable is not None:
-                enable(True, full_rate=True)
-            self.status_label.setText("Bitte in die Kamera schauen …")
-            QTimer.singleShot(3000, lambda: self._on_gate_ready("both"))
+            # Ocular paradigm: no hand to wait for — wait until a FACE is
+            # actually tracked, then a visible 3-2-1 countdown.
+            self._begin_face_gate()
             return
         require_hand = "both" if test.bilateral else test.hand
         profile = profile_for(test.capture)
@@ -143,6 +139,67 @@ class TestScreen(QWidget):
     def _on_gate_cancelled(self) -> None:
         """Gate timed out or was cancelled — return to the dashboard."""
         self.main_window.show_start()
+
+    # ── face gate (ocular paradigms: wait for a tracked face) ─────
+    FACE_GATE_TIMEOUT_S = 30.0
+    FACE_FRESH_S = 0.7
+
+    def _begin_face_gate(self) -> None:
+        import time as _time
+        cap = self.test.capture
+        enable = getattr(cap, "enable_face", None)
+        if enable is not None:
+            enable(True, full_rate=True)
+        self._face_seen_at = 0.0
+        self._face_countdown_end: float | None = None
+        self._face_gate_deadline = _time.monotonic() + self.FACE_GATE_TIMEOUT_S
+
+        def probe(tf) -> None:            # reader thread
+            if tf.face is not None:
+                self._face_seen_at = _time.monotonic()
+
+        cap.start_tracking(probe)
+        if not hasattr(self, "_face_gate_timer"):
+            self._face_gate_timer = QTimer(self)
+            self._face_gate_timer.timeout.connect(self._face_gate_tick)
+        self.status_label.setText("Bitte in die Kamera schauen …")
+        self._face_gate_timer.start(150)
+
+    def _face_gate_tick(self) -> None:
+        import math as _math
+        import time as _time
+        now = _time.monotonic()
+        fresh = (now - self._face_seen_at) < self.FACE_FRESH_S
+        if self._face_countdown_end is None:
+            if fresh:
+                self._face_countdown_end = now + 3.0
+            elif now > self._face_gate_deadline:
+                self._face_gate_timer.stop()
+                try:
+                    self.test.capture.stop_recording()
+                except Exception:
+                    pass
+                self.status_label.setText("Kein Gesicht erkannt — abgebrochen.")
+                self._on_gate_cancelled()
+                return
+            else:
+                self.status_label.setText("Bitte in die Kamera schauen …")
+                return
+        if not fresh:                     # face lost mid-countdown → re-arm
+            self._face_countdown_end = None
+            self.status_label.setText("Gesicht verloren — bitte in die Kamera schauen …")
+            return
+        remaining = self._face_countdown_end - now
+        if remaining <= 0:
+            self._face_gate_timer.stop()
+            try:
+                self.test.capture.stop_recording()   # clean re-subscribe
+            except Exception:
+                pass
+            self._on_gate_ready("both")
+        else:
+            self.status_label.setText(
+                f"Gesicht erkannt ✓ — Start in {_math.ceil(remaining)} …")
 
     # SETTLE: discard frames the LeapC SDK buffered during the detection/countdown
     # phase (delivered instantly from the buffer); genuine frames arrive at ~120 Hz.
@@ -204,6 +261,8 @@ class TestScreen(QWidget):
 
     def _on_cancel(self) -> None:
         self.readiness_gate.cancel()
+        if hasattr(self, "_face_gate_timer"):
+            self._face_gate_timer.stop()
         self._ui_timer.stop()
         self.live_hand.setVisible(False)
         if self._recording:

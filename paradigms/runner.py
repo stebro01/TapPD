@@ -48,6 +48,10 @@ class ParadigmRunner:
         self.test.frames.clear()
         self.test.left_frames.clear()
         self.test.right_frames.clear()
+        # Ocular paradigms buffer FacePoses — a re-run must not accumulate.
+        face_frames = getattr(self.test, "face_frames", None)
+        if face_frames is not None:
+            face_frames.clear()
         self.live = {"left": [], "right": []}
         self.last_frame = {}
         self._t0_us = None
