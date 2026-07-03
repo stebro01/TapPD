@@ -40,7 +40,7 @@
                  PARADIGM-LAYER                                          │
 ┌────────────────────────────────────────────────────────────┐          │
 │                    paradigms/  (Paradigm)                │          │
-│  registry.py (SINGLE SOURCE OF TRUTH: 9 ParadigmSpecs)     │          │
+│  registry.py (SINGLE SOURCE OF TRUTH: 10 ParadigmSpecs)     │          │
 │  BaseParadigm ── ParadigmRunner (geteilter Frame-Pump)    │──────────┘
 │  recorder.py (config-getriebene Feature-Berechnung + MPI)  │  features
 │       │  nutzt                                             │
@@ -53,7 +53,8 @@
 ### Frame-Fluss eines Live-Tests
 
 ```
-Sensor ──► MotionSource ──callback──► ParadigmRunner.feed()
+Sensor ──► MotionSource ──start_tracking──► ParadigmRunner.feed(TrackingFrame)
+                       (Envelope: alle Hände eines Sensorframes + FacePose)
                                         │  SETTLE-Gate, Dauer-Gate
                                         │  adapt_frame (SourceProfile-Seam:
                                         │   Webcam+EyeRef → absolute ≈mm-Position)
@@ -112,7 +113,7 @@ data/
 
 | Konzept | Bedeutung |
 |---|---|
-| **Source** | Austauschbare Datenquelle (`MotionSource`-Contract: connect/disconnect/is_connected/start_recording(cb)/stop_recording/sample_rate). Hot-swap zur Laufzeit über die Eingabequelle. |
+| **Source** | Austauschbare Datenquelle (`MotionSource`-Contract: connect/disconnect/is_connected/start_recording(cb)/**start_tracking(cb)**/stop/sample_rate). `start_tracking` liefert `TrackingFrame`-Envelopes (alle Hände eines Sensorframes + `FacePose`). Hot-swap zur Laufzeit. |
 | **Paradigm** | Klinische/kognitive Aufgabe (`BaseParadigm`), konsumiert Frames, liefert `compute_features()`. Einmalig deklariert in der **Registry** — Dashboard, Routing, Storage-Kategorie und Gating leiten sich daraus ab. |
 | **Capability-Gating** | Sources deklarieren Fähigkeiten (`fingertips`, `finger_flexion`, `hand_pose`, `abs_position`), Paradigmen ihren Bedarf (`test_config.yaml → requires`). UI sperrt Unerfülltes (🔒). **Dynamisch:** Webcam meldet `abs_position` nur bei aktivem Face-Tracking (`extra_capabilities`). |
 | **adapt_frame-Seam** | `SourceProfile.adapt_frame` ist DIE Stelle für Quell-Normalisierung. Aktiv: Webcam ersetzt `palm_position` durch die Augen-referenzierte Absolutposition (Kopie, idempotent). |
