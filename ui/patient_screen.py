@@ -117,6 +117,13 @@ class PatientScreen(QWidget):
         self.mode_btn.clicked.connect(self.main_window.toggle_ui_mode)
         top_bar.addWidget(self.mode_btn)
 
+        manual_btn = QPushButton("📖 Anleitung")
+        manual_btn.setFixedWidth(140)
+        manual_btn.setFixedHeight(SZ.BTN_H)
+        manual_btn.setToolTip("Nutzerhandbuch im Browser öffnen (docs/manual.html)")
+        manual_btn.clicked.connect(self._on_manual)
+        top_bar.addWidget(manual_btn)
+
         # "Über Motryx" mit kleiner Versionszeile im Button (Labels sind
         # mausdurchlässig, der Klick trifft den Button darunter).
         from app_settings import APP_VERSION
@@ -295,6 +302,20 @@ class PatientScreen(QWidget):
             conn.close()
             self.refresh_list()
             self.main_window.select_patient(dialog.patient)
+
+    def _on_manual(self) -> None:
+        """Nutzerhandbuch (docs/manual.html) im Standard-Browser öffnen."""
+        from PyQt6.QtCore import QUrl
+        from PyQt6.QtGui import QDesktopServices
+        manual = Path(__file__).parent.parent / "docs" / "manual.html"
+        if manual.exists():
+            QDesktopServices.openUrl(QUrl.fromLocalFile(str(manual)))
+        else:
+            from PyQt6.QtWidgets import QMessageBox
+            QMessageBox.information(
+                self, "Anleitung",
+                f"Handbuch nicht gefunden:\n{manual}\n\n"
+                "docs/manual.html liegt im Projektverzeichnis.")
 
     def _on_about(self) -> None:
         from app_settings import APP_VERSION

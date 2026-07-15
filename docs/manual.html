@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Motryx – Nutzerhandbuch</title>
+<style>
+  :root {
+    --primary:#1976D2; --primary-light:#E3F2FD; --accent:#43A047;
+    --warn:#E65100; --text:#212121; --sec:#616161; --border:#E0E0E0; --bg:#FAFAFA;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:-apple-system,"Helvetica Neue",Segoe UI,Arial,sans-serif;
+         color:var(--text); background:var(--bg); line-height:1.55; }
+  header { background:linear-gradient(120deg,#0D47A1,#1976D2); color:#fff; padding:36px 24px 28px; }
+  header h1 { margin:0 0 6px; font-size:30px; }
+  header p { margin:0; opacity:.9; }
+  header .ver { display:inline-block; margin-top:10px; background:rgba(255,255,255,.18);
+                border-radius:14px; padding:2px 12px; font-size:13px; }
+  nav { background:#fff; border-bottom:1px solid var(--border); padding:10px 24px;
+        position:sticky; top:0; z-index:5; overflow-x:auto; white-space:nowrap; }
+  nav a { color:var(--primary); text-decoration:none; margin-right:18px; font-size:14px; }
+  nav a:hover { text-decoration:underline; }
+  main { max-width:980px; margin:0 auto; padding:24px 20px 80px; }
+  h2 { border-bottom:2px solid var(--primary); padding-bottom:6px; margin-top:44px;
+       font-size:23px; scroll-margin-top:60px; }
+  h3 { margin-top:26px; font-size:17px; }
+  figure { margin:18px 0; }
+  figure img { width:100%; max-width:940px; border:1px solid var(--border);
+               border-radius:10px; box-shadow:0 2px 10px rgba(0,0,0,.08); }
+  figcaption { font-size:13px; color:var(--sec); margin-top:6px; text-align:center; }
+  .hint { background:var(--primary-light); border-left:4px solid var(--primary);
+          padding:10px 14px; border-radius:0 8px 8px 0; margin:14px 0; font-size:14px; }
+  .warn { background:#FFF3E0; border-left:4px solid var(--warn); padding:10px 14px;
+          border-radius:0 8px 8px 0; margin:14px 0; font-size:14px; }
+  table { border-collapse:collapse; width:100%; margin:12px 0; font-size:14px; background:#fff; }
+  th,td { border:1px solid var(--border); padding:7px 10px; text-align:left; vertical-align:top; }
+  th { background:#F5F5F5; }
+  code, kbd { background:#EEE; border-radius:4px; padding:1px 6px; font-size:13px;
+              font-family:Menlo,Consolas,monospace; }
+  kbd { border:1px solid #ccc; background:#fff; }
+  .steps li { margin-bottom:6px; }
+  .badge { display:inline-block; border-radius:10px; padding:0 9px; font-size:12px;
+           font-weight:600; color:#fff; }
+  .b-leap{background:#455A64} .b-cam{background:var(--primary)} .b-vid{background:#6A1B9A}
+  .b-sim{background:#E53935}
+  footer { text-align:center; color:var(--sec); font-size:12px; padding:24px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>✋👁 Motryx – Nutzerhandbuch</h1>
+  <p>Movement Lab: Kontaktlose Bewegungs- und Okulomotorik-Analyse</p>
+  <span class="ver">Version 0.3.0 · Stand Juli 2026</span>
+</header>
+
+<nav>
+  <a href="#ueberblick">Überblick</a>
+  <a href="#schnellstart">Schnellstart</a>
+  <a href="#quellen">Eingabequellen</a>
+  <a href="#patienten">Patienten</a>
+  <a href="#tests">Tests</a>
+  <a href="#okulo">Augen-Tests</a>
+  <a href="#ergebnisse">Ergebnisse &amp; Verlauf</a>
+  <a href="#videolab">VideoLab</a>
+  <a href="#gesturelab">Gesture Lab</a>
+  <a href="#tipps">Tipps &amp; Hilfe</a>
+</nav>
+
+<main>
+
+<h2 id="ueberblick">1&nbsp;· Überblick</h2>
+<p>Motryx digitalisiert klinische Bewegungstests. Handbewegungen und Augenbewegungen
+werden kontaktlos erfasst und automatisch in quantitative Parameter übersetzt —
+live am Gerät oder nachträglich aus Handy-Videos. Alle Ergebnisse landen
+patientenbezogen in einer lokalen Datenbank und lassen sich als Verlauf über die
+Zeit betrachten.</p>
+
+<table>
+<tr><th>Testbatterie</th><th>Inhalt</th></tr>
+<tr><td><b>Motorik</b> (MDS-UPDRS III)</td><td>Finger Tapping (3.4) · Hand Öffnen/Schließen (3.5) · Pronation/Supination (3.6) · Posturaler Tremor (3.15) · Ruhetremor (3.17)</td></tr>
+<tr><td><b>Kognitiv-motorisch</b></td><td>Türme von Hanoi · Räumliche Reaktionszeit (S-SRT) · Trail Making A/B</td></tr>
+<tr><td><b>Okulomotorik</b> (Webcam)</td><td>Fixation &amp; Blinzeln · Sakkaden-Test (mit 5-Punkt-Eichung)</td></tr>
+<tr><td><b>Gesten</b></td><td>12 klinische Handposen mit Referenz-Bibliothek (Gesture&nbsp;Lab)</td></tr>
+</table>
+
+<h2 id="schnellstart">2&nbsp;· Schnellstart</h2>
+<ol class="steps">
+<li><b>Starten:</b> macOS <code>./start.sh</code> · Windows <code>start.ps1</code> /
+    <code>start.bat</code> (legt beim ersten Mal die Python-Umgebung an).
+    Ohne Sensor: <code>./start.sh --mock</code> (Simulationsmodus).</li>
+<li><b>Patient wählen</b> oder neu anlegen (Startbildschirm).</li>
+<li><b>„+ Neue Session"</b> → Test-Kachel anklicken → bei Hand-Tests Hand wählen.</li>
+<li>Anweisungen folgen — die Aufnahme startet erst, wenn Hand bzw. Gesicht
+    erkannt wurde (Countdown 3-2-1).</li>
+<li><b>Ergebnis</b> wird automatisch gespeichert; „Fortfahren" führt zurück zum Dashboard.</li>
+</ol>
+
+<figure><img src="img/01_patienten.png" alt="Patientenliste">
+<figcaption>Startbildschirm: Patientenliste. Unten links „✋ Gesture Lab" (Gesten-Bibliothek),
+oben „Über Motryx" mit Versionsnummer, unten „Tracking" für die Eingabequelle.</figcaption></figure>
+
+<h2 id="quellen">3&nbsp;· Eingabequellen</h2>
+<p>Die Tracking-Quelle ist jederzeit umschaltbar (Startbildschirm → <b>„Tracking"</b>).
+Jede Messung speichert ihre Quelle mit; Tests, die eine Quelle nicht leisten kann,
+sind im Dashboard automatisch gesperrt (ausgegraut mit Begründung).</p>
+
+<table>
+<tr><th>Quelle</th><th>Stärken</th><th>Hinweise</th></tr>
+<tr><td><span class="badge b-leap">Leap Motion</span></td>
+    <td>Präziseste 3D-Handdaten (echte mm, absolute Position), 120&nbsp;Hz</td>
+    <td>Benötigt Sensor + Ultraleap-Software; keine Augen-Tests</td></tr>
+<tr><td><span class="badge b-cam">Webcam</span></td>
+    <td>Ohne Spezialhardware; Hand- <i>und</i> Gesichts-/Augen-Tracking;
+        Tremor über Augen-Referenz</td>
+    <td>mm-Werte sind Modellschätzungen (Anzeige „≈mm"); gute Beleuchtung wichtig</td></tr>
+<tr><td><span class="badge b-vid">Video</span></td>
+    <td>Handy-Videos nachträglich auswerten (VideoLab)</td>
+    <td>siehe Kapitel <a href="#videolab">VideoLab</a></td></tr>
+<tr><td><span class="badge b-sim">Simulation</span></td>
+    <td>Demo &amp; Schulung ohne Hardware</td>
+    <td>Ergebnisse deutlich als „⚠ SIMULATION" markiert</td></tr>
+</table>
+
+<figure><img src="img/10_eingabequelle.png" alt="Eingabequelle">
+<figcaption>Eingabequelle: Kandidat testen (Vorschau mit Skelett-Overlay), dann „Übernehmen".
+Hier lässt sich auch ein Video-Clip für den Simulationsbetrieb aufnehmen.</figcaption></figure>
+
+<div class="hint"><b>≈mm — was heißt das?</b> Bei Kamera-Quellen (Webcam/Video) sind
+Millimeter-Angaben Schätzungen des Tracking-Modells (unkalibriert). Frequenzen, Zeiten,
+Winkel und Verhältnisse sind exakt. Für Verlaufsvergleiche derselben Hand sind ≈mm-Werte
+gut geeignet; absolute Vergleiche zwischen Geräten nicht. Die App kennzeichnet alle
+betroffenen Werte automatisch.</div>
+
+<h2 id="patienten">4&nbsp;· Patienten &amp; Sessions</h2>
+<figure><img src="img/02_patient_detail.png" alt="Patienten-Detail">
+<figcaption>Patienten-Detail: Session-Matrix (Zeilen = Sitzungen, Spalten = Tests).
+Zellen anklicken öffnet die Detailansicht; gedrückt halten bietet Aktionen
+(Messung ergänzen, Session löschen). Oben: 🎬 VideoLab, ✋ Gesture Lab, 📈 Verlauf.</figcaption></figure>
+<ul>
+<li><b>Zellen-Symbole:</b> L/R = durchgeführte Hand, ✓ = bilateral/Augen erledigt, · = offen.</li>
+<li><b>CSV-Export</b> (unten) exportiert alle Messungen des Patienten für die Statistik.</li>
+<li>Jede Messung speichert <b>Quelle</b> (Leap/Webcam/Video/Simulation), Dauer und Rohdaten-Verweis.</li>
+</ul>
+
+<h2 id="tests">5&nbsp;· Tests durchführen</h2>
+<figure><img src="img/04_dashboard.png" alt="Dashboard">
+<figcaption>Test-Dashboard: 11 Kacheln. Motorik mit L/R-Chips, Tremor „L+R" (bilateral),
+Augen-Tests mit „👁 Augen"-Chip (keine Handwahl). Testdauer oben einstellbar.</figcaption></figure>
+
+<h3>Ablauf Hand-Tests</h3>
+<ol class="steps">
+<li>Kachel anklicken → Hand wählen (bzw. automatisch bei bilateral/kognitiv).</li>
+<li><b>Bereitschafts-Gate:</b> Hand über Sensor / vor Kamera halten — erkannt → Countdown 3-2-1.</li>
+<li>Aufnahme mit Live-Kurve; Test stoppt automatisch nach der eingestellten Dauer.</li>
+</ol>
+
+<h3>Kognitiv-motorische Tests</h3>
+<ul>
+<li><b>Türme von Hanoi:</b> Scheiben per Pinzettengriff (Daumen+Zeigefinger) greifen,
+    über den Zielstab führen, loslassen.</li>
+<li><b>S-SRT:</b> Hand zum aufleuchtenden Ziel bewegen und kurz halten; misst implizites Sequenz-Lernen.</li>
+<li><b>Trail Making:</b> Ziele in Reihenfolge „verbinden" (Teil A: Zahlen, Teil B: Zahlen/Buchstaben im Wechsel).</li>
+</ul>
+
+<h2 id="okulo">6&nbsp;· Augen-Tests (Okulomotorik)</h2>
+<p>Beide Tests laufen über die <b>Webcam</b> und brauchen keine Hand.
+Voraussetzungen: Gesicht frontal, gut beleuchtet, vollständig im Bild; Abstand ca. 50–70&nbsp;cm.</p>
+
+<h3>Fixation &amp; Blinzeln</h3>
+<figure><img src="img/05_fixation_gate.png" alt="Gesichts-Gate">
+<figcaption>Der Test startet erst, wenn ein Gesicht erkannt ist:
+„Gesicht erkannt ✓ — Start in 3…". Geht das Gesicht verloren, setzt der Countdown zurück.</figcaption></figure>
+<p>Proband schaut die Testdauer ruhig in die Kamera, Kopf still, normal blinzeln.
+<b>Keine Eichung nötig</b> — gemessen wird die Blick-<i>Stabilität</i> relativ zu den Augenwinkeln.
+Ergebnis: Blinkrate/min (bei M.&nbsp;Parkinson oft reduziert), Fixationsstreuung (%IPD),
+sakkadische Intrusionen, mittlere Lidspalte.</p>
+
+<h3>Sakkaden-Test</h3>
+<figure><img src="img/08_sakkaden_start.png" alt="Sakkaden Start">
+<figcaption>Sakkaden-Test: Startansicht mit Anweisung. „▶ Eichung starten" beginnt Phase 1.</figcaption></figure>
+<ol class="steps">
+<li><b>Phase 1 – Eichung (~13&nbsp;s):</b> Ein Punkt erscheint nacheinander an
+    5 Positionen (Ecken + Mitte). Jeden Punkt ruhig fixieren, <b>nur die Augen bewegen</b>.</li>
+<li><b>Phase 2 – Test (30&nbsp;s):</b> Punkte erscheinen in zufälliger Folge
+    (bevorzugt weite Sprünge). So schnell wie möglich hinschauen — sobald der Blick
+    das Ziel kurz hält, springt der Punkt weiter.</li>
+</ol>
+<figure><img src="img/09_sakkaden_eichung.png" alt="Sakkaden Eichung">
+<figcaption>Phase 1: Eichpunkt 2/5 (rechts oben). Kopf ruhig — ein Kopfpose-Wächter
+erkennt Drehungen und wertet betroffene Abschnitte nicht.</figcaption></figure>
+<p><b>Ergebnis:</b> erreichte Ziele &amp; Ziele/min, Sakkaden-Latenz (Median/Mittel),
+Richtungsfehler-Rate, Anteil ungültiger Abschnitte (Kopfbewegung, Blinzeln).</p>
+<div class="warn"><b>Eichung schlägt fehl?</b> Meldung „Blick zu unruhig" oder
+„Punkte nicht trennbar" → näher an den Bildschirm (größere Blickwinkel), Beleuchtung
+verbessern, Brillenreflexe vermeiden. Feineinstellungen:
+<code>paradigms/test_config.yaml → saccade_test</code>.</div>
+
+<h2 id="ergebnisse">7&nbsp;· Ergebnisse &amp; Verlauf</h2>
+<figure><img src="img/07_ergebnis_tapping.png" alt="Ergebnis Finger Tapping">
+<figcaption>Ergebnis-Screen (Finger Tapping): Feature-Tabelle mit MPI (farbcodiert),
+Zeitverlauf + Peaks. Unten: Verwerfen / Neu aufnehmen / CSV / Fortfahren
+und die Rohdaten-Option.</figcaption></figure>
+<figure><img src="img/06_ergebnis_fixation.png" alt="Ergebnis Fixation">
+<figcaption>Ergebnis „Fixation &amp; Blinzeln": Blickversatz-Verlauf (links, Intrusionen
+als Spitzen) und Lidspalte mit Blink-Schwelle (rechts).</figcaption></figure>
+<ul>
+<li><b>MPI (Motor Performance Index):</b> Komposit-Score 0–1 aus Geschwindigkeit,
+    Amplitude, Ermüdung und Regelmäßigkeit — grün &gt; 0,7 · gelb 0,4–0,7 · rot &lt; 0,4.</li>
+<li><b>Automatisches Speichern:</b> Jedes Ergebnis wird sofort in der Datenbank abgelegt
+    („Verwerfen" löscht es wieder). Optional werden die Roh-Frames als JSON gesichert.</li>
+</ul>
+<figure><img src="img/03_verlauf.png" alt="Verlaufsansicht">
+<figcaption>📈 Verlauf: beliebiges Merkmal über die Zeit, getrennt nach Hand.
+Hohle Punkte = Kamera-Quelle (≈mm-Modellskala), gefüllte = Leap.</figcaption></figure>
+
+<h2 id="videolab">8&nbsp;· VideoLab — Handy-Videos auswerten</h2>
+<figure><img src="img/11_videolab.png" alt="VideoLab">
+<figcaption>VideoLab: Video laden, Bereich mit den zwei Reglern markieren,
+Segment benennen und Paradigma zuordnen, dann analysieren.</figcaption></figure>
+<ol class="steps">
+<li><b>Video laden</b> — wird automatisch normalisiert (Größe/Format);
+    falsch orientierte Videos mit <b>↻ 90°</b> drehen.</li>
+<li><b>Segment markieren</b> (Onset/Offset auf der Zeitleiste) → „Bereich übernehmen" →
+    Paradigma + Hand wählen. Tremor ist per <i>Augen-Referenz</i> möglich
+    (Gesicht muss im Video sichtbar sein).</li>
+<li><b>Defacing</b> (Checkbox): anonymisiert das Gesicht im gespeicherten Segment-Clip —
+    <i>hand-schonend</i>: eine Hand vor dem Gesicht bleibt scharf.
+    Die Analyse läuft immer auf dem Original.</li>
+<li><b>▶ Analyse starten</b> — läuft mit Overlay und Live-Kurve; die bewegte Hand wird
+    automatisch erkannt und der gewählten Seite zugeordnet.</li>
+<li><b>💾 In Patientenakte</b> übernimmt das Ergebnis als reguläre Messung
+    (erscheint in Matrix und Verlauf, Quelle „video").</li>
+</ol>
+
+<h2 id="gesturelab">9&nbsp;· Gesture Lab — klinische Handposen</h2>
+<figure><img src="img/12_gesturelab.png" alt="Gesture Lab">
+<figcaption>Gesture Lab mit drei Bereichen: GESTEN (Referenzposen aufnehmen),
+ANALYSE (Soll/Ist-Vergleich, Gewichte), ERKENNUNG (Einzeln oder 12-Posen-Batterie).
+Kopfzeile zeigt Patient und aktive Quelle.</figcaption></figure>
+<ul>
+<li><b>Bibliothek aufbauen</b> (einmalig, ohne Patient): im Bereich GESTEN jede Pose
+    aufnehmen (statisch: stoppt automatisch nach 3&nbsp;s). Mit <b>⬆ Export / ⬇ Import</b>
+    lässt sich die fertige Bibliothek als JSON zwischen Rechnern teilen.</li>
+<li><b>Patientenbezogene Batterie:</b> aus der <i>Patienten-Detailansicht</i> öffnen →
+    ERKENNUNG → Modus „Batterie" → alle 12 Posen durchlaufen →
+    <b>💾 In Patientenakte speichern</b>. Ergebnis (Score, Ähnlichkeiten pro Pose)
+    erscheint in Matrix und Verlauf.</li>
+<li>Live-Feedback pro Finger (❌/✓) zeigt, welcher Finger von der Referenz abweicht.</li>
+</ul>
+
+<h2 id="tipps">10&nbsp;· Tipps &amp; Fehlerbehebung</h2>
+<table>
+<tr><th>Problem</th><th>Lösung</th></tr>
+<tr><td>„Sensor nicht erkannt"</td>
+    <td>Ultraleap-Software installiert und Dienst gestartet? USB prüfen (LED grün).
+        Nur eine App-Instanz gleichzeitig. Details: README → Troubleshooting.</td></tr>
+<tr><td>Webcam-Tests gesperrt</td>
+    <td>MediaPipe-Umgebung einrichten: <code>bash mediapipe_sidecar/setup_sidecar.sh</code>,
+        dann unter „Tracking" die Webcam übernehmen.</td></tr>
+<tr><td>„Kein Gesicht erkannt"</td>
+    <td>Frontal in die Kamera, Gesicht vollständig im Bild, mehr Licht,
+        starke Gegenlichter vermeiden.</td></tr>
+<tr><td>Sakkaden-Eichung scheitert</td>
+    <td>Näher an den Bildschirm, Kopf ruhig (ggf. Kinn aufstützen);
+        Schwellen in <code>test_config.yaml → saccade_test</code> lockern.</td></tr>
+<tr><td>Tremor auf Webcam gesperrt / Warnung „Augen-Referenz"</td>
+    <td>Gesicht muss mit im Bild sein (liefert den Maßstab). Bei &lt; 50&nbsp;%
+        Abdeckung erscheint eine Warnung — Amplituden dann nicht verwenden.</td></tr>
+<tr><td>Fehler direkt nach einem Software-Update</td>
+    <td>App einmal <b>neu starten</b> (alte Sitzung kann gemischte Modul-Stände laden).</td></tr>
+<tr><td>Logs einsehen</td>
+    <td>Statusleiste → „Log" (Live-Ansicht) oder <code>data/logs/tappd.log</code>.</td></tr>
+</table>
+
+<figure><img src="img/13_ueber.png" alt="Über-Dialog">
+<figcaption>„Über Motryx": Funktionsübersicht, Version und Laufzeitinfo.
+Dieses Handbuch ist über den Button „📖 Anleitung" auf dem Startbildschirm erreichbar.</figcaption></figure>
+
+<div class="hint"><b>Hinweis:</b> Motryx ist ein Forschungsprototyp und kein
+zugelassenes Medizinprodukt. Es ersetzt keine ärztliche Untersuchung.</div>
+
+</main>
+<footer>Motryx 0.3.0 · © 2026 Stefan Brodoehl · Screenshots automatisch erzeugt aus der App
+(<code>docs/make_screenshots.py</code>)</footer>
+</body>
+</html>

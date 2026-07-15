@@ -8,6 +8,9 @@ Versionierung: SemVer-artig (0.x = Forschungsprototyp).
 **Multimodal-Release: TrackingFrame-Envelope, Face-Stream, Okulomotorik.**
 
 ### Hinzugefügt
+- **Nutzerhandbuch** (`docs/manual.html`, deutsch, mit App-Screenshots aus
+  `docs/make_screenshots.py`); in der App erreichbar über „📖 Anleitung" auf
+  dem Startbildschirm.
 - **Okulomotorik-Kategorie (OCULAR)** mit zwei Paradigmen, beide per Webcam
   (auf Leap gesperrt via Capability `face_landmarks`):
   - **Fixation & Blinzeln** (`ocular_fixation`): Blinkrate/min (PD:

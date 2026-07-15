@@ -53,6 +53,7 @@ Die Quelle wird mit jeder Messung gespeichert (Simulationsdaten sind klar als so
 
 ## Dokumentation
 
+Nutzerhandbuch: **docs/manual.html** (Button „📖 Anleitung" auf dem Startbildschirm).
 Technischer Einstieg: [BLUEPRINT.md](BLUEPRINT.md) (Komponenten-Gesamtkarte) ·
 [README.md](README.md) (Installation & Bedienung).
 

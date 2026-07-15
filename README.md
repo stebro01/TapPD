@@ -244,6 +244,8 @@ Auf Windows erledigen `start.ps1`/`start.bat` dies automatisch beim ersten Start
 
 - **[BLUEPRINT.md](BLUEPRINT.md)** – Einstiegspunkt: Komponenten-Gesamtkarte,
   Datenfluesse, Konzepte, Status
+- **[docs/manual.html](docs/manual.html)** – Nutzerhandbuch mit Screenshots
+  (auch in der App: Startbildschirm → „📖 Anleitung")
 - [CHANGELOG.md](CHANGELOG.md) – Versionshistorie
 - [ARCHITECTURE.md](ARCHITECTURE.md) – Layer-Contracts (APIs), Naming-Schema,
   Ausbaustufen-Historie
