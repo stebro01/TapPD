@@ -12,6 +12,9 @@ VideoLab schneiden, anonymisieren und auswerten.
 
 - 5 klinische Motorik-Tests (MDS-UPDRS 3.4, 3.5, 3.6, 3.15, 3.17) + 3
   kognitiv-motorische Paradigmen (Tuerme von Hanoi, Spatial SRT, Trail Making Test)
+- **Okulomotorik per Webcam**: Fixation & Blinzeln (Blinkrate, Fixationsstreuung)
+  und Sakkaden-Test (5-Punkt-Eichung → gaze-contingente Ziele, Latenz,
+  Richtungsfehler, Kopfpose-Waechter)
 - **Vier Tracking-Quellen**, zur Laufzeit umschaltbar: Leap Motion (praeziseste
   3D-Position), Webcam (MediaPipe), Video-Replay, Simulation — mit
   Capability-Gating (Tests, die eine Quelle nicht unterstuetzt, sind gesperrt)
@@ -143,6 +146,8 @@ eine Analyse jeder Komponente) steht in **[BLUEPRINT.md](BLUEPRINT.md)**. Kurzfa
 | Tuerme von Hanoi | – | Zuege/Effizienz, Planungszeit, Greif-Metriken, Trajektorie, Jitter |
 | Spatial SRT | – | RT/Bewegungszeit, Lernindex (Sequenz vs. Zufall), Pfad-Effizienz |
 | Trail Making A/B | – | Gesamtzeit, RT, Fehler, Pfad-Effizienz, Fatigue |
+| Fixation & Blinzeln | Okulo. | Blinkrate, Fixationsstreuung (%IPD), Intrusionen |
+| Sakkaden-Test | Okulo. | Ziele/min, Latenz (ms), Richtungsfehler, Kopf-Waechter |
 
 Die vollstaendigen Feature-Tabellen mit Beschreibungen, Einheiten und
 Aufgaben-Details stehen in
@@ -239,6 +244,7 @@ Auf Windows erledigen `start.ps1`/`start.bat` dies automatisch beim ersten Start
 
 - **[BLUEPRINT.md](BLUEPRINT.md)** – Einstiegspunkt: Komponenten-Gesamtkarte,
   Datenfluesse, Konzepte, Status
+- [CHANGELOG.md](CHANGELOG.md) – Versionshistorie
 - [ARCHITECTURE.md](ARCHITECTURE.md) – Layer-Contracts (APIs), Naming-Schema,
   Ausbaustufen-Historie
 - [TECHNICAL_DETAILS.md](TECHNICAL_DETAILS.md) – Klinische Tests + Features,

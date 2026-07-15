@@ -27,6 +27,10 @@ Die Quelle wird mit jeder Messung gespeichert (Simulationsdaten sind klar als so
 - **Räumliche Reaktionszeit (S-SRT)** – Implizites Sequenz-Lernen
 - **Trail Making Test (dTMT)** – Verarbeitungsgeschwindigkeit & Set-Shifting
 
+**Okulomotorik (Kamera):**
+- **Fixation & Blinzeln** – Blinkrate, Fixationsstabilität, sakkadische Intrusionen
+- **Sakkaden-Test** – 5-Punkt-Eichung, dann gaze-contingente Zufallsziele (Latenz, Ziele/min, Richtungsfehler)
+
 **Gesten:**
 - **Gesten-Batterie (Gesture Lab)** – 12 klinische Handposen mit Referenz-Bibliothek, Ähnlichkeits-Scoring und Fehleranalyse pro Finger
 

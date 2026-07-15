@@ -15,7 +15,7 @@
                                    │  PatientScreen → PatientDetail ─┬─ 📈 Verlauf  │
                                    │        │                        ├─ DetailDialog│
                                    │        ▼                        └─ CSV-Export  │
-                                   │  TestDashboard → TestScreen / Hanoi/SRT/TMT    │
+                                   │  TestDashboard → TestScreen / Hanoi/SRT/TMT/Sakk.│
                                    │  VideoLab │ GestureLab │ Eingabequelle │ Results│
                                    └───────┬──────────┬─────────────┬───────────────┘
                                            │ frames   │ clips/play  │ save/load
@@ -40,7 +40,7 @@
                  PARADIGM-LAYER                                          │
 ┌────────────────────────────────────────────────────────────┐          │
 │                    paradigms/  (Paradigm)                │          │
-│  registry.py (SINGLE SOURCE OF TRUTH: 10 ParadigmSpecs)     │          │
+│  registry.py (SINGLE SOURCE OF TRUTH: 11 ParadigmSpecs)     │          │
 │  BaseParadigm ── ParadigmRunner (geteilter Frame-Pump)    │──────────┘
 │  recorder.py (config-getriebene Feature-Berechnung + MPI)  │  features
 │       │  nutzt                                             │
@@ -176,13 +176,15 @@ vorbereitete nächste Ausbauschritt.
 trägt. Analyse läuft grundsätzlich auf dem **Original** (voller Qualität, ungeblurrt); der
 Deface-Clip ist Archiv/Review und Fallback.
 
-### 3.4 `paradigms/` — Paradigm-Layer (Motorik + Kognition)
+### 3.4 `paradigms/` — Paradigm-Layer (Motorik + Kognition + Okulomotorik)
 
 ```
-registry.py ─ 9 ParadigmSpecs (Key, Label, UPDRS, Kategorie, bilateral, Screen, Klasse)
+registry.py ─ 11 ParadigmSpecs (Key, Label, UPDRS, Kategorie, bilateral, Screen, Klasse)
    MOTOR:     finger_tapping(3.4) hand_open_close(3.5) pronation_supination(3.6)
               postural_tremor(3.15,bilat) rest_tremor(3.17,bilat)
    COGNITIVE: tower_of_hanoi  spatial_srt  trail_making_a/_b
+   OCULAR:    ocular_fixation (Blinkrate/Fixationsstreuung)
+              saccade_test (5-Punkt-Eichung → gaze-contingente Ziele)
 ```
 
 | Datei | Rolle |
@@ -191,12 +193,13 @@ registry.py ─ 9 ParadigmSpecs (Key, Label, UPDRS, Kategorie, bilateral, Screen
 | `runner.py` | `ParadigmRunner` — geteilter Frame-Pump (TestScreen **und** VideoLab): SETTLE-/Dauer-Gate bzw. `sidecar_bounded`, adaptiert einmal pro Frame, thread-sichere Live-Puffer (`live_snapshot`/`replace_live`). |
 | `recorder.py` | Config-getriebene Auswertung: Konfidenzfilter → Trim → Resampling → Detrend/Outlier → Bandpass (Ordnung aus YAML) → Peaks (Prominenz, `max_frequency_hz`-Cap) → Feature-Methoden (Frequenz, Amplitude, CV, Dekrement, Geschwindigkeit …) → **MPI**. Bilateral: pro Hand + Asymmetrie-Indizes (FFT-Band). |
 | `test_config.yaml` | Pro Paradigma: capture (Metrik, base_y, requires), analysis (Filter/Peaks/FFT), features, mpi-Gewichte. Metadaten-Duplikate zur Registry wurden entfernt. |
-| Einzelparadigmen | `finger_tapping`, `hand_open_close`, `pronation_supination`, `tremor`/`rest_tremor` (base_y aus Config), `tower_of_hanoi` (+`hanoi_logic`, `pinch_detector`), `spatial_srt` (+`srt_logic`), `trail_making` (+`tmt_logic`, Teil A/B via `cls_kwargs`). |
+| Einzelparadigmen | `finger_tapping`, `hand_open_close`, `pronation_supination`, `tremor`/`rest_tremor` (base_y aus Config), `tower_of_hanoi` (+`hanoi_logic`, `pinch_detector`), `spatial_srt` (+`srt_logic`), `trail_making` (+`tmt_logic`, Teil A/B via `cls_kwargs`), `ocular_fixation` (FacePose-Konsument), `saccade_test` (+`saccade_logic`: Eichung/Klassifikator/Statemachine, headless). |
 | `config.py` | YAML-Loader, Task-Requirements → `get_unmet_capabilities`, quellabhängige Hand-Prompts. |
 
 **Bewertung:** Registry-zentriert und config-getrieben — neue Paradigmen sind additiv
-(Spec + Klasse + YAML-Block). Bekannte Namensschuld: Paket heißt `paradigms`, enthält
-aber Kognition; `BaseParadigm`/`is_spatial` analog (Rename → `paradigms/` geplant).
+(Spec + Klasse + YAML-Block), bewiesen durch die OCULAR-Kategorie: zwei Augen-
+Paradigmen ohne Anfassen bestehender Tests. Historische Namensschuld
+(`motor_tests`, `BaseMotorTest`, `is_spatial`) ist bereinigt.
 
 ### 3.5 `analysis/` — DSP-Kern
 
@@ -234,13 +237,13 @@ dynamische Gesten (Posen 9–12) werden aufgenommen, aber noch nicht live gescor
 Zielbild (PROVIDER_DIMENSION, CQL, Trigger …) — bewusst Teilmenge. Keine generische
 Schema-Versionstabelle (Migrationen sind Presence-basiert).
 
-### 3.8 `ui/` — Präsentationsschicht (PyQt6, 11 Screens im Stack)
+### 3.8 `ui/` — Präsentationsschicht (PyQt6, 12 Screens im Stack)
 
 ```
 PatientScreen ─► PatientDetailScreen ─┬─► TestDashboard ─► TestScreen ─► ResultsScreen
    │  (Matrix Sessions × Tests,       ├─► VideoLabScreen        ▲  (ReadinessGate 1-2-3)
    │   Klick → DetailDialog,          ├─► TrendDialog 📈        │
-   │   Long-Press/Kontext)            └─► Hanoi/SRT/TMT ────────┘
+   │   Long-Press/Kontext)            └─► Hanoi/SRT/TMT/Sakkaden┘
    └─► GestureLabScreen (Gesten/Analyse/Detect)      TrackingScreen („Eingabequelle")
 ```
 
@@ -255,7 +258,7 @@ PatientScreen ─► PatientDetailScreen ─┬─► TestDashboard ─► TestS
 | `feature_meta.py` | Anzeige-Namen + Einheiten aller Features; ≈mm-Logik (`unit_label`, `SCALE_NOTE`). |
 | `widgets/` | Geteilt: `WebcamPreview` (JPEG + Landmark-Overlay), `LiveMetricPlot`. |
 | `pretest_gate.py`, `hand_visualization.py`, `video_timeline.py`, `test_dashboard.py`, `log_viewer.py`, `theme.py` | Gate-Overlay, 3D-Hand, Zwei-Griff-Timeline, Kachel-Dashboard mit Gating, Log-GUI, Theme (Farben/Größen — teils noch inline dupliziert). |
-| `hanoi_screen.py`, `srt_screen.py`, `tmt_screen.py`, `gesture_lab_*.py` | Task-spezifische Screens (Spiel-Logik in `paradigms/*_logic.py` gehalten). |
+| `hanoi_screen.py`, `srt_screen.py`, `tmt_screen.py`, `saccade_screen.py`, `gesture_lab_*.py` | Task-spezifische Screens (Spiel-/Task-Logik in `paradigms/*_logic.py` gehalten; Sakkaden: dunkler Stimulus-Canvas mit Eich-/Testphase). |
 
 **Bewertung:** Die frühere TestScreen↔VideoLab-Duplikation ist über Runner + geteilte
 Widgets beseitigt. Schwächste Stelle: Inline-Stylesheets mit hartkodierten Farben an
@@ -277,19 +280,29 @@ mehreren Orten statt konsequent `theme.py`.
 
 ## 4. Status & bekannte Lücken (ehrliche Restliste)
 
-**Trägt:** Source-Abstraktion mit dynamischem Gating · registry-getriebene Paradigmen ·
-config-getriebene Auswertung + MPI · Video-Pipeline inkl. hand-aware Defacing und
-DB-Export · Provenienz durchgängig (Blob + SQL) · ≈mm-Ehrlichkeit in allen Anzeigen ·
-Verlaufsansicht · 225 grüne Tests inkl. echter Sidecar-Integration.
+**Trägt:** Source-Abstraktion mit dynamischem Gating · registry-getriebene Paradigmen
+(11, inkl. zwei OCULAR) · **TrackingFrame-Envelope** durch die ganze Pipeline
+(alle Hände eines Sensorframes + FacePose; bilateral konstruktionsbedingt
+symmetrisch) · Face-Stream im Sidecar (eco/full, Iris + Augenwinkel + EAR +
+Nase) · config-getriebene Auswertung + MPI · Video-Pipeline inkl. hand-aware
+Defacing und DB-Export · Provenienz durchgängig (Blob + SQL) · ≈mm-Ehrlichkeit
+in allen Anzeigen · Verlaufsansicht · Theme zentralisiert · 252 grüne Tests
+inkl. echter Sidecar-Integration.
 
 **Offen (geplant):**
-1. **TrackingFrame-Migration** — Envelope-Callback (hands+face+gaze) statt `HandFrame`
-   pro Hand; danach fallen die Aliase; Voraussetzung für Face-/Okular-Paradigmen.
-2. **Face-/Okulomotorik-Paradigmen** (Sakkaden, Pursuit, Mimik) — Sidecar-Unterbau steht.
-3. **Rename** `paradigms/` → `paradigms/` (+ `BaseParadigm`, `is_spatial`).
-4. **Theme-Zentralisierung** (Inline-Farben → `theme.py`/YAML); `mock_capture`-Parameter → YAML.
-5. Klinische **Validierung** der Eye-Ref-Tremor-Amplituden an realem Videomaterial
-   (z-Achse prinzipbedingt nicht erfassbar; In-Plane-Messung).
-6. Kleineres: `.eyeref.json` hat (nach der Live-Eye-Ref-Lösung) keinen Konsumenten;
-   `CAP_FOREARM` ohne Anbieter; Hanoi-Magic-Numbers (Pinch-Schwelle, Zeitfenster) noch
-   nicht in YAML; keine Schema-Versionstabelle.
+1. Klinische **Validierung an realem Material**: Eye-Ref-Tremor-Amplituden
+   (z-Achse prinzipbedingt nicht erfassbar; In-Plane-Messung), Schwellen der
+   Augen-Tests (`saccade_test`-Block: dwell/confidence_margin/Kopf-Toleranzen),
+   Referenzmessungen Leap vs. Webcam.
+2. **Mimik-Batterie** über Blendshapes (Hypomimie) und **Smooth Pursuit**;
+   kalibrierte `GazePose` — Sidecar-Protokoll ist vorbereitet (additiv).
+3. **GestureLab-Reste**: dynamische Gesten (Posen 9–12) live scoren
+   (DTW existiert, wird nicht aufgerufen); Gesten direkt auf VideoLab-
+   Segmenten; ANALYSE-Raster entzerren.
+4. Optionale **Handlängen-Kalibrierung** für echte mm auf Kamera-Quellen.
+5. Analyse-Ideen aus OPTIMIZATION_PLAN Phase 2–3 (Welch-PSD, Hesitation-/
+   Freezing-Erkennung, Qualitätsmetriken) — zusammen mit 1. validieren.
+6. Kleineres: `.eyeref.json` ohne Konsumenten (Archiv-Fallback);
+   `CAP_FOREARM` ohne Anbieter; Hanoi-Magic-Numbers noch nicht in YAML;
+   keine Schema-Versionstabelle; `HandFrame`/`BaseCaptureDevice`-Aliase
+   bleiben als bequeme per-Hand-API.

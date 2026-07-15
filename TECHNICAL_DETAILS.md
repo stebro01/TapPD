@@ -311,6 +311,44 @@ mean_peak_velocity_mm_s, n_errors, error_rate_per_target, mean_dwell_time_ms, fa
 
 ---
 
+### Okulomotorik (Kamera-Quellen, FacePose-Stream)
+
+Beide Tests brauchen keine Hand — sie konsumieren den Face-Stream des Sidecars
+(Iris-Zentren, Augenwinkel, Eye-Aspect-Ratio, Nasenspitze; volle Framerate).
+Auf dem Leap-Sensor sind sie gesperrt (Capability `face_landmarks`).
+
+**Fixation & Blinzeln** (`ocular_fixation`) — Proband schaut ruhig in die
+Kamera (Gesichts-Gate: Start erst bei erkanntem Gesicht). Keine Eichung
+nötig: gemessen wird die Stabilität relativ zu den Augenwinkeln.
+
+| Feature | Beschreibung | Einheit |
+|---------|-------------|---------|
+| blink_rate_per_min | Blinzelrate (bei M. Parkinson reduziert) | /min |
+| gaze_dispersion_pct_ipd | Fixationsstreuung (RMS, blink-bereinigt) | %IPD |
+| saccadic_intrusions_per_min | Abrupte Blicksprünge waehrend Fixation | /min |
+| mean_ear | Mittlere Lidspalte (Eye-Aspect-Ratio) | – |
+| face_coverage | Anteil Frames mit erkanntem Gesicht | – |
+
+**Sakkaden-Test** (`saccade_test`) — Phase 1: 5-Punkt-Eichung (Ecken + Mitte,
+Median-Blickversatz je Punkt als Referenz, Validierung auf Ruhe/Trennbarkeit).
+Phase 2 (30 s): gaze-contingente Zufallsziele mit Praeferenz fuer grosse
+Spruenge; Treffer = klassifizierte Zone haelt `dwell_s`. Kopfpose-Waechter
+(Roll/IPD/Nase relativ zur Eichung) markiert Kopfbewegung als ungueltig.
+Alle Schwellen: `paradigms/test_config.yaml` → `saccade_test`.
+
+| Feature | Beschreibung | Einheit |
+|---------|-------------|---------|
+| n_targets_acquired / targets_per_min | Erreichte Ziele | – bzw. /min |
+| median/mean_latency_ms | Sakkaden-Latenz (Stimulus → Blick-Ankunft) | ms |
+| direction_error_rate | Erster Blicksprung in falsche Richtung | – |
+| head_invalid_pct / blink_pct | Ungueltige Anteile | – |
+| calibration_ok | Eichung gueltig | 0/1 |
+
+Bewusst NICHT ausgewiesen: Spitzengeschwindigkeit in °/s — bei 30-Hz-Kamera
+nicht messbar (Sakkadendauer 30–80 ms); Latenz-/Zaehlmetriken sind valide.
+
+---
+
 ## 7. Signalverarbeitung (analysis/signal_processing.py)
 
 ### Pipeline-Reihenfolge
