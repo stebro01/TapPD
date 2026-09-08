@@ -38,7 +38,7 @@ from video.store import (
     STEP_CONFIRMED,
     STEP_PENDING,
     STEP_RECORDED,
-    load_for_patient,
+    load_for_session,
 )
 from ui.detail_dialog import DetailDialog
 from ui.patient_screen import NewPatientDialog
@@ -108,50 +108,30 @@ class PatientDetailScreen(QWidget):
 
         layout.addWidget(self.info_card)
 
-        # ── New session + VideoLab buttons ──
-        btn_row = QHBoxLayout()
-        btn_row.setSpacing(12)
-        btn_row.addStretch()
-        self.new_btn = QPushButton("+ Neue Session")
-        self.new_btn.setProperty("cssClass", "accent")
-        self.new_btn.setFixedHeight(SZ.BTN_H)
-        self.new_btn.setFixedWidth(260)
-        self.new_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
-        self.new_btn.clicked.connect(self._on_new_session)
-        btn_row.addWidget(self.new_btn)
-        self.video_lab_btn = QPushButton("🎬 VideoLab")
-        self.video_lab_btn.setProperty("cssClass", "primary")
-        self.video_lab_btn.setFixedHeight(SZ.BTN_H)
-        self.video_lab_btn.setFixedWidth(200)
-        self.video_lab_btn.setToolTip("Handy-Video hochladen, Bereich wählen und analysieren")
-        self.video_lab_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
-        self.video_lab_btn.clicked.connect(self._on_video_lab)
-        btn_row.addWidget(self.video_lab_btn)
-        self.gesture_btn = QPushButton("✋ Gesture Lab")
-        self.gesture_btn.setProperty("cssClass", "primary")
-        self.gesture_btn.setFixedHeight(SZ.BTN_H)
-        self.gesture_btn.setFixedWidth(170)
-        self.gesture_btn.setToolTip(
-            "Gesten-Batterie für diesen Patienten durchführen und speichern")
-        self.gesture_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
-        self.gesture_btn.clicked.connect(self._on_gesture_lab)
-        btn_row.addWidget(self.gesture_btn)
+        # ── Section header + the one entry point ──
+        # "Neue Sitzung" is the only way in: it opens the session screen, where
+        # protocol, single paradigm and video import are three ways to add
+        # content. VideoLab and Gesture Lab are no longer separate doors here.
+        head = QHBoxLayout()
+        section = QLabel("Sitzungen")
+        section.setProperty("cssClass", "section")
+        head.addWidget(section)
+        head.addStretch()
         self.trend_btn = QPushButton("📈 Verlauf")
+        self.trend_btn.setProperty("cssClass", "flat")
         self.trend_btn.setFixedHeight(SZ.BTN_H)
-        self.trend_btn.setFixedWidth(160)
         self.trend_btn.setToolTip("Merkmale über die Zeit (alle Messungen dieses Patienten)")
         self.trend_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
         self.trend_btn.clicked.connect(self._on_trend)
-        btn_row.addWidget(self.trend_btn)
-        btn_row.addStretch()
-        layout.addLayout(btn_row)
-
-        layout.addSpacing(4)
-
-        # ── Section header ──
-        section = QLabel("Sessions")
-        section.setProperty("cssClass", "section")
-        layout.addWidget(section)
+        head.addWidget(self.trend_btn)
+        self.new_btn = QPushButton("＋ Neue Sitzung")
+        self.new_btn.setProperty("cssClass", "accent")
+        self.new_btn.setFixedHeight(SZ.BTN_H)
+        self.new_btn.setMinimumWidth(180)
+        self.new_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        self.new_btn.clicked.connect(self._on_new_session)
+        head.addWidget(self.new_btn)
+        layout.addLayout(head)
 
         # ── Session tree ──
         # A tree rather than the old test-per-column matrix: a session's
@@ -161,8 +141,8 @@ class PatientDetailScreen(QWidget):
         self.tree = QTreeWidget()
         self.tree.setColumnCount(3)
         self.tree.setHeaderLabels(["Sitzung / Schritt", "Status", "Ergebnis"])
-        self.tree.setColumnWidth(0, 340)
-        self.tree.setColumnWidth(1, 190)
+        self.tree.setColumnWidth(0, 520)
+        self.tree.setColumnWidth(1, 200)
         self.tree.header().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
         self.tree.setAlternatingRowColors(True)
         self.tree.setRootIsDecorated(True)
@@ -258,9 +238,14 @@ class PatientDetailScreen(QWidget):
         all_ms = get_measurements(conn, self._patient.id)
         self._orphan_measurements = [m for m in all_ms if m.session_id is None]
         conn.close()
-        # The recording attached to this patient, if one exists.
-        self._video_session = load_for_patient(self._patient.id,
-                                               self._patient.patient_code)
+        # One video session per clinical session; a legacy per-patient file is
+        # adopted by the newest session (see video.store.load_for_session).
+        newest = self._sessions[0].id if self._sessions else None
+        self._video_sessions = {
+            s.id: load_for_session(self._patient.id, self._patient.patient_code,
+                                   s.id, newest_session_id=newest)
+            for s in self._sessions
+        }
         self._populate()
 
     # ── Table population ──────────────────────────────────────────
@@ -268,19 +253,8 @@ class PatientDetailScreen(QWidget):
     # -- Tree population -------------------------------------------
 
     def _video_session_for(self, session_id: int):
-        """The recording attached to a session, if any.
-
-        Video sessions are still keyed per patient, so there is at most one.
-        It belongs to the session it was exported into; an older one that never
-        recorded a `db_session_id` is shown under the newest session -- the
-        assignment agreed for the migration.
-        """
-        vs = self._video_session
-        if vs is None or not self._sessions:
-            return None
-        if vs.db_session_id is not None:
-            return vs if vs.db_session_id == session_id else None
-        return vs if session_id == self._sessions[0].id else None
+        """The video session attached to a clinical session, if any."""
+        return self._video_sessions.get(session_id)
 
     def _populate(self) -> None:
         self.tree.clear()
@@ -422,30 +396,27 @@ class PatientDetailScreen(QWidget):
         if kind == "session":
             session = node.get("session")
             vs = node.get("video_session")
-            if vs is not None and vs.steps and not vs.is_complete:
-                out.append(("\u25cf Aufnahme fortsetzen",
-                            lambda: self._open_recording(vs), "primary"))
-            else:
-                out.append(("\u25cf Aufnahme starten\u2026",
-                            self._on_video_lab, "primary"))
-            out.append(("+ Messung hinzuf\u00fcgen\u2026",
+            label = ("\u25cf Aufnahme fortsetzen"
+                     if vs is not None and vs.steps and not vs.is_complete
+                     else "Sitzung \u00f6ffnen")
+            out.append((label, lambda: self._open_session(session), "primary"))
+            out.append(("+ Live-Messung hinzuf\u00fcgen\u2026",
                         lambda: self._add_measurement_dialog(session), ""))
-            out.append(("Im VideoLab \u00f6ffnen", self._on_video_lab, ""))
             out.append(("Sitzung l\u00f6schen",
                         lambda: self._delete_session(session), "danger"))
 
         elif kind == "step":
             vs, step = node.get("video_session"), node.get("step")
-            segment = node.get("segment")
+            session = next((s for s in self._sessions
+                            if self._video_sessions.get(s.id) is vs), None)
             if step.state == STEP_CONFIRMED:
                 out.append(("\u21bb Erneut aufnehmen",
-                            lambda: self._retake(vs, step), ""))
+                            lambda: self._retake(vs, step, session), ""))
             else:
                 out.append(("\u25cf Aufnehmen",
-                            lambda: self._open_recording(vs), "primary"))
-            if segment is not None and not step.is_documentation:
-                out.append(("Auswerten / im VideoLab \u00f6ffnen",
-                            self._on_video_lab, ""))
+                            lambda: self._open_session(session, step.id), "primary"))
+            out.append(("Sitzung \u00f6ffnen",
+                        lambda: self._open_session(session), ""))
 
         elif kind == "measurement":
             m = node.get("measurement")
@@ -472,17 +443,16 @@ class PatientDetailScreen(QWidget):
 
     # -- Action helpers --------------------------------------------
 
-    def _open_recording(self, vs) -> None:
-        if vs is None:
-            self._on_video_lab()
+    def _open_session(self, session: Session | None, step_id: str = "") -> None:
+        if session is None:
             return
-        self.main_window.show_recording(vs)
+        self.main_window.show_session(session, step_id=step_id)
 
-    def _retake(self, vs, step) -> None:
+    def _retake(self, vs, step, session) -> None:
         vs.retake_step(step.id)
         vs.save()
         self.refresh()
-        self.main_window.show_recording(vs)
+        self._open_session(session, step.id)
 
     def _show_measurement(self, m: Measurement) -> None:
         DetailDialog(self, m).exec()
@@ -528,16 +498,6 @@ class PatientDetailScreen(QWidget):
     def _on_new_session(self) -> None:
         if self._patient:
             self.main_window.start_new_session()
-
-    def _on_video_lab(self) -> None:
-        if self._patient:
-            self.main_window.current_patient = self._patient
-            self.main_window.show_video_lab()
-
-    def _on_gesture_lab(self) -> None:
-        if self._patient:
-            self.main_window.current_patient = self._patient
-            self.main_window.show_gesture_lab("detail")
 
     def _on_trend(self) -> None:
         if not self._patient or not self._patient.id:

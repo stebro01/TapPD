@@ -7,7 +7,7 @@ import logging
 import shutil
 from pathlib import Path
 
-from PyQt6.QtCore import Qt, QThread, QTimer, QUrl, pyqtSignal
+from PyQt6.QtCore import pyqtSignal, Qt, QThread, QTimer, QUrl, pyqtSignal
 from PyQt6.QtGui import QCursor
 from PyQt6.QtWidgets import (
     QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFileDialog, QFormLayout,
@@ -25,7 +25,7 @@ from ui.widgets.live_metric_plot import LiveMetricPlot
 from ui.widgets.webcam_preview import WebcamPreview
 from ui.video_timeline import VideoTimeline
 from video.config import cfg, video_filter
-from video.store import VideoSession, load_for_patient
+from video.store import VideoSession
 from ui import theme
 
 log = logging.getLogger(__name__)
@@ -177,9 +177,19 @@ class _RenameDialog(QDialog):
 
 
 class VideoLabScreen(QWidget):
-    def __init__(self, main_window) -> None:
+    """Import a video, cut segments, analyse and export them.
+
+    Lives inside the session screen as its "cut" pane (``embedded=True``): the
+    header row is hidden there and the session is handed in by the host rather
+    than looked up per patient.
+    """
+
+    contentChanged = pyqtSignal()   # segments/video changed → host refreshes
+
+    def __init__(self, main_window, embedded: bool = False) -> None:
         super().__init__()
         self.main_window = main_window
+        self._embedded = embedded
         self.session: VideoSession | None = None
         self.current_range = (0.0, 0.0)
         self.current_segment = None
@@ -211,12 +221,6 @@ class VideoLabScreen(QWidget):
         self._title = QLabel("VideoLab")
         self._title.setStyleSheet("font-size: 20px; font-weight: 700; color: #263238;")
         header.addWidget(self._title, 1)
-        self._record_btn = QPushButton("● Protokoll aufnehmen…")
-        self._record_btn.setToolTip(
-            "Video Schritt für Schritt nach einem Protokoll aufnehmen — "
-            "der zweite Eingang neben dem Import")
-        self._record_btn.clicked.connect(self._on_start_recording)
-        header.addWidget(self._record_btn)
         self._load_btn = QPushButton("🎬 Video laden…")
         self._load_btn.clicked.connect(self._on_load_video)
         header.addWidget(self._load_btn)
@@ -224,6 +228,10 @@ class VideoLabScreen(QWidget):
         self._save_btn.clicked.connect(self._on_save_session)
         header.addWidget(self._save_btn)
         root.addLayout(header)
+        if self._embedded:
+            # The host screen carries title, back button and the "add" menu.
+            for w in (back, self._title, self._load_btn, self._save_btn):
+                w.setVisible(False)
 
         # Video row: original info (left) | video (center) | normalized info (right)
         vrow = QHBoxLayout()
@@ -426,6 +434,39 @@ class VideoLabScreen(QWidget):
             self._set_controls_enabled(False)
         self._refresh_segment_list()
 
+    def load_session(self, patient, video: VideoSession) -> None:
+        """Embedded entry: show *this* video session (no per-patient lookup)."""
+        self.current_segment = None
+        self._result_lbl.setText("")
+        self._overlay.clear()
+        self.session = video
+        code = getattr(patient, "patient_code", "") if patient else ""
+        self._title.setText(f"VideoLab – {code}")
+        self._mirror_cb.blockSignals(True)
+        self._mirror_cb.setChecked(bool(video.mirrored))
+        self._mirror_cb.blockSignals(False)
+        if video.video_path:
+            from video.clip import VideoClip
+            self._player.setSource(QUrl.fromLocalFile(video.video_path))
+            self._show_first_frame()
+            try:
+                self._populate_info(VideoClip.load(video.video_path))
+            except Exception:
+                self._populate_info(None)
+            self._set_controls_enabled(True)
+        else:
+            try:
+                self._player.setSource(QUrl())
+            except Exception:
+                pass
+            self._populate_info(None)
+            self._set_controls_enabled(False)
+        self._refresh_segment_list()
+
+    def import_video(self) -> None:
+        """Host-triggered import (the "Video importieren…" menu entry)."""
+        self._on_load_video()
+
     def on_leave(self) -> None:
         self._plot_timer.stop()
         try:
@@ -465,48 +506,6 @@ class VideoLabScreen(QWidget):
             busy.close()
             self._busy = None
 
-    def _on_start_recording(self) -> None:
-        """VideoLab's second input: film a protocol instead of importing one."""
-        if self.session is None:
-            return
-
-        # Already filming this session → carry on where it stopped.
-        if self.session.steps:
-            self.main_window.show_recording(self.session)
-            return
-
-        # Recording and import cannot share a session yet: they disagree about
-        # `mirrored` (a recording is our own raw capture, an import is not), and
-        # the session is still keyed per patient. Say so instead of quietly
-        # corrupting the imported video's orientation.
-        if self.session.video_path:
-            QMessageBox.information(
-                self, "Aufnahme",
-                "Diese Video-Session enthält bereits ein importiertes Video.\n\n"
-                "Aufnahme und Import teilen sich noch keine Session — das kommt "
-                "mit der Umschlüsselung der Video-Sessions auf Sessions "
-                "(siehe SESSION_KONZEPT.md).")
-            return
-
-        from ui.recording_screen import ProtocolChooser
-        from capture.config import source_mirrored
-
-        dialog = ProtocolChooser(self)
-        if dialog.exec() != QDialog.DialogCode.Accepted:
-            return
-        try:
-            protocol = dialog.protocol()
-        except Exception as e:
-            QMessageBox.warning(self, "Protokoll", f"Protokoll nicht nutzbar:\n{e}")
-            return
-
-        self.session.attach_protocol(protocol)
-        # A recording is our own capture: stored raw, so it replays under the
-        # *webcam* mirror setting, not the video default.
-        self.session.mirrored = source_mirrored("webcam")
-        self.session.save()
-        self.main_window.show_recording(self.session)
-
     def _on_mirror_changed(self, _state: int) -> None:
         """Persist the per-video mirror flag on the session."""
         if self.session is None:
@@ -540,6 +539,7 @@ class VideoLabScreen(QWidget):
         self._populate_info(VideoClip.load(dest))
         self._set_controls_enabled(True)
         self._status.setText(f"Video geladen: {name}")
+        self.contentChanged.emit()
 
     def _on_import_failed(self, msg: str) -> None:
         self._hide_busy()
@@ -757,6 +757,7 @@ class VideoLabScreen(QWidget):
                 item.setData(Qt.ItemDataRole.UserRole, seg.id)
                 self._seg_list.addItem(item)
         self._seg_list.blockSignals(False)
+        self.contentChanged.emit()
 
     def _on_segment_selected(self, item, _prev=None) -> None:
         if item is None or self.session is None:
@@ -860,14 +861,19 @@ class VideoLabScreen(QWidget):
         # Analyse IMMER auf dem Original (volle Qualität, kein Deface-Blur, der
         # eine Hand vor dem Gesicht mit unkenntlich machen würde). Der kompakte
         # Segment-Clip ist Archiv/Review — Fallback nur, wenn das Original fehlt.
-        if self.session.video_path and os.path.exists(self.session.video_path):
+        from capture.config import source_mirrored
+        # A recorded take is our own raw capture → webcam setting; a cut of an
+        # imported video → the session's per-video flag.
+        mirrored = source_mirrored("webcam") if seg.recorded else self.session.mirrored
+        if seg.recorded and seg.clip_path and os.path.exists(seg.clip_path):
+            self.runner.start(seg.clip_path, 0.0, seg.duration_s, key,
+                              hand=hand, with_face=with_face, mirrored=mirrored)
+        elif self.session.video_path and os.path.exists(self.session.video_path):
             self.runner.start(self.session.video_path, seg.start_s, seg.end_s, key,
-                              hand=hand, with_face=with_face,
-                              mirrored=self.session.mirrored)
+                              hand=hand, with_face=with_face, mirrored=mirrored)
         elif seg.clip_path and os.path.exists(seg.clip_path):
             self.runner.start(seg.clip_path, 0.0, seg.duration_s, key,
-                              hand=hand, with_face=with_face,
-                              mirrored=self.session.mirrored)
+                              hand=hand, with_face=with_face, mirrored=mirrored)
         else:
             self._running = False
             self._plot_timer.stop()

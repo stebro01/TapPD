@@ -36,8 +36,7 @@ from ui.tmt_screen import TMTScreen
 from ui.results_screen import ResultsScreen, save_raw_data
 from ui.gesture_lab_screen import GestureLabScreen
 from ui.tracking_screen import TrackingScreen
-from ui.recording_screen import RecordingScreen
-from ui.video_lab_screen import VideoLabScreen
+from ui.session_screen import SessionScreen
 from ui.log_viewer import LogViewerDialog
 from ui import theme
 from ui.theme import SZ
@@ -428,8 +427,7 @@ class MotryxMainWindow(QMainWindow):
         self.saccade_screen = SaccadeScreen(self)
         self.gesture_lab_screen = GestureLabScreen(self)
         self.tracking_screen = TrackingScreen(self)
-        self.video_lab_screen = VideoLabScreen(self)
-        self.recording_screen = RecordingScreen(self)
+        self.session_screen = SessionScreen(self)
 
         self.stack.addWidget(self.patient_screen)
         self.stack.addWidget(self.patient_detail)
@@ -442,8 +440,7 @@ class MotryxMainWindow(QMainWindow):
         self.stack.addWidget(self.saccade_screen)
         self.stack.addWidget(self.gesture_lab_screen)
         self.stack.addWidget(self.tracking_screen)
-        self.stack.addWidget(self.video_lab_screen)
-        self.stack.addWidget(self.recording_screen)
+        self.stack.addWidget(self.session_screen)
 
     def _update_tracking_btn_visibility(self, *_args) -> None:
         self._tracking_btn.setVisible(self.stack.currentWidget() is self.patient_screen)
@@ -502,25 +499,28 @@ class MotryxMainWindow(QMainWindow):
         self.gesture_lab_screen.return_screen = return_screen
         self.stack.setCurrentWidget(self.gesture_lab_screen)
 
-    def show_video_lab(self) -> None:
-        self.video_lab_screen.on_enter(self.current_patient)
-        self.stack.setCurrentWidget(self.video_lab_screen)
+    def show_session(self, session, step_id: str = "") -> None:
+        """Open a clinical session in the session screen (its video session is
+        created on the spot if it does not exist yet)."""
+        from video.store import VideoSession, load_for_session
+        p = self.current_patient
+        if p is None:
+            return
+        self.current_session = session
+        video = load_for_session(p.id, p.patient_code, session.id,
+                                 newest_session_id=session.id)
+        if video is None:
+            video = VideoSession.create(p.id, p.patient_code)
+            video.db_session_id = session.id
+        self.session_screen.open(session, video)
+        if step_id:
+            self.session_screen._select(("step", step_id))
+        self.stack.setCurrentWidget(self.session_screen)
 
-    def close_video_lab(self) -> None:
-        self.video_lab_screen.on_leave()
+    def close_session(self) -> None:
+        self.session_screen.close()
+        self.patient_detail.refresh()
         self.stack.setCurrentWidget(self.patient_detail)
-
-    def show_recording(self, session) -> None:
-        """Film a protocol step by step (VideoLab's second input)."""
-        self.recording_screen.on_enter(session)
-        self.stack.setCurrentWidget(self.recording_screen)
-
-    def close_recording(self) -> None:
-        """Back to VideoLab, which re-reads the session so the segments the
-        recording just confirmed show up straight away."""
-        self.recording_screen.on_leave()
-        self.video_lab_screen.on_enter(self.current_patient)
-        self.stack.setCurrentWidget(self.video_lab_screen)
 
     def show_tracking_screen(self) -> None:
         self._return_after_tracking = self.stack.currentWidget()
@@ -595,8 +595,9 @@ class MotryxMainWindow(QMainWindow):
         conn.close()
         log.info("Neue Session gestartet: Session %d für %s",
                  self.current_session.id, self.current_patient.patient_code)
-        self.dashboard.set_patient(self.current_patient)
-        self.stack.setCurrentWidget(self.dashboard)
+        # Straight into the session screen: video is the primary source, the
+        # paradigm dashboard is reached from there only for live measurements.
+        self.show_session(self.current_session)
 
     def start_test(self, test_key: str, hand: str, duration: int) -> None:
         """Start a paradigm from the dashboard (everything via the registry)."""

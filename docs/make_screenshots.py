@@ -193,11 +193,16 @@ def main() -> None:
     app.processEvents()
     grab(w, "10_eingabequelle")
 
-    # 11) VideoLab
+    # 11) Sitzung (Aufnahme / Import / Auswertung in einem Bildschirm)
     w.current_patient = p
-    w.show_video_lab()
+    from storage.database import create_session, get_db
+    _c = get_db()
+    _s = create_session(_c, p.id)
+    _c.close()
+    w.show_session(_s)
     app.processEvents()
-    grab(w, "11_videolab")
+    grab(w, "11_sitzung")
+    w.close_session()
 
     # 12) Gesture Lab
     w.show_gesture_lab("detail")

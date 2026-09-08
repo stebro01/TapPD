@@ -31,6 +31,10 @@ class Segment:
     clip_path: str = ""           # extracted, compressed (defaced) segment clip
     thumb_path: str = ""          # first-frame thumbnail (jpg) of the segment
     deidentified: bool = False    # face blurred/meshed in the segment clip
+    # True for a take we filmed ourselves (stored raw → replays under the
+    # webcam mirror setting); False for a cut of an imported video (uses the
+    # session's per-video flag).
+    recorded: bool = False
     # analysis results keyed by paradigm key → {features, recorded_at, raw_path}
     results: dict = field(default_factory=dict)
 
@@ -109,8 +113,19 @@ class VideoSession:
         return cls(patient_id=patient_id, patient_code=patient_code,
                    created_at=datetime.now().isoformat())
 
-    def _dir(self) -> Path:
+    def _patient_dir(self) -> Path:
         return VIDEO_SESSIONS_DIR / (self.patient_code or f"patient_{self.patient_id}")
+
+    def _dir(self) -> Path:
+        """Where this session's files live.
+
+        Keyed per clinical session (``session_<id>/`` under the patient) so two
+        visits can each have their own recording. A session without a
+        ``db_session_id`` is a legacy per-patient one and keeps the old layout.
+        """
+        if self.db_session_id is not None:
+            return self._patient_dir() / f"session_{self.db_session_id}"
+        return self._patient_dir()
 
     def new_video_path(self, ext: str) -> Path:
         """Destination path for an imported video (creates the session dir)."""
@@ -167,12 +182,46 @@ class VideoSession:
         """Materialise a ``video.protocol.Protocol`` into pending steps."""
         self.protocol_id = protocol.id
         self.protocol_name = protocol.name
-        self.steps = [
-            RecordingStep(id=s.id, title=s.title, instruction=s.instruction,
-                          duration_s=s.duration_s, countdown_s=s.countdown_s,
-                          paradigm=s.paradigm, hand=s.hand)
-            for s in protocol.steps
-        ]
+        self.steps = []
+        self.add_steps(protocol)
+
+    def add_steps(self, protocol) -> list[RecordingStep]:
+        """Append a protocol's steps (ids made unique against existing ones).
+
+        Lets a session grow: a single paradigm added after a protocol is just
+        one more step in the same list, not a second mechanism.
+        """
+        if not self.steps:
+            self.protocol_id = protocol.id
+            self.protocol_name = protocol.name
+        elif protocol.name and protocol.name not in (self.protocol_name or ""):
+            self.protocol_name = f"{self.protocol_name} + {protocol.name}" \
+                if self.protocol_name else protocol.name
+        taken = {s.id for s in self.steps}
+        added = []
+        for s in protocol.steps:
+            sid, n = s.id, 2
+            while sid in taken:
+                sid, n = f"{s.id}_{n}", n + 1
+            taken.add(sid)
+            step = RecordingStep(id=sid, title=s.title, instruction=s.instruction,
+                                 duration_s=s.duration_s, countdown_s=s.countdown_s,
+                                 paradigm=s.paradigm, hand=s.hand)
+            self.steps.append(step)
+            added.append(step)
+        return added
+
+    def remove_step(self, step_id: str) -> None:
+        """Drop a step and any segment made from it (files stay on disk)."""
+        step = self.step(step_id)
+        if step is None:
+            return
+        if step.segment_id:
+            self.remove_segment(step.segment_id)
+        self.steps = [s for s in self.steps if s.id != step_id]
+        if not self.steps:
+            self.protocol_id = ""
+            self.protocol_name = ""
 
     def step(self, step_id: str) -> RecordingStep | None:
         return next((s for s in self.steps if s.id == step_id), None)
@@ -230,6 +279,7 @@ class VideoSession:
         seg = self.add_segment(name=step.title, start_s=0.0, end_s=step.duration_s,
                                paradigm=step.paradigm, hand=step.hand)
         seg.clip_path = step.clip_path
+        seg.recorded = True
         step.segment_id = seg.id
         step.state = STEP_CONFIRMED
         return seg
@@ -290,6 +340,40 @@ class VideoSession:
         vs.steps = [RecordingStep(**{k: v for k, v in s.items() if k in known})
                     for s in d.get("steps", [])]
         return vs
+
+
+def load_for_session(patient_id: int, patient_code: str, session_id: int,
+                     newest_session_id: int | None = None) -> "VideoSession | None":
+    """The video session belonging to one clinical session, or None.
+
+    Looks in the per-session directory first. Failing that, a legacy
+    per-patient ``session.json`` is adopted if it belongs here: either it was
+    exported into this session, or it never recorded a session and this is the
+    patient's newest one — the assignment agreed for the migration. Adoption
+    stamps the id and saves, so it happens once.
+    """
+    patient_dir = VIDEO_SESSIONS_DIR / (patient_code or f"patient_{patient_id}")
+    own = patient_dir / f"session_{session_id}" / "session.json"
+    if own.is_file():
+        try:
+            return VideoSession.load(str(own))
+        except Exception:
+            return None
+
+    legacy = load_for_patient(patient_id, patient_code)
+    if legacy is None:
+        return None
+    belongs = (legacy.db_session_id == session_id
+               or (legacy.db_session_id is None and session_id == newest_session_id))
+    if not belongs:
+        return None
+    if legacy.db_session_id is None:
+        legacy.db_session_id = session_id
+        try:
+            legacy.save()
+        except Exception:
+            pass
+    return legacy
 
 
 def load_for_patient(patient_id: int, patient_code: str) -> "VideoSession | None":
