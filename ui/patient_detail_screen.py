@@ -4,17 +4,20 @@ from collections import defaultdict
 from pathlib import Path
 
 from PyQt6.QtCore import Qt, QTimer
-from PyQt6.QtGui import QColor, QCursor, QFont
+from PyQt6.QtGui import QColor, QCursor
 from PyQt6.QtWidgets import (
+    QComboBox,
     QDialog,
+    QDialogButtonBox,
     QFrame,
     QHBoxLayout,
     QHeaderView,
     QLabel,
+    QMenu,
     QMessageBox,
     QPushButton,
-    QTableWidget,
-    QTableWidgetItem,
+    QTreeWidget,
+    QTreeWidgetItem,
     QVBoxLayout,
     QWidget,
 )
@@ -31,27 +34,16 @@ from storage.database import (
     get_measurements,
     save_patient,
 )
+from video.store import (
+    STEP_CONFIRMED,
+    STEP_PENDING,
+    STEP_RECORDED,
+    load_for_patient,
+)
 from ui.detail_dialog import DetailDialog
 from ui.patient_screen import NewPatientDialog
 from ui.theme import (SZ, 
     ACCENT, BORDER, CARD_BG, DANGER, PRIMARY, PRIMARY_LIGHT, TEXT, TEXT_SECONDARY)
-
-# Column definitions for the session matrix
-_TEST_COLS = [
-    ("finger_tapping", "Finger\nTapping", False),
-    ("hand_open_close", "Hand\nauf/zu", False),
-    ("pronation_supination", "Pro-/Supi-\nnation", False),
-    ("postural_tremor", "Posturaler\nTremor", True),
-    ("rest_tremor", "Ruhe-\ntremor", True),
-    ("tower_of_hanoi", "Türme v.\nHanoi", False),
-    ("spatial_srt", "Räumliche\nReaktion", False),
-    ("trail_making_a", "TMT\nTeil A", False),
-    ("trail_making_b", "TMT\nTeil B", False),
-    # Not a registry paradigm: recorded via the Gesture Lab (bilateral=True →
-    # plain ✓ cell; hand may be left/right/both).
-    ("gesture_battery", "Gesten-\nBatterie", True),
-]
-
 
 class PatientDetailScreen(QWidget):
     def __init__(self, main_window) -> None:
@@ -63,9 +55,10 @@ class PatientDetailScreen(QWidget):
         # Orphan measurements (no session_id, from before sessions were introduced)
         self._orphan_measurements: list[Measurement] = []
         # Map (row, col) -> list of Measurement for click handling
-        self._cell_map: dict[tuple[int, int], list[Measurement]] = {}
+        # Node payloads keyed by item identity (see _tag).
+        self._node_data: dict[int, dict] = {}
+        self._video_session = None
         # Map row -> Session (None for orphan rows)
-        self._row_session: dict[int, Session | None] = {}
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(40, 24, 40, 20)
@@ -160,36 +153,28 @@ class PatientDetailScreen(QWidget):
         section.setProperty("cssClass", "section")
         layout.addWidget(section)
 
-        # ── Session matrix table ──
-        self.table = QTableWidget()
-        self.table.setColumnCount(2 + len(_TEST_COLS))  # # + Datum + test columns
-        headers = ["#", "Datum"] + [label for _, label, _ in _TEST_COLS]
-        self.table.setHorizontalHeaderLabels(headers)
-        self.table.setColumnWidth(0, 32)
-        self.table.setColumnWidth(1, 180)  # Datum
-        for i in range(2, self.table.columnCount()):
-            self.table.horizontalHeader().setSectionResizeMode(
-                i, QHeaderView.ResizeMode.Stretch
-            )
-        self.table.verticalHeader().setVisible(False)
-        self.table.setSelectionMode(QTableWidget.SelectionMode.NoSelection)
-        self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        self.table.cellClicked.connect(self._on_cell_click)
-        self.table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-        self.table.customContextMenuRequested.connect(self._on_context_menu)
-        self.table.verticalHeader().setDefaultSectionSize(SZ.ROW_H)
-        self.table.setStyleSheet(
-            "QTableWidget { border-radius: 8px; }"
-            "QTableWidget::item { padding: 8px; }"
+        # ── Session tree ──
+        # A tree rather than the old test-per-column matrix: a session's
+        # content is no longer a fixed set of test types but whatever it
+        # actually holds — recorded protocol steps, their analyses, and
+        # measurements taken directly.
+        self.tree = QTreeWidget()
+        self.tree.setColumnCount(3)
+        self.tree.setHeaderLabels(["Sitzung / Schritt", "Status", "Ergebnis"])
+        self.tree.setColumnWidth(0, 340)
+        self.tree.setColumnWidth(1, 190)
+        self.tree.header().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
+        self.tree.setAlternatingRowColors(True)
+        self.tree.setRootIsDecorated(True)
+        self.tree.setUniformRowHeights(True)
+        self.tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.tree.customContextMenuRequested.connect(self._on_tree_context_menu)
+        self.tree.itemDoubleClicked.connect(self._on_tree_double_click)
+        self.tree.setStyleSheet(
+            "QTreeWidget { border-radius: 8px; }"
+            "QTreeWidget::item { padding: 6px 4px; }"
         )
-        # Long-press support for touch (alternative to right-click context menu)
-        self._press_timer = QTimer()
-        self._press_timer.setSingleShot(True)
-        self._press_timer.timeout.connect(self._on_long_press)
-        self._press_row = -1
-        self._press_col = -1
-        self.table.cellPressed.connect(self._on_cell_pressed)
-        layout.addWidget(self.table)
+        layout.addWidget(self.tree)
 
         # ── Count + actions ──
         self.count_label = QLabel()
@@ -273,250 +258,263 @@ class PatientDetailScreen(QWidget):
         all_ms = get_measurements(conn, self._patient.id)
         self._orphan_measurements = [m for m in all_ms if m.session_id is None]
         conn.close()
+        # The recording attached to this patient, if one exists.
+        self._video_session = load_for_patient(self._patient.id,
+                                               self._patient.patient_code)
         self._populate()
 
     # ── Table population ──────────────────────────────────────────
 
-    def _populate(self) -> None:
-        self._cell_map.clear()
-        self._row_session.clear()
-        self.table.setRowCount(0)
+    # -- Tree population -------------------------------------------
 
-        total_measurements = sum(len(ms) for ms in self._session_measurements.values())
-        total_measurements += len(self._orphan_measurements)
+    def _video_session_for(self, session_id: int):
+        """The recording attached to a session, if any.
+
+        Video sessions are still keyed per patient, so there is at most one.
+        It belongs to the session it was exported into; an older one that never
+        recorded a `db_session_id` is shown under the newest session -- the
+        assignment agreed for the migration.
+        """
+        vs = self._video_session
+        if vs is None or not self._sessions:
+            return None
+        if vs.db_session_id is not None:
+            return vs if vs.db_session_id == session_id else None
+        return vs if session_id == self._sessions[0].id else None
+
+    def _populate(self) -> None:
+        self.tree.clear()
+        self._node_data.clear()
+
+        total = sum(len(ms) for ms in self._session_measurements.values())
+        total += len(self._orphan_measurements)
 
         if not self._sessions and not self._orphan_measurements:
-            self.table.setRowCount(1)
-            empty = QTableWidgetItem("Noch keine Messungen vorhanden")
-            empty.setForeground(QColor(TEXT_SECONDARY))
-            empty.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-            self.table.setItem(0, 0, empty)
-            self.table.setSpan(0, 0, 1, self.table.columnCount())
+            empty = QTreeWidgetItem(["Noch keine Sitzungen vorhanden", "", ""])
+            empty.setForeground(0, QColor(TEXT_SECONDARY))
+            self.tree.addTopLevelItem(empty)
             self.count_label.setText("")
             return
 
-        # Build rows: sessions first, then orphan groups
-        rows_data: list[tuple[str, str, list[Measurement], Session | None]] = []
+        for i, session in enumerate(self._sessions):
+            self._add_session_node(session, len(self._sessions) - i)
 
-        # Sessions (already sorted DESC by started_at)
-        for i, s in enumerate(self._sessions):
-            ms = self._session_measurements.get(s.id, [])
-            num = str(len(self._sessions) - i)
-            date_str = _format_datetime(s.started_at)
-            rows_data.append((num, date_str, ms, s))
-
-        # Orphan measurements grouped by date
         if self._orphan_measurements:
-            orphan_by_date: dict[str, list[Measurement]] = defaultdict(list)
+            node = QTreeWidgetItem(
+                [f"Ohne Sitzung ({len(self._orphan_measurements)})", "", ""])
+            node.setForeground(0, QColor(TEXT_SECONDARY))
+            self.tree.addTopLevelItem(node)
             for m in self._orphan_measurements:
-                orphan_by_date[m.recorded_at[:10]].append(m)
-            for date_key in sorted(orphan_by_date.keys(), reverse=True):
-                ms = orphan_by_date[date_key]
-                date_str = _format_date(date_key)
-                rows_data.append(("–", date_str, ms, None))
+                node.addChild(self._measurement_node(m))
 
-        self.table.setRowCount(len(rows_data))
-
-        for row, (num, date_str, ms_list, session) in enumerate(rows_data):
-            self._row_session[row] = session
-
-            # Session number
-            num_item = QTableWidgetItem(num)
-            num_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-            num_item.setForeground(QColor(TEXT_SECONDARY))
-            self.table.setItem(row, 0, num_item)
-
-            # Date
-            date_item = QTableWidgetItem(date_str)
-            date_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-            font = date_item.font()
-            font.setWeight(QFont.Weight.DemiBold)
-            date_item.setFont(font)
-            self.table.setItem(row, 1, date_item)
-
-            # Index measurements by test_type
-            by_test: dict[str, list[Measurement]] = defaultdict(list)
-            for m in ms_list:
-                by_test[m.test_type].append(m)
-
-            # Fill test columns
-            for col_idx, (test_key, _, bilateral) in enumerate(_TEST_COLS):
-                col = col_idx + 2  # offset by # and date columns
-                ms_for_cell = by_test.get(test_key, [])
-
-                if not ms_for_cell:
-                    item = QTableWidgetItem("·")
-                    item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-                    item.setForeground(QColor("#D0D0D0"))
-                    if session:
-                        item.setToolTip("Gedrückt halten oder Rechtsklick für Aktionen")
-                    self.table.setItem(row, col, item)
-                    continue
-
-                # Build cell text
-                if bilateral:
-                    cell_text = "✓"
-                else:
-                    hands = sorted(set(m.hand for m in ms_for_cell))
-                    parts = ["R" if h == "right" else "L" for h in hands]
-                    cell_text = " ".join(parts)
-
-                item = QTableWidgetItem(cell_text)
-                item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-                item.setForeground(QColor(ACCENT))
-                font = item.font()
-                font.setWeight(QFont.Weight.Bold)
-                item.setFont(font)
-
-                # For unilateral tests: tooltip if only one hand done
-                if session and not bilateral:
-                    existing_hands = set(m.hand for m in ms_for_cell)
-                    if len(existing_hands) < 2:
-                        item.setToolTip("Gedrückt halten oder Rechtsklick für Aktionen")
-                    else:
-                        item.setToolTip("Klicken für Details")
-                else:
-                    item.setToolTip("Klicken für Details")
-
-                self.table.setItem(row, col, item)
-                self._cell_map[(row, col)] = ms_for_cell
-
-        n_sessions = len(self._sessions)
+        n = len(self._sessions)
         self.count_label.setText(
-            f"{n_sessions} Session{'s' if n_sessions != 1 else ''}, "
-            f"{total_measurements} Messung{'en' if total_measurements != 1 else ''}"
-        )
+            f"{n} Sitzung{'' if n == 1 else 'en'} \u00b7 "
+            f"{total} Messung{'' if total == 1 else 'en'}")
 
-    # ── Cell click → detail ───────────────────────────────────────
+    def _add_session_node(self, session: Session, number: int) -> None:
+        measurements = self._session_measurements.get(session.id, [])
+        vs = self._video_session_for(session.id)
 
-    def _on_cell_pressed(self, row: int, col: int) -> None:
-        """Start long-press timer for touch context actions."""
-        self._press_row = row
-        self._press_col = col
-        self._press_timer.start(500)
+        if vs is not None and vs.steps:
+            done, count = vs.progress
+            kind = f"Protokoll: {vs.protocol_name}"
+            status = f"{done}/{count} best\u00e4tigt" if done < count else "vollst\u00e4ndig"
+        elif vs is not None and vs.video_path:
+            kind = "Video (Import)"
+            status = f"{len(vs.segments)} Segmente"
+        else:
+            kind = "Messungen"
+            status = f"{len(measurements)} Messungen"
 
-    def _on_long_press(self) -> None:
-        """Long-press detected — show touch action panel."""
-        self._show_touch_actions(self._press_row, self._press_col)
+        title = (f"Sitzung {number}  \u00b7  {_format_datetime(session.started_at)}"
+                 f"  \u00b7  {kind}")
+        node = QTreeWidgetItem([title, status, ""])
+        font = node.font(0)
+        font.setBold(True)
+        node.setFont(0, font)
+        self._tag(node, "session", session=session, video_session=vs)
+        self.tree.addTopLevelItem(node)
 
-    def _on_cell_click(self, row: int, col: int) -> None:
-        self._press_timer.stop()  # Cancel long-press on normal click
-        ms = self._cell_map.get((row, col))
-        if not ms:
-            return
-        # Open detail with all siblings — L/R switcher if multiple
-        dlg = DetailDialog(self._patient, ms[0], siblings=ms, parent=self)
-        dlg.exec()
+        # Recording steps first -- they are the session's structure.
+        used_ids: set = set()
+        if vs is not None:
+            for i, step in enumerate(vs.steps, start=1):
+                node.addChild(self._step_node(i, step, vs, used_ids))
 
-    def _on_context_menu(self, pos) -> None:
-        """Right-click → show touch action panel (replaces old QMenu)."""
-        self._press_timer.stop()
-        item = self.table.itemAt(pos)
-        if not item:
-            return
-        self._show_touch_actions(item.row(), item.column())
+        # Anything measured outside the protocol still belongs to the session.
+        for m in measurements:
+            if m.id not in used_ids:
+                node.addChild(self._measurement_node(m))
 
-    def _show_touch_actions(self, row: int, col: int) -> None:
-        """Show touch-friendly action panel as overlay with dimmed backdrop."""
-        session = self._row_session.get(row)
-        if not session:
-            return
+        node.setExpanded(True)
 
-        # ── Dimmed backdrop overlay (click to dismiss) ──
-        main_win = self.main_window
-        overlay = QWidget(main_win)
-        overlay.setObjectName("touchOverlay")
-        overlay.setGeometry(main_win.centralWidget().geometry())
-        overlay.setStyleSheet(
-            "#touchOverlay { background-color: rgba(0, 0, 0, 80); }"
-        )
-        overlay.show()
-        overlay.raise_()
+    def _step_node(self, number: int, step, vs, used: set) -> QTreeWidgetItem:
+        marker = {STEP_PENDING: "\u25cb", STEP_RECORDED: "\u25d0",
+                  STEP_CONFIRMED: "\u2714"}
+        state_text = {STEP_PENDING: "offen",
+                      STEP_RECORDED: "aufgenommen, ungesichtet",
+                      STEP_CONFIRMED: "Video \u2714"}
 
-        # ── Action panel card ──
-        panel = QFrame(overlay)
-        panel.setStyleSheet(
-            f"QFrame {{ background: {CARD_BG}; border: 1px solid {BORDER};"
-            f" border-radius: 14px; }}"
-        )
-        panel_layout = QVBoxLayout(panel)
-        panel_layout.setContentsMargins(20, 16, 20, 16)
-        panel_layout.setSpacing(10)
+        # A confirmed step owns a segment; its analysis (if run) lives there.
+        segment = next((sg for sg in vs.segments if sg.id == step.segment_id), None)
+        if step.is_documentation:
+            result = "Dokumentation"
+        elif segment is None or not segment.analyzed:
+            result = "\u2014" if step.state == STEP_PENDING else "nicht ausgewertet"
+        else:
+            result = self._result_summary(segment, used)
 
-        # Title
-        date_str = _format_datetime(session.started_at)
-        title = QLabel(f"Session vom {date_str}")
-        title.setStyleSheet(f"font-size: 14px; font-weight: 700; color: {TEXT};")
-        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        panel_layout.addWidget(title)
+        label = f"{marker.get(step.state, chr(9675))}  {number}. {step.title}"
+        if not step.is_documentation:
+            label += f"  ({step.hand})"
+        item = QTreeWidgetItem([label, state_text.get(step.state, step.state), result])
+        if step.state == STEP_CONFIRMED:
+            item.setForeground(1, QColor(ACCENT))
+        self._tag(item, "step", video_session=vs, step=step, segment=segment)
+        return item
 
-        def _close():
-            overlay.close()
-            overlay.deleteLater()
+    def _result_summary(self, segment, used: set) -> str:
+        """Short readout of a segment's analysis, marking its measurement used."""
+        parts = []
+        for key, res in (segment.results or {}).items():
+            features = (res or {}).get("features") or {}
+            mpi = features.get("mpi")
+            label = _paradigm_label(key)
+            parts.append(f"{label}: MPI {mpi:.2f}"
+                         if isinstance(mpi, (int, float)) else label)
+            mid = (res or {}).get("measurement_id")
+            if mid is not None:
+                used.add(mid)
+        return "  \u00b7  ".join(parts) or "ausgewertet"
 
-        def _make_action_btn(text: str, css_class: str = "") -> QPushButton:
-            btn = QPushButton(text)
-            btn.setFixedHeight(SZ.DIALOG_BTN_H)
-            if css_class:
-                btn.setProperty("cssClass", css_class)
-            btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
-            return btn
+    def _measurement_node(self, m: Measurement) -> QTreeWidgetItem:
+        mpi = (m.features or {}).get("mpi")
+        result = f"MPI {mpi:.2f}" if isinstance(mpi, (int, float)) else ""
+        item = QTreeWidgetItem(
+            [f"    {_paradigm_label(m.test_type)}  ({m.hand})", "Messung", result])
+        self._tag(item, "measurement", measurement=m)
+        return item
 
-        # Build actions based on column
-        col_idx = col - 2
-        if 0 <= col_idx < len(_TEST_COLS):
-            test_key, _, bilateral = _TEST_COLS[col_idx]
-            existing = self._cell_map.get((row, col), [])
-            existing_hands = set(m.hand for m in existing)
+    def _tag(self, item: QTreeWidgetItem, kind: str, **data) -> None:
+        """Attach node data by identity -- dataclasses do not survive QVariant."""
+        key = id(item)
+        self._node_data[key] = {"kind": kind, **data}
+        item.setData(0, Qt.ItemDataRole.UserRole, key)
 
-            if test_key == "gesture_battery":
-                # Not startable from the matrix — runs in the Gesture Lab.
-                btn = _make_action_btn("✋ Im Gesture Lab durchführen", "primary")
-                btn.clicked.connect(lambda: (_close(), self._on_gesture_lab()))
-                panel_layout.addWidget(btn)
-            elif bilateral:
-                if "both" not in existing_hands:
-                    btn = _make_action_btn("Messung hinzufügen", "accent")
-                    btn.clicked.connect(lambda: (
-                        _close(),
-                        self._add_measurement_to_session(session, test_key, "both"),
-                    ))
-                    panel_layout.addWidget(btn)
+    def _node(self, item) -> dict:
+        if item is None:
+            return {}
+        return self._node_data.get(item.data(0, Qt.ItemDataRole.UserRole), {})
+
+    # -- Context actions -------------------------------------------
+
+    def _actions_for(self, node: dict) -> list:
+        """Actions for a node as data: (label, callback, css).
+
+        Deliberately a list rather than menu-building code, so the touch action
+        panel can render exactly this when it returns, instead of the logic
+        existing twice.
+        """
+        kind = node.get("kind")
+        out = []
+
+        if kind == "session":
+            session = node.get("session")
+            vs = node.get("video_session")
+            if vs is not None and vs.steps and not vs.is_complete:
+                out.append(("\u25cf Aufnahme fortsetzen",
+                            lambda: self._open_recording(vs), "primary"))
             else:
-                if "left" not in existing_hands:
-                    btn = _make_action_btn("Links hinzufügen", "primary")
-                    btn.clicked.connect(lambda: (
-                        _close(),
-                        self._add_measurement_to_session(session, test_key, "left"),
-                    ))
-                    panel_layout.addWidget(btn)
-                if "right" not in existing_hands:
-                    btn = _make_action_btn("Rechts hinzufügen", "primary")
-                    btn.clicked.connect(lambda: (
-                        _close(),
-                        self._add_measurement_to_session(session, test_key, "right"),
-                    ))
-                    panel_layout.addWidget(btn)
+                out.append(("\u25cf Aufnahme starten\u2026",
+                            self._on_video_lab, "primary"))
+            out.append(("+ Messung hinzuf\u00fcgen\u2026",
+                        lambda: self._add_measurement_dialog(session), ""))
+            out.append(("Im VideoLab \u00f6ffnen", self._on_video_lab, ""))
+            out.append(("Sitzung l\u00f6schen",
+                        lambda: self._delete_session(session), "danger"))
 
-        # Delete session
-        del_btn = _make_action_btn("Session löschen", "danger")
-        del_btn.clicked.connect(lambda: (_close(), self._delete_session(session)))
-        panel_layout.addWidget(del_btn)
+        elif kind == "step":
+            vs, step = node.get("video_session"), node.get("step")
+            segment = node.get("segment")
+            if step.state == STEP_CONFIRMED:
+                out.append(("\u21bb Erneut aufnehmen",
+                            lambda: self._retake(vs, step), ""))
+            else:
+                out.append(("\u25cf Aufnehmen",
+                            lambda: self._open_recording(vs), "primary"))
+            if segment is not None and not step.is_documentation:
+                out.append(("Auswerten / im VideoLab \u00f6ffnen",
+                            self._on_video_lab, ""))
 
-        # Cancel
-        cancel_btn = _make_action_btn("Abbrechen", "flat")
-        cancel_btn.clicked.connect(_close)
-        panel_layout.addWidget(cancel_btn)
+        elif kind == "measurement":
+            m = node.get("measurement")
+            out.append(("Details\u2026", lambda: self._show_measurement(m), ""))
 
-        # Size and center the panel
-        panel.adjustSize()
-        pw, ph = panel.width(), panel.height()
-        ow, oh = overlay.width(), overlay.height()
-        panel.move((ow - pw) // 2, (oh - ph) // 2)
-        panel.show()
+        return out
 
-        # Click on dimmed backdrop → close
-        overlay.mousePressEvent = lambda e: _close()
+    def _on_tree_context_menu(self, pos) -> None:
+        item = self.tree.itemAt(pos)
+        actions = self._actions_for(self._node(item))
+        if not actions:
+            return
+        menu = QMenu(self)
+        for label, callback, _css in actions:
+            act = menu.addAction(label)
+            act.triggered.connect(lambda _checked=False, cb=callback: cb())
+        menu.exec(self.tree.viewport().mapToGlobal(pos))
+
+    def _on_tree_double_click(self, item, _column: int) -> None:
+        """Double-click runs a node's first (primary) action."""
+        actions = self._actions_for(self._node(item))
+        if actions:
+            actions[0][1]()
+
+    # -- Action helpers --------------------------------------------
+
+    def _open_recording(self, vs) -> None:
+        if vs is None:
+            self._on_video_lab()
+            return
+        self.main_window.show_recording(vs)
+
+    def _retake(self, vs, step) -> None:
+        vs.retake_step(step.id)
+        vs.save()
+        self.refresh()
+        self.main_window.show_recording(vs)
+
+    def _show_measurement(self, m: Measurement) -> None:
+        DetailDialog(self, m).exec()
+
+    def _add_measurement_dialog(self, session: Session) -> None:
+        """Pick a paradigm + hand and record it into this session."""
+        from paradigms import registry
+
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Messung hinzuf\u00fcgen")
+        layout = QVBoxLayout(dlg)
+        layout.addWidget(QLabel("Paradigma und Seite w\u00e4hlen:"))
+        row = QHBoxLayout()
+        para = QComboBox()
+        for key in registry.all_keys():
+            para.addItem(registry.get(key).label.replace(chr(10), " "), key)
+        row.addWidget(para, 1)
+        hand = QComboBox()
+        for label, value in (("rechts", "right"), ("links", "left"),
+                             ("beide", "both")):
+            hand.addItem(label, value)
+        row.addWidget(hand)
+        layout.addLayout(row)
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok
+                                   | QDialogButtonBox.StandardButton.Cancel)
+        buttons.accepted.connect(dlg.accept)
+        buttons.rejected.connect(dlg.reject)
+        layout.addWidget(buttons)
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return
+        self._add_measurement_to_session(session, para.currentData(),
+                                         hand.currentData())
 
     def _add_measurement_to_session(self, session: Session, test_key: str, hand: str) -> None:
         """Resume the session and start the test."""
@@ -684,3 +682,12 @@ def _format_date(iso_date: str) -> str:
         return f"{parts[2]}.{parts[1]}.{parts[0]}"
     except (IndexError, ValueError):
         return iso_date
+
+
+def _paradigm_label(key: str) -> str:
+    """Human-readable name for a paradigm key, falling back to the key."""
+    try:
+        from paradigms import registry
+        return (registry.get(key).label or key).replace("\n", " ")
+    except Exception:
+        return key
