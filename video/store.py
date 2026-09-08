@@ -11,7 +11,7 @@ and each exported result carries its ``measurement_id``).
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass, field, asdict
+from dataclasses import asdict, dataclass, field, fields
 from datetime import datetime
 from pathlib import Path
 
@@ -43,6 +43,50 @@ class Segment:
         return bool(self.results)
 
 
+# ── protocol-guided recording ───────────────────────────────────────
+# States a step moves through. The clinician confirms every step, and analysis
+# happens only afterwards — so "recorded" and "confirmed" are distinct: a take
+# exists but has not been looked at yet.
+STEP_PENDING = "pending"        # not filmed yet
+STEP_RECORDED = "recorded"      # a take exists, awaiting review
+STEP_CONFIRMED = "confirmed"    # reviewed and kept → a Segment exists
+
+
+@dataclass
+class RecordingStep:
+    """One protocol step as it lives in a session: the plan plus its state.
+
+    A snapshot of the protocol step rather than a reference to it, so a session
+    stays self-explanatory after the protocol file has been edited (the file is
+    a template, this is what was actually asked of *this* patient).
+
+    Kept separate from ``Segment`` on purpose: instruction, countdown and take
+    counter are recording concerns that have no meaning for an imported
+    segment. A confirmed step *produces* a Segment; it is not one.
+    """
+
+    id: str                       # protocol step id
+    title: str
+    instruction: str = ""
+    duration_s: float = 20.0
+    countdown_s: float = 3.0
+    paradigm: str = ""            # "" = documentation only, never analysed
+    hand: str = "both"
+    state: str = STEP_PENDING
+    clip_path: str = ""           # the take currently kept for this step
+    recorded_at: str = ""
+    segment_id: str = ""          # set once confirmed
+    takes: int = 0                # how often it was filmed (older takes are kept)
+
+    @property
+    def is_documentation(self) -> bool:
+        return not self.paradigm
+
+    @property
+    def is_confirmed(self) -> bool:
+        return self.state == STEP_CONFIRMED
+
+
 @dataclass
 class VideoSession:
     patient_id: int
@@ -54,6 +98,10 @@ class VideoSession:
     segments: list[Segment] = field(default_factory=list)
     path: str = ""                # JSON file location (set on save)
     db_session_id: int | None = None   # clinical-DB Session all exports go into
+    # Protocol-guided recording (empty for an imported video).
+    protocol_id: str = ""
+    protocol_name: str = ""
+    steps: list[RecordingStep] = field(default_factory=list)
 
     # ── factory / io ─────────────────────────────────────────────
     @classmethod
@@ -96,6 +144,112 @@ class VideoSession:
     def remove_segment(self, seg_id: str) -> None:
         self.segments = [s for s in self.segments if s.id != seg_id]
 
+    # ── protocol-guided recording ────────────────────────────────
+    @classmethod
+    def create_recording(cls, patient_id: int, patient_code: str, protocol,
+                         *, mirrored: bool) -> "VideoSession":
+        """Start a session that films ``protocol`` step by step.
+
+        ``mirrored`` is keyword-only and has no default on purpose. A protocol
+        recording is our *own* capture, so it is stored raw and has to replay
+        under the **webcam** mirror setting (``sources.webcam.mirror``), not the
+        video default — getting this wrong shows a correct picture with swapped
+        handedness, which has bitten this project twice. The caller passes it in
+        rather than store.py reaching into the capture config, keeping this
+        module free of capture dependencies.
+        """
+        session = cls.create(patient_id, patient_code)
+        session.mirrored = mirrored
+        session.attach_protocol(protocol)
+        return session
+
+    def attach_protocol(self, protocol) -> None:
+        """Materialise a ``video.protocol.Protocol`` into pending steps."""
+        self.protocol_id = protocol.id
+        self.protocol_name = protocol.name
+        self.steps = [
+            RecordingStep(id=s.id, title=s.title, instruction=s.instruction,
+                          duration_s=s.duration_s, countdown_s=s.countdown_s,
+                          paradigm=s.paradigm, hand=s.hand)
+            for s in protocol.steps
+        ]
+
+    def step(self, step_id: str) -> RecordingStep | None:
+        return next((s for s in self.steps if s.id == step_id), None)
+
+    def _require_step(self, step_id: str) -> RecordingStep:
+        step = self.step(step_id)
+        if step is None:
+            raise KeyError(f"Unbekannter Schritt: {step_id}")
+        return step
+
+    def next_open_step(self) -> RecordingStep | None:
+        """The first step still to be dealt with, for resuming after a break."""
+        return next((s for s in self.steps if not s.is_confirmed), None)
+
+    @property
+    def progress(self) -> tuple[int, int]:
+        """(confirmed, total) — total is 0 when no protocol is attached."""
+        return (sum(1 for s in self.steps if s.is_confirmed), len(self.steps))
+
+    @property
+    def is_complete(self) -> bool:
+        return bool(self.steps) and all(s.is_confirmed for s in self.steps)
+
+    def begin_take(self, step_id: str) -> Path:
+        """Reserve the file for the next take and return its path.
+
+        Every take gets its own filename, so re-recording never overwrites what
+        was filmed before — nothing the patient did is silently destroyed.
+        """
+        step = self._require_step(step_id)
+        step.takes += 1
+        d = self._dir()
+        d.mkdir(parents=True, exist_ok=True)
+        return d / f"step_{step.id}_take{step.takes:02d}.mp4"
+
+    def mark_recorded(self, step_id: str, clip_path: str | Path) -> RecordingStep:
+        """A take finished — it now awaits review."""
+        step = self._require_step(step_id)
+        step.clip_path = str(clip_path)
+        step.recorded_at = datetime.now().isoformat()
+        step.state = STEP_RECORDED
+        return step
+
+    def confirm_step(self, step_id: str) -> Segment:
+        """Accept the current take: the step becomes a Segment.
+
+        This is the point where a recording enters the normal VideoLab world —
+        analysis and export then run through the existing segment path, with no
+        knowledge that a protocol was involved.
+        """
+        step = self._require_step(step_id)
+        if not step.clip_path:
+            raise ValueError(f"Schritt '{step_id}' hat keine Aufnahme.")
+
+        seg = self.add_segment(name=step.title, start_s=0.0, end_s=step.duration_s,
+                               paradigm=step.paradigm, hand=step.hand)
+        seg.clip_path = step.clip_path
+        step.segment_id = seg.id
+        step.state = STEP_CONFIRMED
+        return seg
+
+    def retake_step(self, step_id: str) -> RecordingStep:
+        """Discard the current take's *result* and film the step again.
+
+        The clip file itself stays on disk (takes are numbered); only the
+        session's reference to it and any Segment made from it are dropped, so
+        the step is open again without losing recorded material.
+        """
+        step = self._require_step(step_id)
+        if step.segment_id:
+            self.remove_segment(step.segment_id)
+            step.segment_id = ""
+        step.clip_path = ""
+        step.recorded_at = ""
+        step.state = STEP_PENDING
+        return step
+
     def save(self) -> Path:
         d = self._dir()
         d.mkdir(parents=True, exist_ok=True)
@@ -109,6 +263,9 @@ class VideoSession:
             "mirrored": self.mirrored,
             "created_at": self.created_at,
             "db_session_id": self.db_session_id,
+            "protocol_id": self.protocol_id,
+            "protocol_name": self.protocol_name,
+            "steps": [asdict(s) for s in self.steps],
             "segments": [asdict(s) for s in self.segments],
         }
         with open(self.path, "w", encoding="utf-8") as f:
@@ -123,8 +280,15 @@ class VideoSession:
                  video_path=d.get("video_path", ""), video_name=d.get("video_name", ""),
                  mirrored=bool(d.get("mirrored", False)),
                  created_at=d.get("created_at", ""), path=path,
-                 db_session_id=d.get("db_session_id"))
+                 db_session_id=d.get("db_session_id"),
+                 protocol_id=d.get("protocol_id", ""),
+                 protocol_name=d.get("protocol_name", ""))
         vs.segments = [Segment(**s) for s in d.get("segments", [])]
+        # Unknown keys are dropped rather than raising: a session written by a
+        # newer version must still open here, only without what it cannot know.
+        known = {f.name for f in fields(RecordingStep)}
+        vs.steps = [RecordingStep(**{k: v for k, v in s.items() if k in known})
+                    for s in d.get("steps", [])]
         return vs
 
 

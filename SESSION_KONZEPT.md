@@ -277,10 +277,20 @@ ein Touch-Panel dieselbe Liste rendern, ohne dass die Logik doppelt entsteht.
 - **Zuordnung bestehender Video-Sessions** beim Wechsel von Patient- auf
   Session-Schlüssel: automatisch der jüngsten Session zuordnen oder den
   Untersucher fragen?
-- **Protokoll-Versionierung:** ändert sich ein Protokoll nach einer Aufnahme,
-  passt die gespeicherte Session nicht mehr zur Datei. Vorschlag: die
-  verwendeten Schritte in die `VideoSession` kopieren, damit sie
-  selbsterklärend bleibt.
-- **Abbruch mittendrin:** eine Session mit halb abgearbeitetem Protokoll muss
-  wieder aufnehmbar sein — der Schrittzustand gehört also persistiert, nicht
-  nur im UI gehalten.
+## 7. Umsetzungsstand
+
+| Baustein | Stand |
+|---|---|
+| Protokoll-Schema, Loader, Validierung (`video/protocol.py`) | **erledigt** |
+| Schrittzustände + Persistenz (`video/store.py`) | **erledigt** |
+| Aufnahme-Ablauf (Countdown, Sichtung) in der UI | offen |
+| VideoLab: zweiter Eingang „Aufnahme" | offen |
+| `acquisition_mode` an der Session | offen |
+| `VideoSession` von Patient auf Session umschlüsseln | offen |
+| Session-Baum im Patientenscreen | offen |
+
+**Protokoll-Versionierung** und **Abbruch mittendrin** sind mit der Persistenz
+gelöst: `VideoSession.steps` ist eine *Kopie* der Protokollschritte (spätere
+Änderungen an der Datei verändern eine laufende Aufnahme nicht), und der
+Zustand jedes Schritts liegt im JSON — eine halb abgearbeitete Session lässt
+sich über `next_open_step()` fortsetzen.
