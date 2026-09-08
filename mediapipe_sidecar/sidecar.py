@@ -32,6 +32,13 @@ import time
 import cv2
 import numpy as np
 
+# How long a live camera may fail to deliver before the stream is given up:
+# ~2 s at 20 ms per retry.  Long enough to cover a slow-starting USB camera and
+# the odd dropped frame, short enough that a genuinely dead device is reported
+# quickly rather than hanging the tracking screen.
+_MAX_CONSECUTIVE_MISSES = 100
+_MISS_RETRY_S = 0.02
+
 
 def _strip_appledouble_stylelib() -> None:
     """Delete macOS AppleDouble (._*) files from matplotlib's stylelib.
@@ -106,8 +113,18 @@ def list_cameras() -> list[dict]:
             cams.append({"index": int(info.index), "name": str(info.name)})
         if cams:
             return cams
-    except Exception:
-        pass
+    except ImportError as e:
+        # On Windows this is almost always the missing Visual C++ runtime, not a
+        # missing package — the extension links against MSVCP140/VCRUNTIME140.
+        # Say so, because the fallback below is slow enough to look like a hang.
+        print(f"list_cameras: named enumeration unavailable ({e}); "
+              "falling back to index probing. On Windows this usually means the "
+              "Visual C++ runtime is missing: "
+              "winget install --id Microsoft.VCRedist.2015+.x64",
+              file=sys.stderr, flush=True)
+    except Exception as e:
+        print(f"list_cameras: named enumeration failed ({e!r})",
+              file=sys.stderr, flush=True)
 
     # Fallback: probe indices 0..7
     cams = []
@@ -326,14 +343,25 @@ class Sidecar:
             last_preview = 0.0
             last_frame_t = 0.0
             frame_idx = start_frame   # local count; CAP_PROP_POS_FRAMES is unreliable
+            # A single miss is normal: USB cameras drop frames, and some need a
+            # moment before the first one arrives (an OBSBOT Tiny 2 takes ~1.6 s,
+            # against ~0.3 s for a built-in webcam).  Tearing the stream down on
+            # the first failed read turned that startup delay into "no image at
+            # all", so only give up once the misses persist.
+            misses = 0
             while not self._closing.is_set():
                 if not self._streaming:
                     if is_video:
                         time.sleep(0.03)
                         continue
-                    if not cap.grab():   # keep the live camera warm while paused
-                        self._send({"type": "error", "msg": "Kamera lieferte kein Bild"})
-                        break
+                    if cap.grab():   # keep the live camera warm while paused
+                        misses = 0
+                    else:
+                        misses += 1
+                        if misses > _MAX_CONSECUTIVE_MISSES:
+                            self._send({"type": "error", "msg": "Kamera lieferte kein Bild"})
+                            break
+                        time.sleep(_MISS_RETRY_S)
                     continue
 
                 if is_video and frame_interval:   # throttle replay to the clip's fps
@@ -358,8 +386,13 @@ class Sidecar:
                             self._send({"type": "done"})
                         self._streaming = False
                         continue
-                    self._send({"type": "error", "msg": "Kamera lieferte kein Bild"})
-                    break
+                    misses += 1
+                    if misses > _MAX_CONSECUTIVE_MISSES:
+                        self._send({"type": "error", "msg": "Kamera lieferte kein Bild"})
+                        break
+                    time.sleep(_MISS_RETRY_S)
+                    continue
+                misses = 0
                 frame_idx += 1
 
                 self._maybe_record(frame_bgr)   # write live frames to a clip if requested
