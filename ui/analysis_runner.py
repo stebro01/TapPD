@@ -58,7 +58,8 @@ class AnalysisRunner(QObject):
 
     # ── lifecycle ─────────────────────────────────────────────────
     def start(self, video_path: str, start_s: float, end_s: float,
-              paradigm_key: str, hand: str = "right", with_face: bool = False) -> None:
+              paradigm_key: str, hand: str = "right", with_face: bool = False,
+              mirrored: bool = False) -> None:
         from capture.mediapipe_capture import WebcamSource
         from capture.source import CAP_ABS_POSITION
         from paradigms import registry
@@ -91,6 +92,9 @@ class AnalysisRunner(QObject):
 
         src = self._src
         src.configure(num_hands=2)          # track both hands → pick the moving one
+        # Per-clip mirror flag (set at import); the sidecar reads it with
+        # the next start and swaps the handedness label to match.
+        src.replay_mirror = bool(mirrored)
         src.play_range(video_path, start_s, end_s)
         src.set_preview_callback(lambda m: self.previewReady.emit(m))
         src.set_done_callback(lambda: self._doneSignal.emit())

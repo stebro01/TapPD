@@ -193,28 +193,30 @@ Eine Webcam liefert die Szene so, wie die Kamera sie sieht. Wer davorsitzt, hat
 seine **linke Hand auf der rechten Bildseite** — der Patient sieht sich nicht
 wie im Spiegel und greift beim Nachmachen intuitiv falsch.
 
-Dazu kommt eine Eigenheit von MediaPipe: die Haendigkeitsausgabe
-(`Left`/`Right`) setzt ein **gespiegeltes Eingangsbild** voraus (Selfie-Ansicht).
-Fuettert man das rohe Kamerabild, ist das Label **systematisch vertauscht**.
-
-Beides hat dieselbe Ursache und dieselbe Loesung: einmal spiegeln.
+**Spiegeln allein genuegt aber nicht.** MediaPipe vergibt `Left`/`Right` aus der
+Sicht *des Bildes, das es bekommen hat*. Dreht man das Bild um, dreht sich das
+Label mit — die gespiegelte Ansicht waere richtig, die Haendigkeit dafuer
+falsch. Beides gehoert zusammen:
 
 ```
-cap.read()  ──►  cv2.flip(frame, 1)  ──►  ┬─► MediaPipe  ──► Landmarken + Haendigkeit
-   (roh)         (nur Live-Kamera)        ├─► Vorschau-JPEG
-                                          └─► Clip-Aufnahme
+cap.read() ─► cv2.flip(frame, 1) ─► MediaPipe ─► _handedness(label, mirrored=True)
+   (roh)      │                                        │
+              ├─► Vorschau-JPEG                        └─► Label zurueckgedreht
+              └─► Clip-Aufnahme
 ```
 
-Weil **vor** allen Konsumenten gespiegelt wird, teilen Vorschau, Landmarken,
-Haendigkeit und aufgenommene Clips *eine* Orientierung. Es gibt keine Stelle,
-an der etwas nachtraeglich zurueckgedreht werden muesste.
+`_handedness()` in `sidecar.py` ist die einzige Stelle, die das Label
+korrigiert, und sie liest dasselbe Flag, das auch die Spiegelung steuert
+(`self._frames_mirrored`) — die beiden koennen nicht auseinanderlaufen.
 
-| | Bild | Linke Hand erscheint | MediaPipe-Label |
+| | Bild | Linke Hand erscheint | Label |
 |---|---|---|---|
-| ohne Spiegelung (frueher) | Kamerasicht | rechts | vertauscht |
-| **mit Spiegelung (Standard)** | Spiegelsicht | **links** | **korrekt** |
+| ohne Spiegelung | Kamerasicht | rechts | `Left` → falsch |
+| nur spiegeln | Spiegelsicht | links | `Right` → falsch |
+| **spiegeln + Label drehen (Standard)** | Spiegelsicht | **links** | **`Left` → richtig** |
 
-Abschaltbar ueber `capture/capture.yaml` → `sidecar.mirror: false`.
+Abschaltbar ueber `capture/capture.yaml` → `sidecar.mirror: false`; dann
+entfaellt auch die Label-Korrektur.
 
 #### `flip_handedness` ist etwas anderes
 
@@ -225,26 +227,38 @@ Bild**. Er vertauscht nur das Etikett `left`/`right` nachtraeglich in
 Haendigkeit durch die doppelte Spiegelung wieder falsch. Im Normalfall bleibt er
 aus.
 
-#### Video-Import (VideoLab): bewusst **nicht** gespiegelt
+#### Video-Import (VideoLab): Flag **pro Video**
 
-Ein importiertes Video ist keine Selbstansicht, sondern meist die Aufnahme
-*eines Untersuchers*. Was "richtig herum" ist, haengt davon ab, womit gefilmt
-wurde (Front- oder Rueckkamera, und ob das Geraet beim Speichern spiegelt) —
-das laesst sich nicht zuverlaessig erraten. Deshalb laeuft der Replay-Pfad
-unveraendert:
+Was bei einem importierten Video "richtig herum" ist, haengt vom Aufnahmegeraet
+ab: eine Frontkamera-Aufnahme zeigt den Patienten oft seitenverkehrt, eine vom
+Untersucher gefilmte Rueckkamera-Aufnahme nicht. Global laesst sich das nicht
+entscheiden, deshalb entscheidet es **jedes Video fuer sich**:
 
-```python
-if self._mirror and not is_video:     # Video bleibt, wie es ist
+```
+VideoLab, Checkbox „Gespiegelt"
+  └─ VideoSession.mirrored          (in session.json gespeichert)
+       └─ AnalysisRunner.start(..., mirrored=…)
+            └─ WebcamSource.replay_mirror
+                 └─ {"cmd":"start", "mirror": …}
+                      └─ Sidecar._video_mirror  ─► spiegelt + dreht das Label
 ```
 
-Folge: bei Videos kann MediaPipes Haendigkeit vertauscht sein. VideoLab loest
-das nicht automatisch, sondern **ueber das Segment**: es trackt immer beide
-Haende, und die ausgewertete Seite ergibt sich aus der am Segment vermerkten
-Hand — notfalls per *„Umbenennen"* korrigieren.
+Die Live-Kamera nutzt weiterhin das globale `sidecar.mirror`; ein Video nutzt
+ausschliesslich sein eigenes Flag:
 
-> **Offene Luecke:** damit gilt live und im Video eine unterschiedliche
-> Konvention. Sauberer waere ein Spiegel-Flag **pro Video**, das beim Import
-> gesetzt wird. Bis dahin ist die Segment-Seite die verbindliche Angabe.
+```python
+mirror_frames = bool(self._video_mirror) if is_video else bool(self._mirror)
+```
+
+Der Standard fuer Videos ist **aus** — ein unveraendert uebernommenes Video
+bleibt, wie es ist.
+
+Unabhaengig davon waehlt VideoLab die ausgewertete Hand nicht ueber das
+MediaPipe-Label, sondern ueber die **am Segment vermerkte Seite**: es trackt
+immer beide Haende und wertet die aus, die sich tatsaechlich bewegt hat. Die
+Seitenangabe laesst sich per *„Umbenennen"* korrigieren. Das Spiegel-Flag ist
+also die Korrektur fuer *Ansicht und Label*, die Segment-Seite bleibt die
+verbindliche klinische Angabe.
 
 #### Auswirkung auf die Okulomotorik: keine
 

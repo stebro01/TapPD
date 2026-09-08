@@ -49,6 +49,7 @@ class VideoSession:
     patient_code: str
     video_path: str = ""          # path to the copied video inside the session dir
     video_name: str = ""          # original filename (display only)
+    mirrored: bool = False        # mirror this clip on playback/analysis
     created_at: str = ""
     segments: list[Segment] = field(default_factory=list)
     path: str = ""                # JSON file location (set on save)
@@ -105,6 +106,7 @@ class VideoSession:
             "patient_code": self.patient_code,
             "video_path": self.video_path,
             "video_name": self.video_name,
+            "mirrored": self.mirrored,
             "created_at": self.created_at,
             "db_session_id": self.db_session_id,
             "segments": [asdict(s) for s in self.segments],
@@ -119,6 +121,7 @@ class VideoSession:
             d = json.load(f)
         vs = cls(patient_id=d["patient_id"], patient_code=d.get("patient_code", ""),
                  video_path=d.get("video_path", ""), video_name=d.get("video_name", ""),
+                 mirrored=bool(d.get("mirrored", False)),
                  created_at=d.get("created_at", ""), path=path,
                  db_session_id=d.get("db_session_id"))
         vs.segments = [Segment(**s) for s in d.get("segments", [])]

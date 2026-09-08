@@ -252,10 +252,11 @@ sqlite3 data/tappd.db \
 
 ### Spiegelung & Haendigkeit
 
-Das **Live-Kamerabild wird gespiegelt** (Selfie-Ansicht). Die linke Hand des
-Patienten erscheint dadurch links im Bild — und wird auch als *links* erkannt:
-MediaPipes Haendigkeitsausgabe setzt ein gespiegeltes Eingangsbild voraus, am
-rohen Kamerabild waere das Label systematisch vertauscht.
+Das **Live-Kamerabild wird gespiegelt** (Selfie-Ansicht): die linke Hand des
+Patienten erscheint links im Bild — **und wird auch als links erkannt**. Beides
+gehoert zusammen, denn MediaPipe vergibt links/rechts aus Sicht des Bildes, das
+es bekommt; wird das Bild gedreht, muss das Label mitgedreht werden. Der Sidecar
+erledigt das in einem Schritt, ohne Zutun.
 
 Abschalten in `capture/capture.yaml`:
 
@@ -265,15 +266,16 @@ sidecar:
 ```
 
 Der Schalter **„Haendigkeit vertauschen"** auf dem Tracking-Screen ist etwas
-anderes: er spiegelt kein Bild, sondern tauscht nur das Etikett links/rechts.
-Er bleibt normalerweise **aus** und ist nur fuer Kameras gedacht, die selbst
+anderes: er spiegelt kein Bild, sondern tauscht nur das Etikett nachtraeglich.
+Er bleibt normalerweise **aus** und ist der Notnagel fuer Kameras, die selbst
 schon spiegeln.
 
-**Importierte Videos werden nicht gespiegelt** — ob ein Video "richtig herum"
-ist, haengt vom Aufnahmegeraet ab und laesst sich nicht erraten. Dort kann die
-Haendigkeit vertauscht sein; massgeblich ist die am Segment vermerkte Hand, die
-sich im VideoLab per *„Umbenennen"* korrigieren laesst. Details in
-[TECHNICAL_DETAILS.md](TECHNICAL_DETAILS.md) → *Spiegelung & Haendigkeit*.
+**Importierte Videos** haben ein **eigenes** Spiegel-Flag, weil nicht global
+entscheidbar ist, ob eine Aufnahme seitenverkehrt ist — das haengt vom
+Aufnahmegeraet ab. Im VideoLab neben der Drehen-Schaltflaeche: Checkbox
+**„Gespiegelt"**, standardmaessig aus, pro Video mit der Video-Session
+gespeichert. Details in [TECHNICAL_DETAILS.md](TECHNICAL_DETAILS.md) →
+*Spiegelung & Haendigkeit*.
 
 ### Kamera-Aufloesung einstellen
 

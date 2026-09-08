@@ -40,6 +40,21 @@ _MAX_CONSECUTIVE_MISSES = 100
 _MISS_RETRY_S = 0.02
 
 
+def _handedness(name: str | None, mirrored: bool) -> str:
+    """MediaPipe's Left/Right label, corrected for a mirrored frame.
+
+    MediaPipe reports handedness as seen in the image it was given.  Mirroring
+    the frame therefore inverts the label, so a mirrored frame has to be paired
+    with a swapped label to keep "left hand" meaning the patient's left hand.
+    Both belong together and are decided in one place.
+    """
+    if not name:
+        return "Right"   # unknown: a fixed fallback, not one the mirror flips
+    if not mirrored:
+        return name
+    return {"Left": "Right", "Right": "Left"}.get(name, name)
+
+
 def _camera_backend() -> int:
     """Preferred VideoCapture backend for live cameras."""
     if sys.platform == "darwin":
@@ -178,6 +193,8 @@ class Sidecar:
         # Flipping here fixes the view and the labels in one place.  Video
         # replay is never mirrored: a clip is not a live self-view.
         self._mirror = True
+        self._video_mirror = False      # per-clip, set with the "start" command
+        self._frames_mirrored = False   # what the running capture actually does
         self._capture_thread: threading.Thread | None = None
         self._closing = threading.Event()   # tells the camera thread to exit
         self._quit = threading.Event()      # process should terminate
@@ -250,6 +267,9 @@ class Sidecar:
         elif cmd == "start":
             ss = msg.get("start_s")
             ee = msg.get("end_s")
+            # Per-clip mirror flag; only meaningful for video (a live camera
+            # uses the global sidecar.mirror setting).
+            self._video_mirror = bool(msg.get("mirror", False))
             self.start(int(msg.get("index", 0)), msg.get("video") or None,
                        None if ss is None else float(ss),
                        None if ee is None else float(ee),
@@ -340,6 +360,12 @@ class Sidecar:
             return
 
         is_video = bool(self._video_path)
+        # A live camera faces the patient, so it is mirrored by default.  A clip
+        # carries its own flag, decided at import — how it was filmed cannot be
+        # inferred here.  Remembered on the instance so the payload builders can
+        # correct the handedness label to match.
+        mirror_frames = bool(self._video_mirror) if is_video else bool(self._mirror)
+        self._frames_mirrored = mirror_frames
         start_frame = 0
         end_frame = None
         if is_video:
@@ -449,8 +475,8 @@ class Sidecar:
 
                 # Mirror before anything else looks at the frame, so preview,
                 # landmarks, handedness and recorded clips all share one
-                # orientation.
-                if self._mirror and not is_video:
+                # orientation.  Video keeps its own flag (set at import).
+                if mirror_frames:
                     frame_bgr = cv2.flip(frame_bgr, 1)
 
                 self._maybe_record(frame_bgr)   # write live frames to a clip if requested
@@ -490,7 +516,7 @@ class Sidecar:
                             self._send(self._face_payload(lms, w0, h0))
 
                 h0, w0 = frame_bgr.shape[:2]
-                hands = self._hands_payload(result, w0, h0)
+                hands = self._hands_payload(result, w0, h0, self._frames_mirrored)
                 msg = {"type": "hand", "ts": int(time.time() * 1_000_000), "hands": hands}
                 if self._face_on and self._last_iris_px is not None:
                     msg["iris_px"] = self._last_iris_px
@@ -525,7 +551,8 @@ class Sidecar:
 
     # ── serialization ────────────────────────────────────────────
     @staticmethod
-    def _hands_payload(result, w: int = 0, h: int = 0) -> list[dict]:
+    def _hands_payload(result, w: int = 0, h: int = 0,
+                       mirrored: bool = False) -> list[dict]:
         hands = []
         world = getattr(result, "hand_world_landmarks", None) or []
         image = getattr(result, "hand_landmarks", None) or []
@@ -533,7 +560,7 @@ class Sidecar:
         for i, hand_world in enumerate(world):
             cat = handed[i][0] if i < len(handed) and handed[i] else None
             entry = {
-                "handedness": cat.category_name if cat else "Right",
+                "handedness": _handedness(cat.category_name if cat else None, mirrored),
                 "score": float(cat.score) if cat else 1.0,
                 "world": [[lm.x, lm.y, lm.z] for lm in hand_world],
             }
@@ -590,7 +617,8 @@ class Sidecar:
         image_lms = getattr(result, "hand_landmarks", None) or []
         landmarks = [[[lm.x, lm.y] for lm in hand] for hand in image_lms]
         handed = getattr(result, "handedness", None) or []
-        hand_handedness = [(h[0].category_name if h else "Right") for h in handed]
+        hand_handedness = [_handedness(h[0].category_name if h else None,
+                                     self._frames_mirrored) for h in handed]
 
         # Normalized image landmarks of the first face (478 points incl. iris).
         face = []

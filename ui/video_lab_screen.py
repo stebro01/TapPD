@@ -262,6 +262,15 @@ class VideoLabScreen(QWidget):
             "Orientierung falsch ist)")
         self._rotate_btn.clicked.connect(self._on_rotate)
         ctl.addWidget(self._rotate_btn)
+        self._mirror_cb = QCheckBox("Gespiegelt")
+        self._mirror_cb.setToolTip(
+            "Dieses Video horizontal spiegeln.\n"
+            "Nötig, wenn es mit einer Frontkamera aufgenommen wurde und der "
+            "Patient seitenverkehrt erscheint — sonst wird die linke Hand als "
+            "rechte erkannt.\n"
+            "Gilt für dieses Video und wird mit der Video-Session gespeichert.")
+        self._mirror_cb.stateChanged.connect(self._on_mirror_changed)
+        ctl.addWidget(self._mirror_cb)
         self._deface_cb = QCheckBox("Defacing")
         self._deface_cb.setToolTip("Gesicht im Segment-Clip anonymisieren (Datenschutz)")
         self._deface_cb.setChecked(cfg("privacy", "deface", default="blur") in ("blur", "mesh"))
@@ -396,6 +405,10 @@ class VideoLabScreen(QWidget):
         self._title.setText(f"VideoLab – {code}")
         self.session = (load_for_patient(getattr(patient, "id", 0), code)
                         or VideoSession.create(getattr(patient, "id", 0), code))
+        # Reflect the stored per-video mirror flag without re-saving it.
+        self._mirror_cb.blockSignals(True)
+        self._mirror_cb.setChecked(bool(self.session.mirrored))
+        self._mirror_cb.blockSignals(False)
         if self.session.video_path:
             from video.clip import VideoClip
             self._player.setSource(QUrl.fromLocalFile(self.session.video_path))
@@ -445,6 +458,19 @@ class VideoLabScreen(QWidget):
         if busy is not None:
             busy.close()
             self._busy = None
+
+    def _on_mirror_changed(self, _state: int) -> None:
+        """Persist the per-video mirror flag on the session."""
+        if self.session is None:
+            return
+        mirrored = self._mirror_cb.isChecked()
+        if mirrored == self.session.mirrored:
+            return
+        self.session.mirrored = mirrored
+        self.session.save()
+        self._status.setText(
+            "Video wird gespiegelt analysiert." if mirrored
+            else "Video wird unverändert analysiert.")
 
     def _on_import_done(self, dest: str, name: str) -> None:
         self._hide_busy()
@@ -781,10 +807,12 @@ class VideoLabScreen(QWidget):
         # Segment-Clip ist Archiv/Review — Fallback nur, wenn das Original fehlt.
         if self.session.video_path and os.path.exists(self.session.video_path):
             self.runner.start(self.session.video_path, seg.start_s, seg.end_s, key,
-                              hand=hand, with_face=with_face)
+                              hand=hand, with_face=with_face,
+                              mirrored=self.session.mirrored)
         elif seg.clip_path and os.path.exists(seg.clip_path):
             self.runner.start(seg.clip_path, 0.0, seg.duration_s, key,
-                              hand=hand, with_face=with_face)
+                              hand=hand, with_face=with_face,
+                              mirrored=self.session.mirrored)
         else:
             self._running = False
             self._plot_timer.stop()

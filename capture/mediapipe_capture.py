@@ -52,6 +52,11 @@ class WebcamSource(BaseCaptureDevice):
         self.camera_index = camera_index
         self.flip_handedness = flip_handedness
         self.replay_path = replay_path  # if set, sidecar loops this video clip
+        # Whether that clip has to be mirrored to show the subject as in a
+        # mirror. Per clip, because it depends on the recording device — a
+        # front-camera phone clip is usually already mirrored, a clip filmed by
+        # an examiner is not. Set at import; live capture uses sidecar.mirror.
+        self.replay_mirror = False
         self._range: tuple[float, float] | None = None  # play-once [start_s, end_s]
         self._loop = True               # False = play the range once, then "done"
         self._recorded_callback = None  # called(path) when a record finishes
@@ -246,7 +251,8 @@ class WebcamSource(BaseCaptureDevice):
         s, e = self._range or (None, None)
         self._send({"cmd": "start", "index": self.camera_index,
                     "video": self.replay_path or None,
-                    "start_s": s, "end_s": e, "loop": self._loop})
+                    "start_s": s, "end_s": e, "loop": self._loop,
+                    "mirror": bool(self.replay_mirror)})
         log.debug("MediaPipe-Aufnahme gestartet (Kamera %d, replay=%s, range=%s)",
                   self.camera_index, self.replay_path or "-", self._range)
 
