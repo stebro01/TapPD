@@ -13,10 +13,26 @@ log = logging.getLogger(__name__)
 _IS_WINDOWS = sys.platform == "win32"
 _IS_MACOS = sys.platform == "darwin"
 
+# Feature branch "windows-camera": the Leap Motion path is switched off so the
+# app goes straight to the webcam and the UI is not cluttered with "install the
+# Ultraleap software" diagnostics on machines that have no sensor.  The Leap
+# code itself is untouched — set MOTRYX_ENABLE_LEAP=1 to get it back, or pick
+# "leap" explicitly on the tracking screen.
+LEAP_ENABLED = os.environ.get("MOTRYX_ENABLE_LEAP", "") == "1"
+
 
 def diagnose_sensor() -> list[str]:
     """Check SDK, USB device, and tracking service. Returns list of issues found."""
     log.debug("Starte Sensor-Diagnose...")
+
+    # Leap switched off (see LEAP_ENABLED): the only thing worth diagnosing is
+    # the webcam pipeline, so don't tell the user to install Ultraleap software
+    # they deliberately are not using.
+    if not LEAP_ENABLED:
+        from capture.mediapipe_capture import WebcamSource
+        _, cam_issues = WebcamSource.sidecar_ready()
+        return cam_issues
+
     issues = []
 
     # 1. Check if Ultraleap Tracking software is installed
@@ -153,15 +169,26 @@ def create_source(kind: str = "auto", camera_index: int = 0,
         from capture.leap_capture import LeapSource
         return LeapSource()
 
-    # auto: try leap -> mock fallback with diagnostics
+    # auto: webcam -> mock.  Leap is skipped unless MOTRYX_ENABLE_LEAP=1.
+    if LEAP_ENABLED:
+        try:
+            from capture.leap_capture import LeapSource
+            device = LeapSource()
+            device.connect()
+            log.info("Leap Motion Controller erfolgreich verbunden")
+            return device
+        except Exception as leap_err:
+            log.warning("Leap-Verbindung fehlgeschlagen: %s: %s", type(leap_err).__name__, leap_err)
+
     try:
-        from capture.leap_capture import LeapSource
-        device = LeapSource()
+        from capture.mediapipe_capture import WebcamSource
+        device = WebcamSource(camera_index=camera_index,
+                              flip_handedness=flip_handedness)
         device.connect()
-        log.info("Leap Motion Controller erfolgreich verbunden")
+        log.info("Webcam-Tracking erfolgreich gestartet (Kamera %d)", camera_index)
         return device
-    except Exception as leap_err:
-        log.warning("Leap-Verbindung fehlgeschlagen: %s: %s", type(leap_err).__name__, leap_err)
+    except Exception as cam_err:
+        log.warning("Webcam-Start fehlgeschlagen: %s: %s", type(cam_err).__name__, cam_err)
 
     # Sensor not found — run diagnostics
     issues = diagnose_sensor()
