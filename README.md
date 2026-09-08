@@ -145,12 +145,19 @@ pip install -r requirements.txt
 ### Bedienung
 
 1. **Patient waehlen** oder neuen anlegen
-2. **Test anklicken** im Dashboard (8 Test-Karten)
-3. **Hand waehlen** (L/R) bei unilateralen Tests, Auto-Detection bei kognitiven Tests
-4. **Hand-Detection** → 3-2-1 Countdown → Aufnahme mit Live-Plot / interaktive Aufgabe
-5. **Ergebnisse** werden automatisch gespeichert
-6. **Verwerfen** / **Neu aufnehmen** / **Fortfahren** (mit optionaler Rohdaten-Speicherung)
-7. Weitere Tests durchfuehren oder Session beenden
+2. **„＋ Neue Sitzung"** oeffnet den Sitzungsbildschirm — links der Inhalt,
+   rechts der Arbeitsbereich
+3. **Hinzufuegen**: *Protokoll aufnehmen* (mehrere Schritte), *Einzelnes
+   Paradigma* (ein Schritt) oder *Video importieren*
+4. **Aufnehmen** je Schritt: Anweisung lesen → Countdown → Aufnahme →
+   Take ansehen → **Uebernehmen** oder **Wiederholen**
+5. Mit „Nach Uebernehmen automatisch auswerten" entsteht das Ergebnis direkt
+   auf dem bestaetigten Take (derselbe Weg wie beim Import)
+6. **„← Patient"** zurueck zur Uebersicht: der Baum zeigt je Sitzung die
+   Schritte mit Zustand und Ergebnis; Rechtsklick bietet Fortsetzen,
+   erneut aufnehmen, Live-Messung hinzufuegen, Loeschen
+7. Interaktive Paradigmen (Hanoi, SRT, TMT, Sakkaden) laufen weiterhin live
+   ueber „Live-Messung hinzufuegen…"
 
 ## Projektstruktur
 

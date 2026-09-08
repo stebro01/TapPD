@@ -365,11 +365,15 @@ nach.
 |---|---|
 | Protokoll-Schema, Loader, Validierung (`video/protocol.py`) | **erledigt** |
 | Schrittzustände + Persistenz (`video/store.py`) | **erledigt** |
-| Aufnahme-Ablauf (Countdown, Sichtung) in der UI | offen |
-| VideoLab: zweiter Eingang „Aufnahme" | offen |
-| `acquisition_mode` an der Session | offen |
-| `VideoSession` von Patient auf Session umschlüsseln | offen |
-| Session-Baum im Patientenscreen | offen |
+| Aufnahme-Ablauf (Countdown, Sichtung, Wiederholen) | **erledigt** (`ui/recording_pane.py`) |
+| Zuschaltbare Analyse nach dem Bestätigen | **erledigt** (gleicher Weg wie Import) |
+| Ein Bildschirm pro Sitzung (§6b) | **erledigt** (`ui/session_screen.py`) |
+| `VideoSession` von Patient auf Session umschlüsseln | **erledigt** (`load_for_session`, Altbestand → jüngste Sitzung) |
+| Session-Baum im Patientenscreen | **erledigt** |
+| Ein Einstieg „Neue Sitzung", VideoLab/Gesture Lab als Knöpfe entfernt | **erledigt** |
+| `acquisition_mode` im `VISIT_BLOB` | offen — der Baum leitet die Art bislang aus dem Inhalt ab |
+| Interaktive Paradigmen als Schritt-Typ im Protokoll | offen (experimentell, siehe §6) |
+| Komprimierte Clips je Messung ablegen („Video-Datenbank") | offen — siehe §8 |
 
 **Protokoll-Versionierung** und **Abbruch mittendrin** sind mit der Persistenz
 gelöst: `VideoSession.steps` ist eine *Kopie* der Protokollschritte (spätere

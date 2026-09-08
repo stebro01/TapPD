@@ -114,10 +114,13 @@ Zeit betrachten.</p>
     <code>start.bat</code> (legt beim ersten Mal die Python-Umgebung an).
     Ohne Sensor: <code>./start.sh --mock</code> (Simulationsmodus).</li>
 <li><b>Patient wählen</b> oder neu anlegen (Startbildschirm).</li>
-<li><b>„+ Neue Session"</b> → Test-Kachel anklicken → bei Hand-Tests Hand wählen.</li>
-<li>Anweisungen folgen — die Aufnahme startet erst, wenn Hand bzw. Gesicht
-    erkannt wurde (Countdown 3-2-1).</li>
-<li><b>Ergebnis</b> wird automatisch gespeichert; „Fortfahren" führt zurück zum Dashboard.</li>
+<li><b>„＋ Neue Sitzung"</b> öffnet den Sitzungsbildschirm. Über <b>Hinzufügen</b>:
+    Protokoll aufnehmen, einzelnes Paradigma oder Video importieren.</li>
+<li>Je Schritt: Anweisung lesen → <b>● Aufnahme starten</b> → Countdown → Aufnahme →
+    Take ansehen → <b>✔ Übernehmen</b> oder <b>↻ Wiederholen</b>. Unter der Vorschau
+    zeigt eine Zeile live, ob Hände und Gesicht erkannt werden.</li>
+<li><b>Ergebnis</b>: mit „Nach Übernehmen automatisch auswerten" wird der bestätigte
+    Take sofort analysiert; das Ergebnis steht in der Inhaltsliste und im Sitzungsbaum.</li>
 </ol>
 
 <figure><img src="img/01_patienten.png" alt="Patientenliste">
@@ -158,11 +161,13 @@ betroffenen Werte automatisch.</div>
 
 <h2 id="patienten">4&nbsp;· Patienten &amp; Sessions</h2>
 <figure><img src="img/02_patient_detail.png" alt="Patienten-Detail">
-<figcaption>Patienten-Detail: Session-Matrix (Zeilen = Sitzungen, Spalten = Tests).
-Zellen anklicken öffnet die Detailansicht; gedrückt halten bietet Aktionen
-(Messung ergänzen, Session löschen). Oben: 🎬 VideoLab, ✋ Gesture Lab, 📈 Verlauf.</figcaption></figure>
+<figcaption>Patienten-Detail: Sitzungsbaum — je Sitzung die aufgenommenen Schritte mit
+Zustand (○ offen, ◐ aufgenommen, ✔ bestätigt) und Ergebnis, dazu direkt gemessene
+Werte. Rechtsklick bietet Fortsetzen, erneut aufnehmen, Live-Messung hinzufügen,
+Sitzung löschen. Oben rechts: 📈 Verlauf und „＋ Neue Sitzung".</figcaption></figure>
 <ul>
-<li><b>Zellen-Symbole:</b> L/R = durchgeführte Hand, ✓ = bilateral/Augen erledigt, · = offen.</li>
+<li><b>Symbole im Baum:</b> ○ offen · ◐ aufgenommen, noch nicht gesichtet · ✔ bestätigt (Video liegt vor);
+    die Spalte „Ergebnis" zeigt z.&nbsp;B. <code>Ruhetremor: MPI 0.62</code> oder „nicht ausgewertet".</li>
 <li><b>CSV-Export</b> (unten) exportiert alle Messungen des Patienten für die Statistik.</li>
 <li>Jede Messung speichert <b>Quelle</b> (Leap/Webcam/Video/Simulation), Dauer und Rohdaten-Verweis.</li>
 </ul>
@@ -238,10 +243,16 @@ als Spitzen) und Lidspalte mit Blink-Schwelle (rechts).</figcaption></figure>
 <figcaption>📈 Verlauf: beliebiges Merkmal über die Zeit, getrennt nach Hand.
 Hohle Punkte = Kamera-Quelle (≈mm-Modellskala), gefüllte = Leap.</figcaption></figure>
 
-<h2 id="videolab">8&nbsp;· VideoLab — Handy-Videos auswerten</h2>
-<figure><img src="img/11_videolab.png" alt="VideoLab">
-<figcaption>VideoLab: Video laden, Bereich mit den zwei Reglern markieren,
-Segment benennen und Paradigma zuordnen, dann analysieren.</figcaption></figure>
+<h2 id="videolab">8&nbsp;· Sitzung — Aufnahme, Import und Auswertung</h2>
+<figure><img src="img/11_sitzung.png" alt="Sitzungsbildschirm">
+<figcaption>Sitzungsbildschirm: links der Inhalt (Protokollschritte, importiertes Video),
+rechts der Arbeitsbereich, der der Auswahl folgt — Aufnahme eines Schritts,
+Sichtung des Takes oder Schnitt eines importierten Videos.
+Unten: Kamera wechseln, Gesichtserkennung, Status.</figcaption></figure>
+<p>Über <b>＋ Hinzufügen</b> kommt Inhalt in die Sitzung: <b>Protokoll aufnehmen</b>
+(mehrere Schritte nacheinander), <b>Einzelnes Paradigma</b> (ein Schritt) oder
+<b>Video importieren</b>. Ein importiertes Video erscheint als eigener Eintrag;
+angeklickt öffnet es den Schnitt-Bereich:</p>
 <ol class="steps">
 <li><b>Video laden</b> — wird automatisch normalisiert (Größe/Format);
     falsch orientierte Videos mit <b>↻ 90°</b> drehen.</li>

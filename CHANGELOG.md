@@ -51,9 +51,32 @@ Versionierung: SemVer-artig (0.x = Forschungsprototyp).
 - Der Sim-Modus blendete ohne vorhandenen Clip die Vorschau aus, statt den
   Grund dort anzuzeigen.
 
+### Sitzungen: Video als Primärquelle
+- **Ein Bildschirm pro Sitzung** (`ui/session_screen.py`): links der Inhalt
+  (Protokollschritte, importiertes Video), rechts der Arbeitsbereich, der der
+  Auswahl folgt — Aufnahme, Take-Sichtung oder Video-Schnitt. Protokoll,
+  einzelnes Paradigma und Video-Import sind drei Einträge im Menü
+  „Hinzufügen", keine drei Bildschirme mehr.
+- **Aufnahmeprotokolle** (`video/protocols/*.yaml`, Loader mit Validierung):
+  jeder Schritt wird einzeln gefilmt, gesichtet und bestätigt; ein einzelnes
+  Paradigma ist ein Protokoll der Länge 1. Zustand und Takes werden an der
+  Video-Session persistiert, eine unterbrochene Aufnahme lässt sich fortsetzen.
+- **Zuschaltbare Analyse**: ein bestätigter Take wird über denselben
+  `AnalysisRunner` ausgewertet wie ein importiertes Segment — gleiche Zahlen.
+- **Sitzungsübersicht als Baum** statt Test-Matrix: Schritte mit Zustand
+  (offen / aufgenommen / bestätigt) und Ergebnis, Kontextmenü je Knotentyp.
+- **Ein Einstieg**: „Neue Sitzung" öffnet direkt den Sitzungsbildschirm;
+  die Knöpfe „VideoLab" und „Gesture Lab" auf der Patientenseite entfallen.
+- **Video-Sessions pro Sitzung** (`session_<id>/`) statt pro Patient;
+  bestehende Dateien werden der jüngsten Sitzung zugeordnet.
+- Aufnahme-Bildschirm mit Live-Erkennungsanzeige, Kamerawechsel im Footer.
+
 ### Hinweise
 - Leap Motion ist auf diesem Stand standardmäßig deaktiviert
   (`MOTRYX_ENABLE_LEAP=1` bzw. `start.ps1 --leap` aktiviert es wieder).
+- Der alte Live-Weg über das Paradigmen-Dashboard bleibt für interaktive
+  Paradigmen (Hanoi, SRT, TMT, Sakkaden) und ist aus dem Sitzungsbaum über
+  „Live-Messung hinzufügen…" erreichbar.
 
 ## [0.3.0] — 2026-07-15
 

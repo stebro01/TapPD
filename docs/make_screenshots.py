@@ -14,7 +14,9 @@ import tempfile
 import time
 from pathlib import Path
 
-os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+# Offscreen renders without system fonts on Windows (every glyph a box), so use
+# the native platform there and keep the window off the desktop instead.
+os.environ.setdefault("QT_QPA_PLATFORM", "windows" if sys.platform == "win32" else "offscreen")
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
@@ -98,6 +100,8 @@ def main() -> None:
 
     from ui.main_window import MotryxMainWindow
     w = MotryxMainWindow(src)
+    from PyQt6.QtCore import Qt
+    w.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, True)   # grab() still renders
     w.resize(WIN_W, WIN_H)
     w.show()
     app.processEvents()
