@@ -211,6 +211,12 @@ class VideoLabScreen(QWidget):
         self._title = QLabel("VideoLab")
         self._title.setStyleSheet("font-size: 20px; font-weight: 700; color: #263238;")
         header.addWidget(self._title, 1)
+        self._record_btn = QPushButton("● Protokoll aufnehmen…")
+        self._record_btn.setToolTip(
+            "Video Schritt für Schritt nach einem Protokoll aufnehmen — "
+            "der zweite Eingang neben dem Import")
+        self._record_btn.clicked.connect(self._on_start_recording)
+        header.addWidget(self._record_btn)
         self._load_btn = QPushButton("🎬 Video laden…")
         self._load_btn.clicked.connect(self._on_load_video)
         header.addWidget(self._load_btn)
@@ -458,6 +464,48 @@ class VideoLabScreen(QWidget):
         if busy is not None:
             busy.close()
             self._busy = None
+
+    def _on_start_recording(self) -> None:
+        """VideoLab's second input: film a protocol instead of importing one."""
+        if self.session is None:
+            return
+
+        # Already filming this session → carry on where it stopped.
+        if self.session.steps:
+            self.main_window.show_recording(self.session)
+            return
+
+        # Recording and import cannot share a session yet: they disagree about
+        # `mirrored` (a recording is our own raw capture, an import is not), and
+        # the session is still keyed per patient. Say so instead of quietly
+        # corrupting the imported video's orientation.
+        if self.session.video_path:
+            QMessageBox.information(
+                self, "Aufnahme",
+                "Diese Video-Session enthält bereits ein importiertes Video.\n\n"
+                "Aufnahme und Import teilen sich noch keine Session — das kommt "
+                "mit der Umschlüsselung der Video-Sessions auf Sessions "
+                "(siehe SESSION_KONZEPT.md).")
+            return
+
+        from ui.recording_screen import ProtocolChooser
+        from capture.config import source_mirrored
+
+        dialog = ProtocolChooser(self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        try:
+            protocol = dialog.protocol()
+        except Exception as e:
+            QMessageBox.warning(self, "Protokoll", f"Protokoll nicht nutzbar:\n{e}")
+            return
+
+        self.session.attach_protocol(protocol)
+        # A recording is our own capture: stored raw, so it replays under the
+        # *webcam* mirror setting, not the video default.
+        self.session.mirrored = source_mirrored("webcam")
+        self.session.save()
+        self.main_window.show_recording(self.session)
 
     def _on_mirror_changed(self, _state: int) -> None:
         """Persist the per-video mirror flag on the session."""

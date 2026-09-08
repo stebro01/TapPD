@@ -36,6 +36,7 @@ from ui.tmt_screen import TMTScreen
 from ui.results_screen import ResultsScreen, save_raw_data
 from ui.gesture_lab_screen import GestureLabScreen
 from ui.tracking_screen import TrackingScreen
+from ui.recording_screen import RecordingScreen
 from ui.video_lab_screen import VideoLabScreen
 from ui.log_viewer import LogViewerDialog
 from ui import theme
@@ -428,6 +429,7 @@ class MotryxMainWindow(QMainWindow):
         self.gesture_lab_screen = GestureLabScreen(self)
         self.tracking_screen = TrackingScreen(self)
         self.video_lab_screen = VideoLabScreen(self)
+        self.recording_screen = RecordingScreen(self)
 
         self.stack.addWidget(self.patient_screen)
         self.stack.addWidget(self.patient_detail)
@@ -441,6 +443,7 @@ class MotryxMainWindow(QMainWindow):
         self.stack.addWidget(self.gesture_lab_screen)
         self.stack.addWidget(self.tracking_screen)
         self.stack.addWidget(self.video_lab_screen)
+        self.stack.addWidget(self.recording_screen)
 
     def _update_tracking_btn_visibility(self, *_args) -> None:
         self._tracking_btn.setVisible(self.stack.currentWidget() is self.patient_screen)
@@ -506,6 +509,18 @@ class MotryxMainWindow(QMainWindow):
     def close_video_lab(self) -> None:
         self.video_lab_screen.on_leave()
         self.stack.setCurrentWidget(self.patient_detail)
+
+    def show_recording(self, session) -> None:
+        """Film a protocol step by step (VideoLab's second input)."""
+        self.recording_screen.on_enter(session)
+        self.stack.setCurrentWidget(self.recording_screen)
+
+    def close_recording(self) -> None:
+        """Back to VideoLab, which re-reads the session so the segments the
+        recording just confirmed show up straight away."""
+        self.recording_screen.on_leave()
+        self.video_lab_screen.on_enter(self.current_patient)
+        self.stack.setCurrentWidget(self.video_lab_screen)
 
     def show_tracking_screen(self) -> None:
         self._return_after_tracking = self.stack.currentWidget()
