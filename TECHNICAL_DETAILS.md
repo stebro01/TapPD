@@ -179,6 +179,84 @@ HandFrame
 └── confidence: float            # Tracking-Konfidenz (0.0-1.0)
 ```
 
+### Spiegelung & Haendigkeit (Kamera-Quellen)
+
+Zwei Dinge haengen zusammen und werden **an einer einzigen Stelle** entschieden —
+im Sidecar, direkt nachdem ein Frame gelesen wurde:
+
+1. **wie das Bild aussieht** (Vorschau) und
+2. **welche Hand MediaPipe "links" nennt**.
+
+#### Warum ueberhaupt spiegeln
+
+Eine Webcam liefert die Szene so, wie die Kamera sie sieht. Wer davorsitzt, hat
+seine **linke Hand auf der rechten Bildseite** — der Patient sieht sich nicht
+wie im Spiegel und greift beim Nachmachen intuitiv falsch.
+
+Dazu kommt eine Eigenheit von MediaPipe: die Haendigkeitsausgabe
+(`Left`/`Right`) setzt ein **gespiegeltes Eingangsbild** voraus (Selfie-Ansicht).
+Fuettert man das rohe Kamerabild, ist das Label **systematisch vertauscht**.
+
+Beides hat dieselbe Ursache und dieselbe Loesung: einmal spiegeln.
+
+```
+cap.read()  ──►  cv2.flip(frame, 1)  ──►  ┬─► MediaPipe  ──► Landmarken + Haendigkeit
+   (roh)         (nur Live-Kamera)        ├─► Vorschau-JPEG
+                                          └─► Clip-Aufnahme
+```
+
+Weil **vor** allen Konsumenten gespiegelt wird, teilen Vorschau, Landmarken,
+Haendigkeit und aufgenommene Clips *eine* Orientierung. Es gibt keine Stelle,
+an der etwas nachtraeglich zurueckgedreht werden muesste.
+
+| | Bild | Linke Hand erscheint | MediaPipe-Label |
+|---|---|---|---|
+| ohne Spiegelung (frueher) | Kamerasicht | rechts | vertauscht |
+| **mit Spiegelung (Standard)** | Spiegelsicht | **links** | **korrekt** |
+
+Abschaltbar ueber `capture/capture.yaml` → `sidecar.mirror: false`.
+
+#### `flip_handedness` ist etwas anderes
+
+Der Schalter *„Haendigkeit vertauschen"* auf dem Tracking-Screen spiegelt **kein
+Bild**. Er vertauscht nur das Etikett `left`/`right` nachtraeglich in
+`mediapipe_mapping.hand_from_world()`. Er ist der Notnagel fuer Kameras, die
+**selbst schon** spiegeln (manche tun das in Hardware) — dann waere die
+Haendigkeit durch die doppelte Spiegelung wieder falsch. Im Normalfall bleibt er
+aus.
+
+#### Video-Import (VideoLab): bewusst **nicht** gespiegelt
+
+Ein importiertes Video ist keine Selbstansicht, sondern meist die Aufnahme
+*eines Untersuchers*. Was "richtig herum" ist, haengt davon ab, womit gefilmt
+wurde (Front- oder Rueckkamera, und ob das Geraet beim Speichern spiegelt) —
+das laesst sich nicht zuverlaessig erraten. Deshalb laeuft der Replay-Pfad
+unveraendert:
+
+```python
+if self._mirror and not is_video:     # Video bleibt, wie es ist
+```
+
+Folge: bei Videos kann MediaPipes Haendigkeit vertauscht sein. VideoLab loest
+das nicht automatisch, sondern **ueber das Segment**: es trackt immer beide
+Haende, und die ausgewertete Seite ergibt sich aus der am Segment vermerkten
+Hand — notfalls per *„Umbenennen"* korrigieren.
+
+> **Offene Luecke:** damit gilt live und im Video eine unterschiedliche
+> Konvention. Sauberer waere ein Spiegel-Flag **pro Video**, das beim Import
+> gesetzt wird. Bis dahin ist die Segment-Seite die verbindliche Angabe.
+
+#### Auswirkung auf die Okulomotorik: keine
+
+Die Blick-Paradigmen sind gegen eine globale Spiegelung unempfindlich:
+
+- **Sakkaden** arbeiten kalibrierungsbasiert — die 5-Punkt-Eichung lernt die
+  Referenz-Offsets in genau der Orientierung, in der auch getestet wird, und
+  klassifiziert per naechstem Nachbarn. Ein Vorzeichenwechsel wird absorbiert.
+- **Fixation** misst Streuung, also orientierungsunabhaengig.
+- Die Kopfpose-Waechter (`eye_roll_deg`, `nose_shift_ipd`) vergleichen jeweils
+  gegen eine eigene Baseline aus derselben Sitzung.
+
 ### Mock-Modus
 
 Fuer Entwicklung ohne Sensor generiert `MockCaptureDevice` synthetische Daten bei 120 Hz:

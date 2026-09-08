@@ -25,6 +25,7 @@ _DEFAULTS = {
         "camera_width": 0,
         "camera_height": 0,
         "camera_fps": 0,
+        "mirror": True,
     },
     "readiness": {"ready_y_mm": 120.0, "min_confidence": 0.5},
     "preview": {"hand_stale_s": 0.3},

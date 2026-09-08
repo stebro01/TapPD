@@ -19,6 +19,10 @@ sidecar:
   camera_width: 0          # e.g. 1280 for 720p, 1920 for 1080p
   camera_height: 0         # e.g. 720          , 1080
   camera_fps: 0            # e.g. 30
+  # Mirror the live camera (selfie view): the patient's left hand appears on the
+  # left of the picture, and MediaPipe's handedness comes out right — its output
+  # assumes a mirrored input. Video replay is never mirrored.
+  mirror: true
 
 readiness:
   ready_y_mm: 120.0        # Leap: hand counts as "in position" above this height

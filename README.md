@@ -250,6 +250,31 @@ sqlite3 data/tappd.db \
    LeapC erlaubt nur eine aktive Verbindung. Falls eine alte Instanz laeuft,
    diese zuerst schliessen.
 
+### Spiegelung & Haendigkeit
+
+Das **Live-Kamerabild wird gespiegelt** (Selfie-Ansicht). Die linke Hand des
+Patienten erscheint dadurch links im Bild — und wird auch als *links* erkannt:
+MediaPipes Haendigkeitsausgabe setzt ein gespiegeltes Eingangsbild voraus, am
+rohen Kamerabild waere das Label systematisch vertauscht.
+
+Abschalten in `capture/capture.yaml`:
+
+```yaml
+sidecar:
+  mirror: false
+```
+
+Der Schalter **„Haendigkeit vertauschen"** auf dem Tracking-Screen ist etwas
+anderes: er spiegelt kein Bild, sondern tauscht nur das Etikett links/rechts.
+Er bleibt normalerweise **aus** und ist nur fuer Kameras gedacht, die selbst
+schon spiegeln.
+
+**Importierte Videos werden nicht gespiegelt** — ob ein Video "richtig herum"
+ist, haengt vom Aufnahmegeraet ab und laesst sich nicht erraten. Dort kann die
+Haendigkeit vertauscht sein; massgeblich ist die am Segment vermerkte Hand, die
+sich im VideoLab per *„Umbenennen"* korrigieren laesst. Details in
+[TECHNICAL_DETAILS.md](TECHNICAL_DETAILS.md) → *Spiegelung & Haendigkeit*.
+
 ### Kamera-Aufloesung einstellen
 
 Standardmaessig waehlt der Treiber das Format. Fest vorgeben in

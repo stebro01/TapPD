@@ -208,8 +208,12 @@ class TrackingScreen(QWidget):
         self._cam_combo.currentIndexChanged.connect(self._on_camera_changed)
         controls.addWidget(self._cam_combo)
 
-        self._flip_cb = QCheckBox("Links/Rechts spiegeln")
-        self._flip_cb.setToolTip("Webcams spiegeln das Bild – bei vertauschter Händigkeit aktivieren")
+        self._flip_cb = QCheckBox("Händigkeit vertauschen")
+        self._flip_cb.setToolTip(
+            "Das Kamerabild wird bereits gespiegelt (Selfie-Ansicht), damit die "
+            "linke Hand links erscheint und auch als links erkannt wird.\n"
+            "Nur aktivieren, wenn die Kamera selbst schon spiegelt und die "
+            "Händigkeit dadurch vertauscht ist.")
         self._flip_cb.stateChanged.connect(self._on_flip_changed)
         controls.addWidget(self._flip_cb)
 

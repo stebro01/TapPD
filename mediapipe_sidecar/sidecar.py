@@ -171,6 +171,13 @@ class Sidecar:
         self._camera_width = 0
         self._camera_height = 0
         self._camera_fps = 0.0
+        # Mirror live camera frames (selfie view).  A webcam delivers the scene
+        # as it sees it, so the patient's left hand appears on the right of the
+        # picture -- confusing to sit in front of, and the wrong way round for
+        # MediaPipe, whose handedness output assumes a mirrored input image.
+        # Flipping here fixes the view and the labels in one place.  Video
+        # replay is never mirrored: a clip is not a live self-view.
+        self._mirror = True
         self._capture_thread: threading.Thread | None = None
         self._closing = threading.Event()   # tells the camera thread to exit
         self._quit = threading.Event()      # process should terminate
@@ -285,6 +292,7 @@ class Sidecar:
         self._camera_width = int(msg.get("camera_width", self._camera_width))
         self._camera_height = int(msg.get("camera_height", self._camera_height))
         self._camera_fps = float(msg.get("camera_fps", self._camera_fps))
+        self._mirror = bool(msg.get("mirror", self._mirror))
 
     def start(self, index: int, video: str | None = None,
               start_s: float | None = None, end_s: float | None = None,
@@ -438,6 +446,12 @@ class Sidecar:
                     continue
                 misses = 0
                 frame_idx += 1
+
+                # Mirror before anything else looks at the frame, so preview,
+                # landmarks, handedness and recorded clips all share one
+                # orientation.
+                if self._mirror and not is_video:
+                    frame_bgr = cv2.flip(frame_bgr, 1)
 
                 self._maybe_record(frame_bgr)   # write live frames to a clip if requested
 
