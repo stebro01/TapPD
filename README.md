@@ -250,6 +250,29 @@ sqlite3 data/tappd.db \
    LeapC erlaubt nur eine aktive Verbindung. Falls eine alte Instanz laeuft,
    diese zuerst schliessen.
 
+### Kamera-Aufloesung einstellen
+
+Standardmaessig waehlt der Treiber das Format. Fest vorgeben in
+`capture/capture.yaml`:
+
+```yaml
+sidecar:
+  camera_width: 1280     # 720p
+  camera_height: 720
+  camera_fps: 30
+```
+
+Nicht jede Kamera kann jeden Modus: eine Anforderung, die sie nicht erfuellt,
+wird stillschweigend auf den naechstliegenden Modus zurueckgesetzt. Was
+tatsaechlich ausgehandelt wurde, steht in `data/logs/sidecar.log`:
+
+```
+camera 1: 1280x720 (requested 1920x1080)
+```
+
+Fuer Hand-Landmarken bringt mehr als 720p wenig, kostet aber spuerbar CPU in
+MediaPipe — auf aelterer Hardware eher bei 640x480 bleiben.
+
 ### Kameraauswahl bleibt leer (Windows)
 
 Die Enumeration braucht die **Visual C++ Runtime**; fehlt sie, laedt

@@ -11,6 +11,14 @@ sidecar:
   num_hands: 2             # live default (VideoLab uses 1 for unilateral paradigms)
   record_fps: 30           # fps for live-recorded clips (Sim default clip)
   record_codec: avc1       # cv2 fourcc for live recording (H.264)
+  # Capture format requested from the camera. 0 = let the driver decide.
+  # Cameras offering several modes (e.g. an OBSBOT Tiny 2: 640x480 / 720p /
+  # 1080p) otherwise pick one themselves. Higher costs CPU in MediaPipe, and
+  # more than 720p buys little for hand landmarks — the driver may also just
+  # refuse and fall back (the sidecar logs what it actually got).
+  camera_width: 0          # e.g. 1280 for 720p, 1920 for 1080p
+  camera_height: 0         # e.g. 720          , 1080
+  camera_fps: 0            # e.g. 30
 
 readiness:
   ready_y_mm: 120.0        # Leap: hand counts as "in position" above this height
