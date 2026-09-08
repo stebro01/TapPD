@@ -13,9 +13,10 @@ imported clip — identical call, identical numbers.
 from __future__ import annotations
 
 import logging
+import os
 from pathlib import Path
 
-from PyQt6.QtCore import QTimer, QUrl, pyqtSignal
+from PyQt6.QtCore import QThread, QTimer, QUrl, pyqtSignal
 from PyQt6.QtMultimedia import QAudioOutput, QMediaPlayer
 from PyQt6.QtMultimediaWidgets import QVideoWidget
 from PyQt6.QtWidgets import (
@@ -44,6 +45,24 @@ RECORDING = "recording"
 REVIEW = "review"
 
 
+class _ArchiveWorker(QThread):
+    """Runs the sidecar extractor off the GUI thread (it blocks for seconds)."""
+
+    done = pyqtSignal(bool)
+
+    def __init__(self, session: VideoSession, segment, parent=None) -> None:
+        super().__init__(parent)
+        self._session, self._segment = session, segment
+
+    def run(self) -> None:
+        try:
+            from video.archive import compact_take
+            self.done.emit(bool(compact_take(self._session, self._segment)))
+        except Exception:
+            log.exception("Take-Archivierung fehlgeschlagen")
+            self.done.emit(False)
+
+
 class RecordingPane(QWidget):
     contentChanged = pyqtSignal()          # the session's steps/segments changed
     statusChanged = pyqtSignal(str, bool)  # (text, is_error) for the footer
@@ -62,8 +81,13 @@ class RecordingPane(QWidget):
         self._runner = AnalysisRunner(self)
         self._runner.finished.connect(self._on_analysis_finished)
         self._runner.failed.connect(self._on_analysis_failed)
-        self._queue: list = []
-        self._analysing: str = ""
+        # After a take is confirmed it goes through a small pipeline, one step
+        # at a time: analyse (on the raw take, full quality) → compact it into
+        # the archive clip → drop the raw file if so configured. Queued, so the
+        # clinician can keep filming while the previous step is processed.
+        self._queue: list = []          # (step_id, segment, analyse)
+        self._job: dict | None = None   # {"step_id", "segment", "stage"}
+        self._worker: _ArchiveWorker | None = None
 
         self._build()
         self._tick_timer = QTimer(self)
@@ -171,7 +195,7 @@ class RecordingPane(QWidget):
         self._tick_timer.stop()
         self._player.stop()
         self._queue.clear()
-        self._analysing = ""
+        self._job = None
         self._runner.teardown()
         self._plot.setVisible(False)
         self._analysis_lbl.setText("")
@@ -280,8 +304,8 @@ class RecordingPane(QWidget):
             self._status(str(e), error=True)
             return
         self.session.save()
-        if self._auto_cb.isChecked() and not step.is_documentation:
-            self._enqueue_analysis(step.id, segment)
+        analyse = self._auto_cb.isChecked() and not step.is_documentation
+        self._enqueue_step(step.id, segment, analyse)
         self.contentChanged.emit()
         nxt = self.session.next_open_step()
         if nxt is not None:
@@ -301,37 +325,124 @@ class RecordingPane(QWidget):
         self._render_step()
         self._status("Schritt wieder offen — erneut aufnehmen.")
 
-    # ── auto-analysis ────────────────────────────────────────────
-    def _enqueue_analysis(self, step_id: str, segment) -> None:
-        self._queue.append((step_id, segment))
-        self._start_next_analysis()
+    # ── post-confirm pipeline: analyse → compact → cleanup ───────
+    @property
+    def _analysing(self) -> str:
+        return self._job["step_id"] if self._job and self._job["stage"] == "analyse" else ""
 
-    def _start_next_analysis(self) -> None:
-        if self._analysing or not self._queue or self.session is None:
+    def _enqueue_step(self, step_id: str, segment, analyse: bool) -> None:
+        self._queue.append((step_id, segment, analyse))
+        self._next_job()
+
+    def _next_job(self) -> None:
+        if self._job is not None or not self._queue or self.session is None:
             return
-        step_id, segment = self._queue.pop(0)
-        step = self.session.step(step_id)
-        if step is None or not segment.clip_path:
-            self._start_next_analysis()
+        step_id, segment, analyse = self._queue.pop(0)
+        if self.session.step(step_id) is None:
+            self._next_job()
             return
-        from capture.config import source_mirrored
-        self._analysing = step_id
-        self._plot.clear_plot()
-        self._plot.setVisible(True)
-        self._analysis_lbl.setText(f"Auswertung läuft: {step.title} …")
-        # Identical call to VideoLab's segment analysis. A take is our own raw
-        # capture, so it replays under the *webcam* mirror setting — never the
-        # session's video flag, which describes an imported clip.
-        self._runner.start(segment.clip_path, 0.0, step.duration_s, step.paradigm,
-                           hand=step.hand, with_face=False,
-                           mirrored=source_mirrored("webcam"))
+        self._job = {"step_id": step_id, "segment": segment, "stage": ""}
+        self._run_stage("analyse" if analyse else "compact")
+
+    def _job_step(self):
+        return self.session.step(self._job["step_id"]) if (self.session and self._job) else None
+
+    def _run_stage(self, stage: str) -> None:
+        if self._job is None or self.session is None:
+            return
+        self._job["stage"] = stage
+        step, seg = self._job_step(), self._job["segment"]
+        title = step.title if step else self._job["step_id"]
+
+        if stage == "analyse":
+            from capture.config import source_mirrored
+            path = seg.analysis_path
+            if step is None or not path:
+                self._run_stage("compact")
+                return
+            self._plot.clear_plot()
+            self._plot.setVisible(True)
+            self._analysis_lbl.setText(f"Auswertung läuft: {title} …")
+            # Identical call to VideoLab's segment analysis, on the raw take
+            # (full quality, no blur). A take is our own capture, so it replays
+            # under the *webcam* mirror setting, never the import flag.
+            self._runner.start(path, 0.0, step.duration_s, step.paradigm,
+                               hand=step.hand, with_face=False,
+                               mirrored=source_mirrored("webcam"))
+
+        elif stage == "compact":
+            from video.archive import compact_enabled
+            if not compact_enabled():
+                self._run_stage("cleanup")
+                return
+            self._analysis_lbl.setText(f"Clip wird archiviert: {title} …")
+            self._worker = _ArchiveWorker(self.session, seg, self)
+            self._worker.done.connect(self._on_compact_done)
+            self._worker.start()
+
+        elif stage == "cleanup":
+            from video.archive import keep_raw_take
+            if not keep_raw_take():
+                # Whoever still holds the raw file open has to let go first,
+                # or Windows refuses the delete: the review player (it was
+                # loaded for the take) and the analysis sidecar (keeps its
+                # source warm after a play-once). Both release asynchronously,
+                # so the delete itself is retried in the background.
+                raw = seg.source_path
+                # QUrl.toLocalFile() comes back with forward slashes; compare
+                # normalised, or the player is never switched and keeps the
+                # raw file locked for the rest of the session.
+                norm = lambda p: os.path.normcase(os.path.abspath(p)) if p else ""
+                if raw and norm(self._player.source().toLocalFile()) == norm(raw):
+                    self._player.stop()
+                    self._player.setSource(QUrl.fromLocalFile(seg.clip_path)
+                                           if seg.clip_path else QUrl())
+                self._runner.teardown()
+                self._schedule_discard(seg)
+            self._job = None
+            self.contentChanged.emit()
+            self._next_job()
+
+    # Raw takes still open elsewhere cannot be deleted right away on Windows;
+    # retry a few times with growing delays, then leave the file (nothing lost).
+    _DISCARD_DELAYS_MS = (500, 1500, 4000, 10000, 30000)
+
+    def _schedule_discard(self, seg, attempt: int = 0) -> None:
+        if attempt >= len(self._DISCARD_DELAYS_MS):
+            log.info("Roh-Take bleibt (weiterhin in Benutzung): %s", seg.source_path)
+            return
+        QTimer.singleShot(self._DISCARD_DELAYS_MS[attempt],
+                          lambda: self._try_discard(seg, attempt))
+
+    def _try_discard(self, seg, attempt: int) -> None:
+        from video.archive import discard_raw_take
+        if self.session is None or not seg.source_path:
+            return
+        if discard_raw_take(self.session, seg):
+            self.session.save()
+            self.contentChanged.emit()
+            return
+        self._schedule_discard(seg, attempt + 1)
+
+    def _on_compact_done(self, ok: bool) -> None:
+        self._worker = None
+        if self._job is None or self.session is None:
+            return
+        step = self._job_step()
+        title = step.title if step else self._job["step_id"]
+        seg = self._job["segment"]
+        if ok:
+            self.session.save()
+            self._analysis_lbl.setText(
+                f"Archiviert: {title}" + (" (Gesicht unkenntlich)" if seg.deidentified else ""))
+        else:
+            self._analysis_lbl.setText(f"Archivierung übersprungen: {title} — Roh-Take bleibt.")
+        self._run_stage("cleanup")
 
     def _on_analysis_finished(self, test, features: dict) -> None:
-        step_id, self._analysing = self._analysing, ""
-        step = self.session.step(step_id) if self.session else None
-        seg = None
-        if self.session and step:
-            seg = next((x for x in self.session.segments if x.id == step.segment_id), None)
+        if self._job is None or self._job["stage"] != "analyse":
+            return
+        step, seg = self._job_step(), self._job["segment"]
         if seg is not None:
             from datetime import datetime
             result = {"features": features, "recorded_at": datetime.now().isoformat(),
@@ -343,15 +454,17 @@ class RecordingPane(QWidget):
         self._refresh_plot(force=True)
         mpi = (features or {}).get("mpi")
         summary = f"MPI {mpi:.2f}" if isinstance(mpi, (int, float)) else "fertig"
-        self._analysis_lbl.setText(f"Ausgewertet: {step.title if step else step_id} — {summary}")
+        self._analysis_lbl.setText(
+            f"Ausgewertet: {step.title if step else self._job['step_id']} — {summary}")
         self.contentChanged.emit()
-        self._start_next_analysis()
+        self._run_stage("compact")
 
     def _on_analysis_failed(self, msg: str) -> None:
-        step_id, self._analysing = self._analysing, ""
-        log.warning("Auto-Auswertung von '%s' fehlgeschlagen: %s", step_id, msg)
-        self._analysis_lbl.setText(f"Auswertung fehlgeschlagen ({step_id}): {msg}")
-        self._start_next_analysis()
+        if self._job is None or self._job["stage"] != "analyse":
+            return
+        log.warning("Auto-Auswertung von '%s' fehlgeschlagen: %s", self._job["step_id"], msg)
+        self._analysis_lbl.setText(f"Auswertung fehlgeschlagen: {msg}")
+        self._run_stage("compact")   # still archive the take
 
     def _refresh_plot(self, force: bool = False) -> None:
         if force or self._analysing:

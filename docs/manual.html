@@ -252,7 +252,25 @@ Unten: Kamera wechseln, Gesichtserkennung, Status.</figcaption></figure>
 <p>Über <b>＋ Hinzufügen</b> kommt Inhalt in die Sitzung: <b>Protokoll aufnehmen</b>
 (mehrere Schritte nacheinander), <b>Einzelnes Paradigma</b> (ein Schritt) oder
 <b>Video importieren</b>. Ein importiertes Video erscheint als eigener Eintrag;
-angeklickt öffnet es den Schnitt-Bereich:</p>
+angeklickt öffnet es den Schnitt-Bereich.</p>
+<figure><img src="img/11b_aufnahme.png" alt="Aufnahme eines Protokollschritts">
+<figcaption>Aufnahme-Bereich nach dem Übernehmen eines Schritts: die Auswertung lief
+auf dem Roh-Take, der Clip wurde archiviert (Gesicht unkenntlich), der Schritt
+ist ✔ bestätigt und trägt sein Ergebnis in der Inhaltsliste.</figcaption></figure>
+<h3>Was von einem Take bleibt (Video-Archiv)</h3>
+<p>Der Recorder schreibt etwa <b>1&nbsp;MB pro Sekunde</b>. Nach dem Übernehmen läuft
+jeder Take automatisch durch drei Stufen: <b>Auswerten</b> (auf dem Roh-Take, volle
+Qualität) → <b>Archivieren</b> (derselbe Extraktor wie bei Import-Segmenten: Größe
+begrenzen, H.264 mit x264-CRF, Gesicht nach <code>privacy.deface</code> unkenntlich
+machen, Iris-Spur für die Tremor-Referenz sichern) → <b>Aufräumen</b> (Roh-Take
+löschen, sobald der Archiv-Clip vorliegt). Ein 640×480-Take wird dabei rund
+<b>35× kleiner</b>; die Messung in der Akte verweist auf den Archiv-Clip.</p>
+<p>Einstellungen in <code>video/video.yaml</code>: <code>archive.compact_takes</code>
+(Archivieren an/aus), <code>archive.keep_raw_take</code> (Roh-Take zusätzlich behalten),
+<code>segments.crf</code> (Qualität, 18 ≈ nahezu verlustfrei … 28 klein).
+Solange der Roh-Take noch da ist, wird für eine erneute Auswertung er verwendet;
+danach der Archiv-Clip.</p>
+<p>Das importierte Video wird im Schnitt-Bereich bearbeitet:</p>
 <ol class="steps">
 <li><b>Video laden</b> — wird automatisch normalisiert (Größe/Format);
     falsch orientierte Videos mit <b>↻ 90°</b> drehen.</li>

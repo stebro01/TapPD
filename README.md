@@ -289,6 +289,27 @@ Aufnahmegeraet ab. Im VideoLab neben der Drehen-Schaltflaeche: Checkbox
 gespeichert. Details in [TECHNICAL_DETAILS.md](TECHNICAL_DETAILS.md) →
 *Spiegelung & Haendigkeit*.
 
+### Video-Archiv: was von einem Take bleibt
+
+Der Recorder schreibt ~1 MB/s. Nach dem Uebernehmen durchlaeuft jeder Take
+automatisch: **Auswerten** (auf dem Roh-Take, volle Qualitaet) → **Archivieren**
+(derselbe Extraktor wie bei Import-Segmenten: Groessenbegrenzung, H.264 mit
+x264-CRF, Defacing nach `privacy.deface`, Iris-Spur) → **Aufraeumen** (Roh-Take
+loeschen, sobald der Archiv-Clip da ist). Ein 640x480-Take wird ~35x kleiner;
+die Messung verweist auf den Archiv-Clip (`raw_data_path`).
+
+```yaml
+# video/video.yaml
+archive:
+  compact_takes: true    # Takes zu Archiv-Clips komprimieren
+  keep_raw_take: false   # Roh-Take zusaetzlich behalten
+segments:
+  crf: 23                # x264-Qualitaet (18 nahezu verlustfrei … 28 klein; 0 = aus)
+```
+
+Der CRF-Nachlauf braucht `imageio-ffmpeg` im Sidecar-venv (`setup_sidecar`
+installiert es); fehlt es, bleibt der cv2-Clip — groesser, aber vorhanden.
+
 ### Kamera-Aufloesung einstellen
 
 Standardmaessig waehlt der Treiber das Format. Fest vorgeben in

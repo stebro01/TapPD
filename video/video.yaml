@@ -27,10 +27,25 @@ segments:
   target_fps: 30
   capture_eyeref: true     # save iris-centre track (<clip>.eyeref.json) before defacing
                            # → recovers absolute hand position for tremor (privacy-safe)
+  crf: 23                  # x264 quality for the ffmpeg re-encode pass after extraction
+                           # (18 = near-lossless … 28 = small; 0 = skip, keep cv2 output).
+                           # cv2 cannot set a bitrate, so this pass is what makes clips
+                           # compact: a 640x480 take drops ~35x at 23. Needs imageio-ffmpeg
+                           # in the sidecar venv (setup_sidecar installs it).
 
 privacy:
   deface: blur             # off | blur | mesh — de-identify faces in segment clips
   blur_strength: 41        # gaussian kernel size for deface=blur (odd)
+
+archive:                   # what stays of a confirmed take (own recording)
+  compact_takes: true      # re-encode each confirmed take into a compact clip via the
+                           # same extractor as import segments (segments: caps, privacy:
+                           # deface). The compact clip is what the measurement references.
+                           # ~1 MB/s raw from the recorder → roughly a tenth after this.
+  keep_raw_take: false     # keep the raw take next to the compact clip. Off saves the
+                           # space; the raw file is only removed once the compact clip
+                           # exists AND the auto-analysis (which runs on the raw take,
+                           # full quality, no blur) has finished.
 
 analysis:
   default_hand: right      # default hand for unilateral paradigms

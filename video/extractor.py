@@ -43,6 +43,10 @@ class VideoSegmentExtractor:
             deface,
             str(cfg("privacy", "blur_strength", default=41)),
             "1" if cfg("segments", "capture_eyeref", default=True) else "0",
+            # x264 CRF for the ffmpeg re-encode pass (0 = keep the cv2 output).
+            # cv2's writer cannot set a bitrate, so without this a 640x480 take
+            # comes out as big as it went in.
+            str(cfg("segments", "crf", default=23)),
         ]
         try:
             r = subprocess.run(args, capture_output=True, text=True,

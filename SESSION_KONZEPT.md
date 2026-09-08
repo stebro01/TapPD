@@ -373,7 +373,36 @@ nach.
 | Ein Einstieg „Neue Sitzung", VideoLab/Gesture Lab als Knöpfe entfernt | **erledigt** |
 | `acquisition_mode` im `VISIT_BLOB` | offen — der Baum leitet die Art bislang aus dem Inhalt ab |
 | Interaktive Paradigmen als Schritt-Typ im Protokoll | offen (experimentell, siehe §6) |
-| Komprimierte Clips je Messung ablegen („Video-Datenbank") | offen — siehe §8 |
+| Komprimierte Clips je Messung ablegen („Video-Datenbank") | **erledigt** (`video/archive.py`, siehe §8) |
+
+## 8. Video-Archiv
+
+Ein bestätigter Take durchläuft eine kleine Pipeline (`RecordingPane`), ein
+Schritt nach dem anderen, in einer Warteschlange:
+
+```
+Übernehmen ─► Auswerten (Roh-Take, volle Qualität, kein Blur)
+           ─► Archivieren: Segment-Extraktor → <session>/<seg_id>.mp4
+                (Größencaps, Defacing, Iris-Spur, dann ffmpeg x264-CRF)
+           ─► Aufräumen: Roh-Take löschen, sobald Archiv-Clip vorliegt
+```
+
+Damit ist eine Eigenaufnahme am Ende **dasselbe Artefakt wie ein
+Import-Segment** — gleicher Extraktor, gleiche Caps, gleiche Datenschutz-
+einstellung — und die Messung verweist auf den Archiv-Clip.
+
+Zwei Entscheidungen:
+
+- **Auswertung vor Archivierung**, auf dem Roh-Take. Der Archiv-Clip ist
+  Review/Archiv; `Segment.analysis_path` bevorzugt `source_path`, solange die
+  Datei existiert, danach den Clip.
+- **Löschen ist nachgelagert und wiederholt**: Player und Analyse-Sidecar
+  halten die Datei kurz offen; das Löschen wird mit wachsenden Abständen
+  erneut versucht und gibt notfalls auf (Roh-Take bleibt — nichts geht
+  verloren).
+
+Messwerte von heute: 640×480-Take 6,3 MB → 0,17 MB (37×, CRF 23, 0,8 s
+Encode); ein 90-s-Basisprotokoll ≈ 90 MB roh → ≈ 2–3 MB archiviert.
 
 **Protokoll-Versionierung** und **Abbruch mittendrin** sind mit der Persistenz
 gelöst: `VideoSession.steps` ist eine *Kopie* der Protokollschritte (spätere

@@ -35,8 +35,20 @@ class Segment:
     # webcam mirror setting); False for a cut of an imported video (uses the
     # session's per-video flag).
     recorded: bool = False
+    # For a recorded take: the raw file it was cut from, kept (or not — see
+    # video.yaml archive:) beside the compact clip in ``clip_path``. Analysis
+    # prefers this while it exists: full quality, no deface blur.
+    source_path: str = ""
     # analysis results keyed by paradigm key → {features, recorded_at, raw_path}
     results: dict = field(default_factory=dict)
+
+    @property
+    def analysis_path(self) -> str:
+        """Best file to analyse: the raw source if still there, else the clip."""
+        import os
+        if self.source_path and os.path.isfile(self.source_path):
+            return self.source_path
+        return self.clip_path
 
     @property
     def duration_s(self) -> float:
@@ -278,7 +290,8 @@ class VideoSession:
 
         seg = self.add_segment(name=step.title, start_s=0.0, end_s=step.duration_s,
                                paradigm=step.paradigm, hand=step.hand)
-        seg.clip_path = step.clip_path
+        seg.clip_path = step.clip_path      # replaced by the compact clip once archived
+        seg.source_path = step.clip_path    # the raw take itself
         seg.recorded = True
         step.segment_id = seg.id
         step.state = STEP_CONFIRMED

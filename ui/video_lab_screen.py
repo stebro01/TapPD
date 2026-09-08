@@ -865,8 +865,9 @@ class VideoLabScreen(QWidget):
         # A recorded take is our own raw capture → webcam setting; a cut of an
         # imported video → the session's per-video flag.
         mirrored = source_mirrored("webcam") if seg.recorded else self.session.mirrored
-        if seg.recorded and seg.clip_path and os.path.exists(seg.clip_path):
-            self.runner.start(seg.clip_path, 0.0, seg.duration_s, key,
+        take = seg.analysis_path if seg.recorded else ""   # raw take while it exists
+        if seg.recorded and take and os.path.exists(take):
+            self.runner.start(take, 0.0, seg.duration_s, key,
                               hand=hand, with_face=with_face, mirrored=mirrored)
         elif self.session.video_path and os.path.exists(self.session.video_path):
             self.runner.start(self.session.video_path, seg.start_s, seg.end_s, key,

@@ -70,6 +70,13 @@ Versionierung: SemVer-artig (0.x = Forschungsprototyp).
 - **Video-Sessions pro Sitzung** (`session_<id>/`) statt pro Patient;
   bestehende Dateien werden der jüngsten Sitzung zugeordnet.
 - Aufnahme-Bildschirm mit Live-Erkennungsanzeige, Kamerawechsel im Footer.
+- **Video-Archiv**: ein bestätigter Take wird nach der Auswertung über den
+  Segment-Extraktor zu einem kompakten, nach `privacy.deface` anonymisierten
+  Clip archiviert (`video/archive.py`); der Roh-Take wird danach entfernt
+  (`archive.keep_raw_take`). Neu im Extraktor: ffmpeg-Nachlauf mit x264-CRF
+  (`segments.crf`, via `imageio-ffmpeg` im Sidecar-venv) — ohne ihn blieb ein
+  640×480-Clip so groß wie die Quelle, da cv2 keine Bitrate setzen kann; jetzt
+  ~35× kleiner. Gilt ebenso für Import-Segmente.
 
 ### Hinweise
 - Leap Motion ist auf diesem Stand standardmäßig deaktiviert
