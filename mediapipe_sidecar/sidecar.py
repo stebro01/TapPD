@@ -40,6 +40,20 @@ _MAX_CONSECUTIVE_MISSES = 100
 _MISS_RETRY_S = 0.02
 
 
+def _camera_backend() -> int:
+    """Preferred VideoCapture backend for live cameras."""
+    if sys.platform == "darwin":
+        return cv2.CAP_AVFOUNDATION
+    if sys.platform == "win32":
+        # DirectShow rather than Media Foundation: MSMF takes seconds just to
+        # open a device (8.5 s for an OBSBOT Tiny 2, 3.3 s for a built-in
+        # webcam), DShow returns in well under one.  CAP_ANY picks MSMF, and
+        # that delay is what made switching cameras look like it had silently
+        # failed -- the preview only appeared long after the user gave up.
+        return cv2.CAP_DSHOW
+    return cv2.CAP_ANY
+
+
 def _strip_appledouble_stylelib() -> None:
     """Delete macOS AppleDouble (._*) files from matplotlib's stylelib.
 
@@ -97,17 +111,12 @@ def list_cameras() -> list[dict]:
     """
     try:
         from cv2_enumerate_cameras import enumerate_cameras
-        if sys.platform == "darwin":
-            backend = cv2.CAP_AVFOUNDATION
-        elif sys.platform == "win32":
-            # CAP_ANY lists every device once per Windows backend (MSMF *and*
-            # DSHOW) and disambiguates them by adding the backend offset to the
-            # index (1400 + n, 700 + n) — so each camera shows up twice, under
-            # indices the capture path cannot use.  Pinning one backend yields
-            # each device once, with the plain index VideoCapture expects.
-            backend = cv2.CAP_MSMF
-        else:
-            backend = cv2.CAP_ANY
+        # Enumerate through the same backend we capture with, so the indices
+        # returned here are the ones VideoCapture will accept.  Passing CAP_ANY
+        # instead lists every device once per Windows backend (MSMF *and*
+        # DSHOW), disambiguated by adding the backend offset to the index
+        # (1400 + n, 700 + n) — each camera twice, under unusable indices.
+        backend = _camera_backend()
         cams = []
         for info in enumerate_cameras(backend):
             cams.append({"index": int(info.index), "name": str(info.name)})
@@ -129,7 +138,7 @@ def list_cameras() -> list[dict]:
     # Fallback: probe indices 0..7
     cams = []
     for i in range(8):
-        cap = cv2.VideoCapture(i, cv2.CAP_AVFOUNDATION if sys.platform == "darwin" else cv2.CAP_ANY)
+        cap = cv2.VideoCapture(i, _camera_backend())
         if cap is not None and cap.isOpened():
             cams.append({"index": i, "name": f"Camera {i}"})
         if cap is not None:
@@ -156,6 +165,12 @@ class Sidecar:
         self._num_hands = 2
         self._record_fps = 30.0
         self._record_codec = "avc1"   # matches capture.yaml record_codec (config push overrides)
+        # Requested capture format (0 = whatever the driver picks). Cameras that
+        # offer several formats otherwise negotiate one on their own, which is
+        # not always the one we want — and on Windows not always one that works.
+        self._camera_width = 0
+        self._camera_height = 0
+        self._camera_fps = 0.0
         self._capture_thread: threading.Thread | None = None
         self._closing = threading.Event()   # tells the camera thread to exit
         self._quit = threading.Event()      # process should terminate
@@ -266,6 +281,10 @@ class Sidecar:
             self._landmarker = None   # recreate with the new hand count
         self._record_fps = float(msg.get("record_fps", self._record_fps))
         self._record_codec = str(msg.get("record_codec", self._record_codec))
+        # Requested capture format; 0 means "leave it to the driver".
+        self._camera_width = int(msg.get("camera_width", self._camera_width))
+        self._camera_height = int(msg.get("camera_height", self._camera_height))
+        self._camera_fps = float(msg.get("camera_fps", self._camera_fps))
 
     def start(self, index: int, video: str | None = None,
               start_s: float | None = None, end_s: float | None = None,
@@ -331,9 +350,34 @@ class Sidecar:
             if start_frame:
                 cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
         else:
-            backend = cv2.CAP_AVFOUNDATION if sys.platform == "darwin" else cv2.CAP_ANY
+            backend = _camera_backend()
+            print(f"opening camera {self._cam_index}...", file=sys.stderr, flush=True)
+            _t_open = time.time()
             cap = cv2.VideoCapture(self._cam_index, backend)
+            print(f"camera {self._cam_index}: open returned after "
+                  f"{time.time() - _t_open:.1f}s, isOpened={cap.isOpened()}",
+                  file=sys.stderr, flush=True)
             frame_interval = 0.0
+            # Pin the capture format when one is configured. Drivers may refuse
+            # and fall back to a nearby mode, so report what we actually got --
+            # a camera silently running at a different resolution than intended
+            # is otherwise invisible until the numbers look wrong.
+            if cap.isOpened():
+                if self._camera_width and self._camera_height:
+                    cap.set(cv2.CAP_PROP_FRAME_WIDTH, self._camera_width)
+                    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self._camera_height)
+                if self._camera_fps:
+                    cap.set(cv2.CAP_PROP_FPS, self._camera_fps)
+                got_w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+                got_h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+                got_fps = cap.get(cv2.CAP_PROP_FPS)   # DirectShow often reports 0
+                print(f"camera {self._cam_index}: {got_w}x{got_h}"
+                      + (f" @ {got_fps:.0f} fps" if got_fps > 0 else "")
+                      + (f" (requested {self._camera_width}x{self._camera_height})"
+                         if self._camera_width and self._camera_height
+                         and (got_w, got_h) != (self._camera_width, self._camera_height)
+                         else ""),
+                      file=sys.stderr, flush=True)
         try:
             if not cap.isOpened():
                 what = f"Video {self._video_path}" if is_video else f"Kamera {self._cam_index}"
