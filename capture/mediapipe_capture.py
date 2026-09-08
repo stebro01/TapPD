@@ -28,7 +28,11 @@ from capture import mediapipe_mapping
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _SIDECAR_DIR = os.path.join(_REPO_ROOT, "mediapipe_sidecar")
 _SIDECAR_SCRIPT = os.path.join(_SIDECAR_DIR, "sidecar.py")
-_SIDECAR_PY = os.path.join(_SIDECAR_DIR, ".venv", "bin", "python3")
+_SIDECAR_PY = (
+    os.path.join(_SIDECAR_DIR, ".venv", "Scripts", "python.exe")
+    if sys.platform == "win32"
+    else os.path.join(_SIDECAR_DIR, ".venv", "bin", "python3")
+)
 _SIDECAR_MODEL = os.path.join(_SIDECAR_DIR, "models", "hand_landmarker.task")
 
 # Preview callback receives the raw preview message dict (jpeg, w, h, landmarks,
@@ -79,16 +83,17 @@ class WebcamSource(BaseCaptureDevice):
     def sidecar_ready() -> tuple[bool, list[str]]:
         """Return (ok, issues). ``issues`` is empty when the sidecar can run."""
         issues = []
+        if sys.platform == "win32":
+            setup_hint = "  -> Einrichten:  powershell mediapipe_sidecar\\setup_sidecar.ps1"
+        else:
+            setup_hint = "  -> Einrichten:  bash mediapipe_sidecar/setup_sidecar.sh"
         if not os.path.isfile(_SIDECAR_PY):
             issues.append(
                 "MediaPipe-Sidecar nicht eingerichtet (Python-3.12-venv fehlt).\n"
-                "  -> Einrichten:  bash mediapipe_sidecar/setup_sidecar.sh"
+                + setup_hint
             )
         if not os.path.isfile(_SIDECAR_MODEL):
-            issues.append(
-                "Hand-Landmarker-Modell fehlt.\n"
-                "  -> Einrichten:  bash mediapipe_sidecar/setup_sidecar.sh"
-            )
+            issues.append("Hand-Landmarker-Modell fehlt.\n" + setup_hint)
         return (not issues, issues)
 
     # ── lifecycle ─────────────────────────────────────────────────

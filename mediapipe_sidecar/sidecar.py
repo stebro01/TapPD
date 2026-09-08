@@ -90,7 +90,17 @@ def list_cameras() -> list[dict]:
     """
     try:
         from cv2_enumerate_cameras import enumerate_cameras
-        backend = cv2.CAP_AVFOUNDATION if sys.platform == "darwin" else cv2.CAP_ANY
+        if sys.platform == "darwin":
+            backend = cv2.CAP_AVFOUNDATION
+        elif sys.platform == "win32":
+            # CAP_ANY lists every device once per Windows backend (MSMF *and*
+            # DSHOW) and disambiguates them by adding the backend offset to the
+            # index (1400 + n, 700 + n) — so each camera shows up twice, under
+            # indices the capture path cannot use.  Pinning one backend yields
+            # each device once, with the plain index VideoCapture expects.
+            backend = cv2.CAP_MSMF
+        else:
+            backend = cv2.CAP_ANY
         cams = []
         for info in enumerate_cameras(backend):
             cams.append({"index": int(info.index), "name": str(info.name)})
@@ -105,7 +115,8 @@ def list_cameras() -> list[dict]:
         cap = cv2.VideoCapture(i, cv2.CAP_AVFOUNDATION if sys.platform == "darwin" else cv2.CAP_ANY)
         if cap is not None and cap.isOpened():
             cams.append({"index": i, "name": f"Camera {i}"})
-            cap.release()
+        if cap is not None:
+            cap.release()   # also release the misses — they hold the device open
     return cams
 
 
