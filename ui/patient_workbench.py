@@ -270,8 +270,8 @@ class PatientWorkbench(QWidget):
         self._count = QLabel()
         self._count.setStyleSheet(f"font-size: 12px; color: {theme.TEXT_SECONDARY};")
         ll.addWidget(self._count)
-        left.setMinimumWidth(340)
-        left.setMaximumWidth(560)
+        left.setMinimumWidth(380)
+        left.setMaximumWidth(620)
         split.addWidget(left)
 
         self._work = QStackedWidget()
@@ -366,7 +366,7 @@ class PatientWorkbench(QWidget):
     def set_patient(self, patient: Patient) -> None:
         self._patient = patient
         self._update_patient_card()
-        self._split.setSizes([400, max(600, self.width() - 400)])
+        self._split.setSizes([470, max(600, self.width() - 470)])
         self._acquire_device()
         self._populate_cameras()
         self.refresh()
@@ -481,7 +481,7 @@ class PatientWorkbench(QWidget):
         elif v is not None and v.video_path:
             kind, status = "Import", f"{len(v.segments)} Seg."
         elif ms:
-            kind, status = "Messungen", str(len(ms))
+            kind, status = "Live", f"{len(ms)} Messung{'' if len(ms) == 1 else 'en'}"
         else:
             kind, status = "leer", ""
         node = QTreeWidgetItem([f"Sitzung {number}  ·  {_fmt_dt(s.started_at)}  ·  {kind}", status])
@@ -614,9 +614,13 @@ class PatientWorkbench(QWidget):
             self._binding = False
 
     def _show_empty(self, session: Session | None) -> None:
-        self._empty_title.setText(
-            "Was soll in dieser Sitzung aufgezeichnet werden?" if session
-            else "Noch keine Sitzung — mit „＋ Neue Sitzung“ beginnen.")
+        if session is None:
+            text = "Noch keine Sitzung — mit „＋ Neue Sitzung“ beginnen."
+        elif self._measurements.get(session.id):
+            text = "Dieser Sitzung etwas hinzufügen?"
+        else:
+            text = "Was soll in dieser Sitzung aufgezeichnet werden?"
+        self._empty_title.setText(text)
         self._work.setCurrentWidget(self._empty)
 
     def _on_selection(self, item, _prev) -> None:
