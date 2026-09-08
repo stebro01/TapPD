@@ -144,20 +144,23 @@ pip install -r requirements.txt
 
 ### Bedienung
 
-1. **Patient waehlen** oder neuen anlegen
-2. **„＋ Neue Sitzung"** oeffnet den Sitzungsbildschirm — links der Inhalt,
-   rechts der Arbeitsbereich
-3. **Hinzufuegen**: *Protokoll aufnehmen* (mehrere Schritte), *Einzelnes
-   Paradigma* (ein Schritt) oder *Video importieren*
-4. **Aufnehmen** je Schritt: Anweisung lesen → Countdown → Aufnahme →
+1. **Patient anklicken** — das ist bereits der Arbeitsplatz: links alle
+   Sitzungen mit ihrem Inhalt, rechts der Arbeitsbereich, der der Auswahl folgt
+2. **„＋ Neue Sitzung"** legt eine Gruppe an; **„＋ Hinzufuegen"** fuellt die
+   gewaehlte Sitzung: *Protokoll aufnehmen*, *Einzelnes Paradigma*,
+   *Video importieren* oder *Live-Messung* (Sensor/Bildschirm-Paradigmen)
+3. **Aufnehmen** je Schritt: Anweisung lesen → Countdown → Aufnahme →
    Take ansehen → **Uebernehmen** oder **Wiederholen**
-5. Mit „Nach Uebernehmen automatisch auswerten" entsteht das Ergebnis direkt
-   auf dem bestaetigten Take (derselbe Weg wie beim Import)
-6. **„← Patient"** zurueck zur Uebersicht: der Baum zeigt je Sitzung die
-   Schritte mit Zustand und Ergebnis; Rechtsklick bietet Fortsetzen,
-   erneut aufnehmen, Live-Messung hinzufuegen, Loeschen
-7. Interaktive Paradigmen (Hanoi, SRT, TMT, Sakkaden) laufen weiterhin live
-   ueber „Live-Messung hinzufuegen…"
+4. Nach dem Uebernehmen laeuft automatisch: **Auswerten** (Ergebnis landet
+   sofort in der Akte, 📋 im Baum) → **Archivieren** (kompakter Clip) →
+   Roh-Take aufraeumen
+5. **Rechtsklick** auf einen Schritt: erneut aufnehmen, **neu auswerten**
+   (aktualisiert dieselbe Messung), **Paradigma/Seite aendern** (loescht das
+   alte Ergebnis, wertet neu aus), entfernen. Auf eine Sitzung: Inhalt
+   hinzufuegen, loeschen
+6. Ein importiertes Video erscheint als Eintrag der Sitzung; angeklickt
+   oeffnet es den Schnitt-Bereich (Bereich markieren → Segment → auswerten)
+7. Menue **„Patient ▾"**: Bearbeiten, 📈 Verlauf, CSV-Export, Patient loeschen
 
 ## Projektstruktur
 

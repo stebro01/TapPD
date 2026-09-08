@@ -678,6 +678,29 @@ def save_measurement(conn: sqlite3.Connection, m: Measurement) -> Measurement:
     return m
 
 
+def update_measurement(conn: sqlite3.Connection, m: Measurement) -> Measurement:
+    """Overwrite an existing observation's values in place (same row, same id).
+
+    Used when a take is re-analysed: the measurement stays the one the record
+    already knows, only its numbers change — never a second copy.
+    """
+    if not m.id:
+        raise ValueError("update_measurement braucht eine Messung mit ID")
+    features = m.features
+    obs_blob = _marshal_observation_blob(m.hand, m.duration_s, m.raw_data_path,
+                                         features, m.source_kind)
+    source_cd = f"TAPPD:{m.source_kind}" if m.source_kind else "TAPPD"
+    conn.execute(
+        "UPDATE OBSERVATION_FACT SET TVAL_CHAR=?, NVAL_NUM=?, OBSERVATION_BLOB=?, "
+        "SOURCESYSTEM_CD=?, UPDATE_DATE=? WHERE OBSERVATION_ID=?",
+        (m.hand, features.get("mpi"), obs_blob, source_cd,
+         datetime.now().isoformat(), m.id),
+    )
+    conn.commit()
+    log.info("Messung aktualisiert: %s %s (ID %d)", m.test_type, m.hand, m.id)
+    return m
+
+
 def get_measurements(conn: sqlite3.Connection, patient_id: int) -> list[Measurement]:
     rows = conn.execute(
         "SELECT * FROM OBSERVATION_FACT WHERE PATIENT_NUM=? ORDER BY START_DATE DESC",

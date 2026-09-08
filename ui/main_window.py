@@ -27,7 +27,6 @@ from storage.database import (
     create_session, get_db, save_measurement, update_raw_data_path,
 )
 from ui.patient_screen import PatientScreen
-from ui.patient_detail_screen import PatientDetailScreen
 from ui.test_dashboard import TestDashboard
 from ui.test_screen import TestScreen
 from ui.hanoi_screen import HanoiScreen
@@ -36,7 +35,7 @@ from ui.tmt_screen import TMTScreen
 from ui.results_screen import ResultsScreen, save_raw_data
 from ui.gesture_lab_screen import GestureLabScreen
 from ui.tracking_screen import TrackingScreen
-from ui.session_screen import SessionScreen
+from ui.patient_workbench import PatientWorkbench
 from ui.log_viewer import LogViewerDialog
 from ui import theme
 from ui.theme import SZ
@@ -416,7 +415,9 @@ class MotryxMainWindow(QMainWindow):
     def _build_screens(self) -> None:
         """Create (or recreate) all screens and add to stack."""
         self.patient_screen = PatientScreen(self)
-        self.patient_detail = PatientDetailScreen(self)
+        # One screen for everything about a patient: sessions, recording,
+        # playback, results. (Replaces the old detail list + session screen.)
+        self.patient_detail = PatientWorkbench(self)
         self.dashboard = TestDashboard(self)
         self.test_screen = TestScreen(self)
         self.results_screen = ResultsScreen(self)
@@ -427,7 +428,6 @@ class MotryxMainWindow(QMainWindow):
         self.saccade_screen = SaccadeScreen(self)
         self.gesture_lab_screen = GestureLabScreen(self)
         self.tracking_screen = TrackingScreen(self)
-        self.session_screen = SessionScreen(self)
 
         self.stack.addWidget(self.patient_screen)
         self.stack.addWidget(self.patient_detail)
@@ -440,7 +440,6 @@ class MotryxMainWindow(QMainWindow):
         self.stack.addWidget(self.saccade_screen)
         self.stack.addWidget(self.gesture_lab_screen)
         self.stack.addWidget(self.tracking_screen)
-        self.stack.addWidget(self.session_screen)
 
     def _update_tracking_btn_visibility(self, *_args) -> None:
         self._tracking_btn.setVisible(self.stack.currentWidget() is self.patient_screen)
@@ -492,6 +491,8 @@ class MotryxMainWindow(QMainWindow):
 
     def show_patient_screen(self) -> None:
         self.current_session = None
+        if self.stack.currentWidget() is self.patient_detail:
+            self.patient_detail.leave()     # release the camera, save sessions
         self.patient_screen.refresh_list()
         self.stack.setCurrentWidget(self.patient_screen)
 
@@ -500,25 +501,17 @@ class MotryxMainWindow(QMainWindow):
         self.stack.setCurrentWidget(self.gesture_lab_screen)
 
     def show_session(self, session, step_id: str = "") -> None:
-        """Open a clinical session in the session screen (its video session is
-        created on the spot if it does not exist yet)."""
-        from video.store import VideoSession, load_for_session
-        p = self.current_patient
-        if p is None:
+        """Show a session (optionally a step) in the patient workbench."""
+        if self.current_patient is None:
             return
         self.current_session = session
-        video = load_for_session(p.id, p.patient_code, session.id,
-                                 newest_session_id=session.id)
-        if video is None:
-            video = VideoSession.create(p.id, p.patient_code)
-            video.db_session_id = session.id
-        self.session_screen.open(session, video)
-        if step_id:
-            self.session_screen._select(("step", step_id))
-        self.stack.setCurrentWidget(self.session_screen)
+        if self.stack.currentWidget() is not self.patient_detail:
+            self.patient_detail.set_patient(self.current_patient)
+            self.stack.setCurrentWidget(self.patient_detail)
+        self.patient_detail.open_session(session, step_id)
 
     def close_session(self) -> None:
-        self.session_screen.close()
+        """Kept for callers that still 'leave' a session: it is the same screen."""
         self.patient_detail.refresh()
         self.stack.setCurrentWidget(self.patient_detail)
 
@@ -595,9 +588,13 @@ class MotryxMainWindow(QMainWindow):
         conn.close()
         log.info("Neue Session gestartet: Session %d für %s",
                  self.current_session.id, self.current_patient.patient_code)
-        # Straight into the session screen: video is the primary source, the
-        # paradigm dashboard is reached from there only for live measurements.
-        self.show_session(self.current_session)
+        # The workbench is already showing this patient; the new session
+        # appears as a group in its list, selected, with the empty-state cards.
+        if self.stack.currentWidget() is not self.patient_detail:
+            self.patient_detail.set_patient(self.current_patient)
+            self.stack.setCurrentWidget(self.patient_detail)
+        self.patient_detail.refresh()
+        self.patient_detail.open_session(self.current_session)
 
     def start_test(self, test_key: str, hand: str, duration: int) -> None:
         """Start a paradigm from the dashboard (everything via the registry)."""

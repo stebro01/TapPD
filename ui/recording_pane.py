@@ -305,7 +305,7 @@ class RecordingPane(QWidget):
             return
         self.session.save()
         analyse = self._auto_cb.isChecked() and not step.is_documentation
-        self._enqueue_step(step.id, segment, analyse)
+        self._enqueue_step(self.session, step.id, segment, analyse)
         self.contentChanged.emit()
         nxt = self.session.next_open_step()
         if nxt is not None:
@@ -330,27 +330,36 @@ class RecordingPane(QWidget):
     def _analysing(self) -> str:
         return self._job["step_id"] if self._job and self._job["stage"] == "analyse" else ""
 
-    def _enqueue_step(self, step_id: str, segment, analyse: bool) -> None:
-        self._queue.append((step_id, segment, analyse))
+    def enqueue(self, session: VideoSession, step_id: str, segment, analyse: bool) -> None:
+        """Public entry for the host: (re)run the pipeline on a confirmed step."""
+        self._enqueue_step(session, step_id, segment, analyse)
+
+    def _enqueue_step(self, session: VideoSession, step_id: str, segment,
+                      analyse: bool) -> None:
+        # The job carries its own session: the host may switch the pane to
+        # another session while this one is still being processed.
+        self._queue.append((session, step_id, segment, analyse))
         self._next_job()
 
     def _next_job(self) -> None:
-        if self._job is not None or not self._queue or self.session is None:
+        if self._job is not None or not self._queue:
             return
-        step_id, segment, analyse = self._queue.pop(0)
-        if self.session.step(step_id) is None:
+        session, step_id, segment, analyse = self._queue.pop(0)
+        if session.step(step_id) is None:
             self._next_job()
             return
-        self._job = {"step_id": step_id, "segment": segment, "stage": ""}
+        self._job = {"session": session, "step_id": step_id, "segment": segment,
+                     "stage": ""}
         self._run_stage("analyse" if analyse else "compact")
 
     def _job_step(self):
-        return self.session.step(self._job["step_id"]) if (self.session and self._job) else None
+        return self._job["session"].step(self._job["step_id"]) if self._job else None
 
     def _run_stage(self, stage: str) -> None:
-        if self._job is None or self.session is None:
+        if self._job is None:
             return
         self._job["stage"] = stage
+        session = self._job["session"]
         step, seg = self._job_step(), self._job["segment"]
         title = step.title if step else self._job["step_id"]
 
@@ -372,11 +381,14 @@ class RecordingPane(QWidget):
 
         elif stage == "compact":
             from video.archive import compact_enabled
-            if not compact_enabled():
+            already = bool(seg.clip_path) and (not seg.source_path
+                                               or seg.clip_path != seg.source_path)
+            if not compact_enabled() or already:
+                # A re-analysis of an archived take: nothing left to compact.
                 self._run_stage("cleanup")
                 return
             self._analysis_lbl.setText(f"Clip wird archiviert: {title} …")
-            self._worker = _ArchiveWorker(self.session, seg, self)
+            self._worker = _ArchiveWorker(session, seg, self)
             self._worker.done.connect(self._on_compact_done)
             self._worker.start()
 
@@ -398,7 +410,7 @@ class RecordingPane(QWidget):
                     self._player.setSource(QUrl.fromLocalFile(seg.clip_path)
                                            if seg.clip_path else QUrl())
                 self._runner.teardown()
-                self._schedule_discard(seg)
+                self._schedule_discard(session, seg)
             self._job = None
             self.contentChanged.emit()
             self._next_job()
@@ -407,32 +419,33 @@ class RecordingPane(QWidget):
     # retry a few times with growing delays, then leave the file (nothing lost).
     _DISCARD_DELAYS_MS = (500, 1500, 4000, 10000, 30000)
 
-    def _schedule_discard(self, seg, attempt: int = 0) -> None:
+    def _schedule_discard(self, session, seg, attempt: int = 0) -> None:
         if attempt >= len(self._DISCARD_DELAYS_MS):
             log.info("Roh-Take bleibt (weiterhin in Benutzung): %s", seg.source_path)
             return
         QTimer.singleShot(self._DISCARD_DELAYS_MS[attempt],
-                          lambda: self._try_discard(seg, attempt))
+                          lambda: self._try_discard(session, seg, attempt))
 
-    def _try_discard(self, seg, attempt: int) -> None:
+    def _try_discard(self, session, seg, attempt: int) -> None:
         from video.archive import discard_raw_take
-        if self.session is None or not seg.source_path:
+        if not seg.source_path:
             return
-        if discard_raw_take(self.session, seg):
-            self.session.save()
+        if discard_raw_take(session, seg):
+            session.save()
             self.contentChanged.emit()
             return
-        self._schedule_discard(seg, attempt + 1)
+        self._schedule_discard(session, seg, attempt + 1)
 
     def _on_compact_done(self, ok: bool) -> None:
         self._worker = None
-        if self._job is None or self.session is None:
+        if self._job is None:
             return
+        session = self._job["session"]
         step = self._job_step()
         title = step.title if step else self._job["step_id"]
         seg = self._job["segment"]
         if ok:
-            self.session.save()
+            session.save()
             self._analysis_lbl.setText(
                 f"Archiviert: {title}" + (" (Gesicht unkenntlich)" if seg.deidentified else ""))
         else:
@@ -442,15 +455,27 @@ class RecordingPane(QWidget):
     def _on_analysis_finished(self, test, features: dict) -> None:
         if self._job is None or self._job["stage"] != "analyse":
             return
+        session = self._job["session"]
         step, seg = self._job_step(), self._job["segment"]
         if seg is not None:
             from datetime import datetime
+            key = test.test_type()
+            previous = seg.results.get(key) or {}
             result = {"features": features, "recorded_at": datetime.now().isoformat(),
                       "raw_path": "", "source_kind": "video"}
             if self._runner.needs_abs_position:
                 result["eye_ref_coverage"] = round(self._runner.eye_ref_coverage(), 3)
-            seg.results[test.test_type()] = result
-            self.session.save()
+            if previous.get("measurement_id"):
+                result["measurement_id"] = previous["measurement_id"]
+            seg.results[key] = result
+            session.save()
+            # Into the record straight away — a confirmed, analysed take is a
+            # measurement; a re-analysis updates the same one, never a copy.
+            try:
+                from video.export import export_or_update
+                export_or_update(session, seg, key)
+            except Exception as e:
+                log.warning("Übernahme in die Akte fehlgeschlagen: %s", e)
         self._refresh_plot(force=True)
         mpi = (features or {}).get("mpi")
         summary = f"MPI {mpi:.2f}" if isinstance(mpi, (int, float)) else "fertig"

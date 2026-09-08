@@ -367,7 +367,8 @@ nach.
 | Schrittzustände + Persistenz (`video/store.py`) | **erledigt** |
 | Aufnahme-Ablauf (Countdown, Sichtung, Wiederholen) | **erledigt** (`ui/recording_pane.py`) |
 | Zuschaltbare Analyse nach dem Bestätigen | **erledigt** (gleicher Weg wie Import) |
-| Ein Bildschirm pro Sitzung (§6b) | **erledigt** (`ui/session_screen.py`) |
+| Ein Bildschirm pro Sitzung (§6b) | **überholt → ein Bildschirm pro Patient** (`ui/patient_workbench.py`): Sitzungsliste und Arbeitsbereich sind *ein* Screen, der Patientenklick ist der Einstieg |
+| Ergebnis automatisch in die Akte, Neu auswerten / Umlabeln | **erledigt** (`export_or_update`, `relabel_step`) |
 | `VideoSession` von Patient auf Session umschlüsseln | **erledigt** (`load_for_session`, Altbestand → jüngste Sitzung) |
 | Session-Baum im Patientenscreen | **erledigt** |
 | Ein Einstieg „Neue Sitzung", VideoLab/Gesture Lab als Knöpfe entfernt | **erledigt** |

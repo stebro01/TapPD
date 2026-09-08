@@ -223,6 +223,22 @@ class VideoSession:
             added.append(step)
         return added
 
+    def relabel_step(self, step_id: str, paradigm: str, hand: str) -> RecordingStep:
+        """Change what a step *is* (paradigm / side) after the fact.
+
+        The take is untouched; the segment made from it follows, and its
+        analysis results are dropped — they belonged to the old label and would
+        otherwise sit next to the new one as if still valid. Re-analyse after.
+        """
+        step = self._require_step(step_id)
+        step.paradigm, step.hand = paradigm, hand
+        if step.segment_id:
+            seg = next((s for s in self.segments if s.id == step.segment_id), None)
+            if seg is not None:
+                seg.paradigm, seg.hand = paradigm, hand
+                seg.results = {}
+        return step
+
     def remove_step(self, step_id: str) -> None:
         """Drop a step and any segment made from it (files stay on disk)."""
         step = self.step(step_id)

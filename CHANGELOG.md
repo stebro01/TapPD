@@ -52,11 +52,16 @@ Versionierung: SemVer-artig (0.x = Forschungsprototyp).
   Grund dort anzuzeigen.
 
 ### Sitzungen: Video als Primärquelle
-- **Ein Bildschirm pro Sitzung** (`ui/session_screen.py`): links der Inhalt
-  (Protokollschritte, importiertes Video), rechts der Arbeitsbereich, der der
-  Auswahl folgt — Aufnahme, Take-Sichtung oder Video-Schnitt. Protokoll,
-  einzelnes Paradigma und Video-Import sind drei Einträge im Menü
-  „Hinzufügen", keine drei Bildschirme mehr.
+- **Ein Bildschirm pro Patient** (`ui/patient_workbench.py`): Patient
+  anklicken zeigt alle Sitzungen mit Inhalt (links) und den Arbeitsbereich zum
+  gewählten Element (rechts) — Aufnahme, Take-Sichtung, Video-Schnitt,
+  Messungs-Details. Ersetzt die Patienten-Detailliste *und* den separaten
+  Sitzungsbildschirm. Protokoll, einzelnes Paradigma, Video-Import und
+  Live-Messung sind Einträge im Menü „Hinzufügen".
+- **Ergebnisse landen automatisch in der Akte**: ein bestätigter, ausgewerteter
+  Take wird sofort als Messung gespeichert (📋 im Baum). **Neu auswerten**
+  aktualisiert dieselbe Messung (`update_measurement`), **Paradigma/Seite
+  ändern** entfernt das alte Ergebnis und wertet neu aus.
 - **Aufnahmeprotokolle** (`video/protocols/*.yaml`, Loader mit Validierung):
   jeder Schritt wird einzeln gefilmt, gesichtet und bestätigt; ein einzelnes
   Paradigma ist ein Protokoll der Länge 1. Zustand und Takes werden an der

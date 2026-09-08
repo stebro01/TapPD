@@ -114,8 +114,10 @@ Zeit betrachten.</p>
     <code>start.bat</code> (legt beim ersten Mal die Python-Umgebung an).
     Ohne Sensor: <code>./start.sh --mock</code> (Simulationsmodus).</li>
 <li><b>Patient wählen</b> oder neu anlegen (Startbildschirm).</li>
-<li><b>„＋ Neue Sitzung"</b> öffnet den Sitzungsbildschirm. Über <b>Hinzufügen</b>:
-    Protokoll aufnehmen, einzelnes Paradigma oder Video importieren.</li>
+<li><b>Patient anklicken</b> — das ist bereits der Arbeitsplatz: links alle Sitzungen mit
+    Inhalt, rechts der Arbeitsbereich. <b>„＋ Neue Sitzung"</b> legt eine Gruppe an, über
+    <b>„＋ Hinzufügen"</b> kommt Inhalt hinein: Protokoll aufnehmen, einzelnes Paradigma,
+    Video importieren oder eine Live-Messung.</li>
 <li>Je Schritt: Anweisung lesen → <b>● Aufnahme starten</b> → Countdown → Aufnahme →
     Take ansehen → <b>✔ Übernehmen</b> oder <b>↻ Wiederholen</b>. Unter der Vorschau
     zeigt eine Zeile live, ob Hände und Gesicht erkannt werden.</li>
@@ -161,10 +163,12 @@ betroffenen Werte automatisch.</div>
 
 <h2 id="patienten">4&nbsp;· Patienten &amp; Sessions</h2>
 <figure><img src="img/02_patient_detail.png" alt="Patienten-Detail">
-<figcaption>Patienten-Detail: Sitzungsbaum — je Sitzung die aufgenommenen Schritte mit
-Zustand (○ offen, ◐ aufgenommen, ✔ bestätigt) und Ergebnis, dazu direkt gemessene
-Werte. Rechtsklick bietet Fortsetzen, erneut aufnehmen, Live-Messung hinzufügen,
-Sitzung löschen. Oben rechts: 📈 Verlauf und „＋ Neue Sitzung".</figcaption></figure>
+<figcaption>Patienten-Arbeitsplatz: links alle Sitzungen mit ihren Schritten — Zustand
+(○ offen, ◐ aufgenommen, ✔ bestätigt), Ergebnis und 📋, wenn es in der Akte liegt —,
+rechts der Arbeitsbereich zum gewählten Element (Aufnahme, Take, Video-Schnitt).
+Rechtsklick auf einen Schritt: erneut aufnehmen, neu auswerten, Paradigma/Seite ändern,
+entfernen. Oben rechts: „Patient ▾" (Bearbeiten, Verlauf, CSV, Löschen), „＋ Neue Sitzung",
+„＋ Hinzufügen".</figcaption></figure>
 <ul>
 <li><b>Symbole im Baum:</b> ○ offen · ◐ aufgenommen, noch nicht gesichtet · ✔ bestätigt (Video liegt vor);
     die Spalte „Ergebnis" zeigt z.&nbsp;B. <code>Ruhetremor: MPI 0.62</code> oder „nicht ausgewertet".</li>
@@ -243,11 +247,11 @@ als Spitzen) und Lidspalte mit Blink-Schwelle (rechts).</figcaption></figure>
 <figcaption>📈 Verlauf: beliebiges Merkmal über die Zeit, getrennt nach Hand.
 Hohle Punkte = Kamera-Quelle (≈mm-Modellskala), gefüllte = Leap.</figcaption></figure>
 
-<h2 id="videolab">8&nbsp;· Sitzung — Aufnahme, Import und Auswertung</h2>
-<figure><img src="img/11_sitzung.png" alt="Sitzungsbildschirm">
-<figcaption>Sitzungsbildschirm: links der Inhalt (Protokollschritte, importiertes Video),
-rechts der Arbeitsbereich, der der Auswahl folgt — Aufnahme eines Schritts,
-Sichtung des Takes oder Schnitt eines importierten Videos.
+<h2 id="videolab">8&nbsp;· Aufnahme, Import und Auswertung</h2>
+<figure><img src="img/11_sitzung.png" alt="Neue Sitzung">
+<figcaption>Eine neue Sitzung: sie erscheint als Gruppe in der Liste, rechts die drei
+Möglichkeiten, Inhalt hinzuzufügen. Der Arbeitsbereich folgt danach der Auswahl —
+Aufnahme eines Schritts, Sichtung des Takes oder Schnitt eines importierten Videos.
 Unten: Kamera wechseln, Gesichtserkennung, Status.</figcaption></figure>
 <p>Über <b>＋ Hinzufügen</b> kommt Inhalt in die Sitzung: <b>Protokoll aufnehmen</b>
 (mehrere Schritte nacheinander), <b>Einzelnes Paradigma</b> (ein Schritt) oder
@@ -265,6 +269,10 @@ begrenzen, H.264 mit x264-CRF, Gesicht nach <code>privacy.deface</code> unkenntl
 machen, Iris-Spur für die Tremor-Referenz sichern) → <b>Aufräumen</b> (Roh-Take
 löschen, sobald der Archiv-Clip vorliegt). Ein 640×480-Take wird dabei rund
 <b>35× kleiner</b>; die Messung in der Akte verweist auf den Archiv-Clip.</p>
+<p><b>Nachträglich ändern:</b> Rechtsklick auf einen bestätigten Schritt bietet
+<b>Neu auswerten</b> (dieselbe Messung wird aktualisiert, keine Kopie) und
+<b>Paradigma / Seite ändern</b> (das alte Ergebnis wird aus der Akte entfernt und der
+Take unter dem neuen Label neu ausgewertet). Der Take selbst bleibt unangetastet.</p>
 <p>Einstellungen in <code>video/video.yaml</code>: <code>archive.compact_takes</code>
 (Archivieren an/aus), <code>archive.keep_raw_take</code> (Roh-Take zusätzlich behalten),
 <code>segments.crf</code> (Qualität, 18 ≈ nahezu verlustfrei … 28 klein).
