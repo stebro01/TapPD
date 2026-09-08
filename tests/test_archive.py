@@ -71,6 +71,8 @@ def test_compact_repoints_clip_and_keeps_source(stub_extractor):
     assert seg.deidentified is True
     assert seg.thumb_path == "t.jpg"
     assert seg.analysis_path == str(raw)     # analysis still prefers the raw take
+    # review plays the archive clip right away, so the raw file is not re-opened
+    assert s.step("finger_tapping").clip_path == seg.clip_path
     src, start, end, dest = stub_extractor[0]
     assert (src, start, end) == (str(raw), 0.0, seg.duration_s)
 

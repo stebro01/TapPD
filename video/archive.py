@@ -61,6 +61,12 @@ def compact_take(session: VideoSession, seg: Segment) -> bool:
     seg.clip_path = dest
     seg.deidentified = bool(clip.deidentified)
     seg.thumb_path = str((clip.extra or {}).get("thumb") or seg.thumb_path)
+    # Review plays the archive clip from now on. Leaving the step on the raw
+    # take would have every re-render load the raw file into the player, which
+    # then can never be deleted — the archive clip is what is kept anyway.
+    for step in session.steps:
+        if step.segment_id == seg.id:
+            step.clip_path = dest
     try:
         ratio = os.path.getsize(raw) / max(1, os.path.getsize(dest))
         log.info("Take archiviert: %s → %s (%.1fx kleiner, deface=%s)",
