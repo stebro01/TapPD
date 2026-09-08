@@ -62,6 +62,11 @@ class RecordingScreen(QWidget):
         self._t_left = 0.0
         self._latest_preview = None
         self._recorded_path: str | None = None   # set from the reader thread
+        # Saved state of a shared capture device, restored on leave.
+        self._prev_preview_cb = None
+        self._prev_recorded_cb = None
+        self._prev_face_on = False
+        self._started_stream = False
         self._build()
 
         self._tick_timer = QTimer(self)
@@ -125,6 +130,12 @@ class RecordingScreen(QWidget):
         self._bar.setTextVisible(False)
         self._bar.setFixedHeight(6)
         right.addWidget(self._bar)
+
+        # Live detection readout: proof the tracking works *before* filming,
+        # rather than finding out afterwards that nothing was recognised.
+        self._detect_lbl = QLabel()
+        self._detect_lbl.setStyleSheet("font-size: 12px;")
+        right.addWidget(self._detect_lbl)
 
         self._status = QLabel()
         self._status.setStyleSheet(f"color: {theme.TEXT_SECONDARY};")
@@ -193,23 +204,45 @@ class RecordingScreen(QWidget):
                 self._device = None
                 return
 
+        # Remember what we are about to change on a *shared* device, so leaving
+        # this screen hands it back the way we found it.
+        self._prev_preview_cb = getattr(self._device, "_preview_callback", None)
+        self._prev_recorded_cb = getattr(self._device, "_recorded_callback", None)
+        self._prev_face_on = bool(getattr(self._device, "_face_on", False))
+        self._started_stream = False
+
         self._device.set_preview_callback(self._on_preview)
         self._device.set_recorded_callback(
             lambda p: setattr(self, "_recorded_path", p))
+
+        # A connected device is not necessarily a streaming one — the sidecar
+        # only sends preview frames while a capture is running. Without this the
+        # screen sat on "Warte auf Kamerabild" forever.
+        if not getattr(self._device, "_recording", False):
+            self._device.start_tracking(lambda _f: None)
+            self._started_stream = True
+
+        self._device.configure(num_hands=2)   # both hands, so the overlay shows both
+        self._device.enable_face(True)        # face + iris as visible proof it works
         self._device.enable_preview(True)
+        self._preview.set_placeholder("Kamera wird gestartet …")
 
     def _release_device(self) -> None:
         if self._device is None:
             return
         try:
-            self._device.set_recorded_callback(None)
-            self._device.set_preview_callback(None)
+            self._device.set_recorded_callback(self._prev_recorded_cb)
+            self._device.set_preview_callback(self._prev_preview_cb)
+            self._device.enable_face(self._prev_face_on)
+            if self._started_stream:
+                self._device.stop_tracking()
             if self._owns_device:
                 self._device.disconnect()
         except Exception:
             log.debug("Aufräumen der Aufnahme-Kamera fehlgeschlagen", exc_info=True)
         self._device = None
         self._owns_device = False
+        self._started_stream = False
 
     # ── step list ────────────────────────────────────────────────
     def _refresh_steps(self) -> None:
@@ -368,12 +401,37 @@ class RecordingScreen(QWidget):
     def _on_preview(self, msg: dict) -> None:
         self._latest_preview = msg      # reader thread: only store, never draw
 
+    def _update_detection(self, msg: dict) -> None:
+        """One line saying what is currently being recognised.
+
+        The labels are the corrected ones from the sidecar, so "links" here
+        means the patient's left hand — the same side the analysis will use.
+        """
+        names = {"left": "links", "right": "rechts"}
+        hands = [names.get(str(h).lower(), str(h))
+                 for h, lm in zip(msg.get("hand_handedness", []),
+                                  msg.get("landmarks", [])) if lm]
+        face = bool(msg.get("face"))
+
+        parts = []
+        if hands:
+            noun = "Hand" if len(hands) == 1 else "Hände"
+            parts.append(f"✔ {len(hands)} {noun} ({', '.join(hands)})")
+        else:
+            parts.append("○ keine Hand")
+        parts.append("✔ Gesicht" if face else "○ kein Gesicht")
+        ok = bool(hands) and face
+        color = theme.ACCENT if ok else theme.TEXT_SECONDARY
+        self._detect_lbl.setStyleSheet(f"font-size: 12px; color: {color};")
+        self._detect_lbl.setText("   ·   ".join(parts))
+
     def _tick(self) -> None:
         try:
             if self._phase != REVIEW and self._latest_preview is not None:
                 msg = self._latest_preview
                 self._preview.set_frame(msg.get("jpeg", ""), msg.get("landmarks", []),
                                         msg.get("face", []))
+                self._update_detection(msg)
 
             if self._phase == COUNTDOWN:
                 self._t_left -= self._tick_timer.interval() / 1000.0
