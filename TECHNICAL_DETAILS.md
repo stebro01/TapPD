@@ -199,11 +199,23 @@ Label mit — die gespiegelte Ansicht waere richtig, die Haendigkeit dafuer
 falsch. Beides gehoert zusammen:
 
 ```
-cap.read() ─► cv2.flip(frame, 1) ─► MediaPipe ─► _handedness(label, mirrored=True)
-   (roh)      │                                        │
-              ├─► Vorschau-JPEG                        └─► Label zurueckgedreht
-              └─► Clip-Aufnahme
+cap.read() ─┬─► cv2.flip(frame,1) ─► MediaPipe ─► _handedness(label, mirrored=True)
+  (roh)     │    │                                      │
+            │    └─► Vorschau-JPEG                      └─► Label zurueckgedreht
+            │
+            └─► Clip-Aufnahme (ROH, ungespiegelt)
 ```
+
+**Aufgenommene Clips speichern das Rohbild**, nicht die gespiegelte Ansicht.
+Das ist wichtig: ein bereits gespiegelt abgelegter Clip ist beim Abspielen
+seine eigene Quelle — das Bild sieht richtig aus, aber MediaPipe bekommt ein
+gespiegeltes Bild, waehrend der Replay-Pfad von "ungespiegelt" ausgeht, und die
+Haendigkeit kippt. Roh gespeichert bleibt ein Clip **aequivalent zur
+Live-Kamera**: mit gesetztem Spiegel-Flag abgespielt ergibt er dasselbe Bild
+*und* dieselben Labels.
+
+Der Sim-Clip ist eine solche Eigenaufnahme und laeuft deshalb unter derselben
+Einstellung wie die Live-Kamera (`sidecar.mirror`).
 
 `_handedness()` in `sidecar.py` ist die einzige Stelle, die das Label
 korrigiert, und sie liest dasselbe Flag, das auch die Spiegelung steuert

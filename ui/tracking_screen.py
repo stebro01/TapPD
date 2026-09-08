@@ -480,6 +480,9 @@ class TrackingScreen(QWidget):
         self._teardown_candidate()
         self._latest_by_hand.clear()
         self._latest_preview = None
+        # Reset the placeholder: the Sim path may have replaced it with a
+        # "no clip yet" explanation that must not outlive that state.
+        self._webcam_preview.set_placeholder("Warte auf Kamerabild …")
         self._webcam_preview.clear()
         self._face_view.clear()
         for sk in self._skeletons.values():
@@ -532,13 +535,26 @@ class TrackingScreen(QWidget):
         from video.clip import default_clip_path
         clip = default_clip_path()
         if not clip:
-            self._cam_panel.setVisible(False)
+            # Say it where the user is looking. Hiding the panels outright left
+            # an empty screen and only a status line to explain it.
+            self._webcam_preview.set_placeholder(
+                "Kein Sim-Clip vorhanden.\n\n"
+                "Der Simulationsmodus spielt eine eigene Aufnahme in Schleife ab.\n"
+                "Zum Anlegen: auf „Webcam“ wechseln und rechts auf „Save“ –\n"
+                "das nimmt für die eingestellte Dauer auf und legt den Clip an.")
+            self._webcam_preview.clear()
+            self._cam_panel.setVisible(True)
             self._face_panel.setVisible(False)
-            self._set_status("Kein Sim-Clip – erst über „● 10 s“ aufnehmen.", error=True)
+            self._set_status("Kein Sim-Clip – erst über „Save“ aufnehmen.", error=True)
             return
 
         dev = WebcamSource(flip_handedness=self._flip_cb.isChecked(),
                                      replay_path=clip)
+        # The Sim clip is our own recording, stored as the camera saw it — so it
+        # replays under the same mirror setting as the live camera. (An imported
+        # VideoLab clip is different: it carries its own flag.)
+        from capture.config import cfg as _cap_cfg
+        dev.replay_mirror = bool(_cap_cfg("sidecar", "mirror", default=True))
         dev.connect()
         self._candidate = dev
         self._owns_candidate = True

@@ -473,13 +473,18 @@ class Sidecar:
                 misses = 0
                 frame_idx += 1
 
-                # Mirror before anything else looks at the frame, so preview,
-                # landmarks, handedness and recorded clips all share one
-                # orientation.  Video keeps its own flag (set at import).
+                # Record the camera's own view, mirror only what is looked at.
+                # A clip stored already-mirrored replays as its own source: the
+                # picture looks right, but MediaPipe sees a mirrored image while
+                # the replay believes it is unmirrored, and the handedness comes
+                # out swapped.  Storing the raw view keeps the clip equivalent
+                # to the live camera, so replaying it with the mirror flag set
+                # gives the same picture *and* the same labels.
+                raw_bgr = frame_bgr
                 if mirror_frames:
                     frame_bgr = cv2.flip(frame_bgr, 1)
 
-                self._maybe_record(frame_bgr)   # write live frames to a clip if requested
+                self._maybe_record(raw_bgr)   # write live frames to a clip if requested
 
                 frame_rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
                 mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=frame_rgb)
