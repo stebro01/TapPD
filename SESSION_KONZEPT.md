@@ -277,6 +277,88 @@ ein Touch-Panel dieselbe Liste rendern, ohne dass die Logik doppelt entsteht.
 - **Zuordnung bestehender Video-Sessions** beim Wechsel von Patient- auf
   Session-Schlüssel: automatisch der jüngsten Session zuordnen oder den
   Untersucher fragen?
+## 6b. Ein Bildschirm für die Sitzung — die drei Fälle als *ein* Layout
+
+Entscheidung: **Video ist die Primärquelle** für alles Messende. Import,
+Protokoll und einzelnes Paradigma sind keine drei Bildschirme, sondern drei
+Arten, einer Sitzung **Inhalt hinzuzufügen**. Alles Weitere — aufnehmen,
+sichten, schneiden, auswerten, exportieren, löschen — wirkt auf Elemente
+*einer* Liste.
+
+```
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ ← Patient   Sitzung 3 · 08.09.2026 · P001                   [＋ Hinzufügen ▾] │
+│                                                          Protokoll…           │
+│                                                          Einzelnes Paradigma… │
+│                                                          Video importieren…   │
+├────────────────────────────┬─────────────────────────────────────────────────┤
+│ INHALT                     │ ARBEITSBEREICH — folgt der Auswahl links        │
+│                            │                                                 │
+│ Protokoll: UPDRS Hand      │ ┌─────────────────────────────────────────────┐ │
+│  ✔ 1 Ruhe        MPI 0.62  │ │  Vorschau (live)  ·  Take  ·  Video+Timeline│ │
+│  ◐ 2 Kopfdrehung           │ └─────────────────────────────────────────────┘ │
+│  ○ 3 Tapping re            │ Titel · Instruktion · Zustand                   │
+│  ○ 4 Tapping li            │ [● Aufnehmen] [✔ Übernehmen] [↻ Wiederholen]    │
+│                            │ ☑ automatisch auswerten      ── Live-Plot ──    │
+│ Import: handy_video.mp4    │                                                 │
+│  ├ seg_001 Tapping li      │ Ergebnis: Finger Tapping — MPI 0.70   [→ Akte]  │
+│  └ seg_002 Tremor          │                                                 │
+├────────────────────────────┴─────────────────────────────────────────────────┤
+│ Kamera: [OBSBOT ▾]   ☑ Gesicht                                     Status …  │
+└──────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Links: der Inhalt
+
+Eine Liste aller Elemente der Sitzung, gleich welcher Herkunft. Ein Protokoll
+erscheint als Gruppe mit seinen Schritten, ein einzelnes Paradigma als Gruppe
+mit einem Schritt, ein Import als Video-Knoten mit den geschnittenen Segmenten
+darunter. Jedes Element zeigt Zustand (○ ◐ ✔) und — falls vorhanden — sein
+Ergebnis. Das ist dieselbe Struktur wie im Sitzungsbaum der Patientenseite,
+nur für *eine* Sitzung und mit Arbeitsbereich daneben.
+
+### Rechts: der Arbeitsbereich
+
+Er hat **drei Modi**, gewählt durch das, was links markiert ist — nicht durch
+einen eigenen Navigationsschritt:
+
+| markiert ist … | Modus | zeigt |
+|---|---|---|
+| offener / ungesichteter Schritt | **Aufnahme** | Live-Vorschau mit Erkennung, Instruktion, Countdown, Aufnehmen / Übernehmen / Wiederholen, „automatisch auswerten" |
+| bestätigter Schritt oder Segment | **Take** | Wiedergabe des Clips, Ergebnis, Auswerten, → Akte, Erneut aufnehmen |
+| importiertes Video | **Schnitt** | das ganze Video mit Timeline, Bereich markieren → Segment anlegen |
+
+Der Schnitt-Modus ist der heutige VideoLab-Videobereich; der Aufnahme-Modus die
+rechte Spalte des heutigen Aufnahme-Screens. Beide werden zu **Panes** eines
+`QStackedWidget` statt eigener Bildschirme.
+
+### Der Einstieg
+
+Auf der Patientenseite gibt es nur noch **einen** Knopf: *Neue Sitzung*. Er
+legt die DB-Sitzung an und öffnet diesen Bildschirm leer, mit dem
+„Hinzufügen"-Menü als einzig sinnvoller Aktion (Leerzustand: drei große
+Karten statt eines Menüs). Eine bestehende Sitzung öffnet sich aus dem Baum
+in genau demselben Bildschirm — es gibt keinen Unterschied zwischen „neu" und
+„weitermachen".
+
+Die Knöpfe *VideoLab* und *Gesture Lab* verschwinden von der Patientenseite;
+das VideoLab geht in diesem Bildschirm auf, das Gesture Lab bleibt als
+experimentelle Funktion über das Hauptmenü erreichbar.
+
+### Umsetzungspfad (risikoarm, in dieser Reihenfolge)
+
+1. `SessionScreen`-Hülle: Kopf, Inhaltsliste (Logik aus dem Sitzungsbaum),
+   Fußzeile, leerer gestapelter Arbeitsbereich.
+2. Rechte Spalte des `RecordingScreen` → `RecordingPane`; `SessionScreen`
+   nutzt sie. `RecordingScreen` entfällt.
+3. Videobereich + Timeline + Segmentbearbeitung des `VideoLabScreen` →
+   `CutPane`; `VideoLabScreen` entfällt.
+4. Patientenseite: ein Knopf, Baum-Aktionen öffnen den `SessionScreen`.
+
+Nach Schritt 2 ist die Hauptfunktion (motorische Aufgabe aufnehmen, sofort
+auswerten) bereits vollständig im neuen Bildschirm; Schritt 3 holt den Import
+nach.
+
 ## 7. Umsetzungsstand
 
 | Baustein | Stand |

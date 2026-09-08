@@ -19,6 +19,7 @@ from PyQt6.QtCore import Qt, QTimer, QUrl
 from PyQt6.QtMultimedia import QAudioOutput, QMediaPlayer
 from PyQt6.QtMultimediaWidgets import QVideoWidget
 from PyQt6.QtWidgets import (
+    QCheckBox,
     QComboBox,
     QDialog,
     QDialogButtonBox,
@@ -36,6 +37,8 @@ from PyQt6.QtWidgets import (
 )
 
 from ui import theme
+from ui.analysis_runner import AnalysisRunner
+from ui.widgets.live_metric_plot import LiveMetricPlot
 from ui.widgets.webcam_preview import WebcamPreview
 from video.store import STEP_CONFIRMED, STEP_PENDING, STEP_RECORDED, VideoSession
 
@@ -67,6 +70,15 @@ class RecordingScreen(QWidget):
         self._prev_recorded_cb = None
         self._prev_face_on = False
         self._started_stream = False
+        # Auto-analysis of confirmed takes: the same AnalysisRunner VideoLab
+        # uses on an imported clip, so a recording and an import yield the same
+        # numbers by construction. Runs are queued so the clinician can keep
+        # filming while the previous step computes.
+        self._runner = AnalysisRunner(self)
+        self._runner.finished.connect(self._on_analysis_finished)
+        self._runner.failed.connect(self._on_analysis_failed)
+        self._queue: list = []          # (step_id, segment) awaiting analysis
+        self._analysing: str = ""       # step id currently being analysed
         self._build()
 
         self._tick_timer = QTimer(self)
@@ -153,6 +165,26 @@ class RecordingScreen(QWidget):
             actions.addWidget(b)
         right.addLayout(actions)
 
+        # -- analysis strip ------------------------------------------
+        strip = QHBoxLayout()
+        self._auto_cb = QCheckBox("Nach Übernehmen automatisch auswerten")
+        self._auto_cb.setChecked(True)
+        self._auto_cb.setToolTip(
+            "Läuft die Analyse direkt auf dem bestätigten Take — derselbe Weg "
+            "wie beim Video-Import, also dieselben Zahlen.\n"
+            "Aus: später im VideoLab auswerten.")
+        strip.addWidget(self._auto_cb)
+        strip.addStretch()
+        self._analysis_lbl = QLabel()
+        self._analysis_lbl.setStyleSheet(f"color: {theme.TEXT_SECONDARY}; font-size: 12px;")
+        strip.addWidget(self._analysis_lbl)
+        right.addLayout(strip)
+
+        self._plot = LiveMetricPlot(figsize=(8, 1.6))
+        self._plot.setMaximumHeight(150)
+        self._plot.setVisible(False)
+        right.addWidget(self._plot)
+
         body.addLayout(right, 1)
         root.addLayout(body)
 
@@ -186,6 +218,10 @@ class RecordingScreen(QWidget):
     def on_leave(self) -> None:
         self._tick_timer.stop()
         self._player.stop()
+        self._queue.clear()
+        self._analysing = ""
+        self._runner.teardown()
+        self._plot.setVisible(False)
         self._release_device()
         self.session = None
 
@@ -317,6 +353,9 @@ class RecordingScreen(QWidget):
         for i, st in enumerate(self.session.steps, start=1):
             mark = _MARKERS.get(st.state, "○")
             suffix = "" if st.is_documentation else f" · {st.hand}"
+            result = self._result_text(st)
+            if result:
+                suffix += f"   →  {result}"
             item = QListWidgetItem(f"{mark}  {i}. {st.title}{suffix}")
             item.setData(Qt.ItemDataRole.UserRole, st.id)
             self._steps.addItem(item)
@@ -433,11 +472,13 @@ class RecordingScreen(QWidget):
         if step is None or self.session is None:
             return
         try:
-            self.session.confirm_step(step.id)
+            segment = self.session.confirm_step(step.id)
         except ValueError as e:
             self._set_status(str(e), error=True)
             return
         self.session.save()
+        if self._auto_cb.isChecked() and not step.is_documentation:
+            self._enqueue_analysis(step.id, segment)
         self._refresh_steps()
         nxt = self.session.next_open_step()
         if nxt is not None:
@@ -445,6 +486,76 @@ class RecordingScreen(QWidget):
         else:
             self._show_step()
             self._set_status("Protokoll vollständig — alle Schritte bestätigt.")
+
+    # -- auto-analysis -----------------------------------------------
+    def _result_text(self, step) -> str:
+        """Short readout of a step's analysis, if it has one."""
+        if self.session is None or not step.segment_id:
+            return ""
+        seg = next((x for x in self.session.segments if x.id == step.segment_id), None)
+        if seg is None or not seg.results:
+            return ""
+        parts = []
+        for res in seg.results.values():
+            mpi = ((res or {}).get("features") or {}).get("mpi")
+            parts.append(f"MPI {mpi:.2f}" if isinstance(mpi, (int, float)) else "ausgewertet")
+        return ", ".join(parts)
+
+    def _enqueue_analysis(self, step_id: str, segment) -> None:
+        self._queue.append((step_id, segment))
+        self._start_next_analysis()
+
+    def _start_next_analysis(self) -> None:
+        if self._analysing or not self._queue or self.session is None:
+            return
+        step_id, segment = self._queue.pop(0)
+        step = self.session.step(step_id)
+        if step is None or not segment.clip_path:
+            self._start_next_analysis()
+            return
+        self._analysing = step_id
+        self._plot.clear_plot()
+        self._plot.setVisible(True)
+        self._analysis_lbl.setText(f"Auswertung läuft: {step.title} …")
+        # Identical call to VideoLab's segment analysis. A recording is our own
+        # raw capture, so it replays under the session's (webcam) mirror flag.
+        self._runner.start(segment.clip_path, 0.0, step.duration_s, step.paradigm,
+                           hand=step.hand, with_face=False,
+                           mirrored=self.session.mirrored)
+
+    def _on_analysis_finished(self, test, features: dict) -> None:
+        step_id, self._analysing = self._analysing, ""
+        step = self.session.step(step_id) if self.session else None
+        seg = next((x for x in self.session.segments
+                    if step and x.id == step.segment_id), None) if self.session else None
+        if seg is not None:
+            from datetime import datetime
+            result = {"features": features,
+                      "recorded_at": datetime.now().isoformat(),
+                      "raw_path": "", "source_kind": "video"}
+            if self._runner.needs_abs_position:
+                result["eye_ref_coverage"] = round(self._runner.eye_ref_coverage(), 3)
+            seg.results[test.test_type()] = result
+            self.session.save()
+        self._refresh_plot(force=True)     # final curve stays on screen
+        mpi = (features or {}).get("mpi")
+        summary = f"MPI {mpi:.2f}" if isinstance(mpi, (int, float)) else "fertig"
+        self._analysis_lbl.setText(
+            f"Ausgewertet: {step.title if step else step_id} — {summary}")
+        self._refresh_steps()
+        self._start_next_analysis()
+
+    def _on_analysis_failed(self, msg: str) -> None:
+        step_id, self._analysing = self._analysing, ""
+        log.warning("Auto-Auswertung von '%s' fehlgeschlagen: %s", step_id, msg)
+        self._analysis_lbl.setText(f"Auswertung fehlgeschlagen ({step_id}): {msg}")
+        self._start_next_analysis()
+
+    def _refresh_plot(self, force: bool = False) -> None:
+        # Own flag rather than isVisible(): that is False whenever the screen
+        # itself is not shown, which would silently skip the update.
+        if force or self._analysing:
+            self._plot.update_plot(self._runner.live, self._runner.metric_label())
 
     def _on_retake(self) -> None:
         step = self._step
@@ -494,6 +605,9 @@ class RecordingScreen(QWidget):
 
     def _tick(self) -> None:
         try:
+            if self._analysing:
+                self._refresh_plot()
+
             if self._phase != REVIEW and self._latest_preview is not None:
                 msg = self._latest_preview
                 self._preview.set_frame(msg.get("jpeg", ""), msg.get("landmarks", []),
