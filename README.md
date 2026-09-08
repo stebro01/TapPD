@@ -105,10 +105,10 @@ pip install -r requirements.txt
    - **Windows**: Laeuft automatisch als Dienst (LeapSvc.exe)
    - **macOS**: `/Applications/Ultraleap Hand Tracking.app` oeffnen
 3. LeapC Python-Bindings ins Projekt kopieren:
-   - **Windows**: `start.ps1` / `start.bat` erledigt dies automatisch aus `C:\Program Files\Ultraleap\LeapSDK\leapc_cffi\`
+   - **Windows**: `start.ps1 --leap` / `start.bat --leap` holt sie aus `C:\Program Files\Ultraleap\LeapSDK\leapc_cffi\` (ohne `--leap` bleibt der Leap-Pfad aus)
    - **macOS**: `cp -r "/Applications/Ultraleap Hand Tracking.app/Contents/LeapSDK/leapc_cffi/" ./leapc_cffi/`
 4. Falls die Python-Version nicht mit den SDK-Bindings uebereinstimmt (SDK liefert 3.12):
-   - **Windows**: `start.ps1` / `start.bat` benennt die `.pyd`-Datei automatisch um
+   - **Windows**: `start.ps1 --leap` / `start.bat --leap` benennt die `.pyd`-Datei automatisch um
    - **macOS**: `cp leapc_cffi/_leapc_cffi.cpython-312-darwin.so leapc_cffi/_leapc_cffi.cpython-3XX-darwin.so`
 5. Leap Motion Controller per USB anschliessen (LED sollte gruen leuchten)
 
@@ -244,7 +244,7 @@ sqlite3 data/tappd.db \
    - **Windows**: `_leapc_cffi.cp3XX-win_amd64.pyd` + `LeapC.dll`
    - **macOS**: `_leapc_cffi.cpython-3XX-darwin.so` + `libLeapC.dylib`
 
-   Auf Windows kopiert `start.ps1`/`start.bat` diese automatisch aus dem SDK.
+   Auf Windows kopiert `start.ps1 --leap` / `start.bat --leap` diese aus dem SDK.
 
 5. **Nur eine App-Instanz gleichzeitig**
    LeapC erlaubt nur eine aktive Verbindung. Falls eine alte Instanz laeuft,
@@ -345,7 +345,7 @@ scheitert.
 Die Bindings aus dem SDK sind fuer Python 3.12 kompiliert. Bei neueren Python-Versionen
 muss die Datei kopiert/umbenannt werden (C-ABI ist kompatibel):
 
-- **Windows**: `start.ps1`/`start.bat` erledigt dies automatisch
+- **Windows**: `start.ps1 --leap` / `start.bat --leap` erledigt dies automatisch
 - **macOS**: `cp leapc_cffi/_leapc_cffi.cpython-312-darwin.so leapc_cffi/_leapc_cffi.cpython-3XX-darwin.so`
 
 (XX durch die eigene Minor-Version ersetzen, z.B. 314 fuer Python 3.14)

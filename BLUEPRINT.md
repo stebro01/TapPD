@@ -121,7 +121,7 @@ data/
 | **≈mm-Skala** | MediaPipe-World-Landmarks sind Modellschätzungen (unkalibriert). Frequenzen/Zeiten/Winkel exakt; mm-Werte bei `source_kind ∈ {webcam, video}` als „≈mm" gekennzeichnet (`ui/feature_meta.py`), im Verlauf hohle Punkte. |
 | **Provenienz** | Jede Messung trägt `source_kind` (leap/webcam/mock/video) — im Blob UND SQL-filterbar als `SOURCESYSTEM_CD='TAPPD:<kind>'`. |
 | **MPI** | Motor Performance Index: gewichteter Komposit-Score (0–1) aus normierten Features (`test_config.yaml → mpi`), gespeichert in `NVAL_NUM`, Ampel-Farben in der UI, Default-Merkmal im Verlauf. |
-| **Sidecar-Trennung** | Haupt-App = Python 3.14 **ohne cv2**; alles cv2/MediaPipe läuft im Py-3.12-venv: streamend (Socket) für Live/Loop, als One-Shot-Subprozess für Transcode/Extract. |
+| **Sidecar-Trennung** | Haupt-App = Python 3.12+ **ohne cv2**; alles cv2/MediaPipe läuft im Py-3.12-venv: streamend (Socket) für Live/Loop, als One-Shot-Subprozess für Transcode/Extract. |
 
 ---
 
@@ -156,7 +156,7 @@ Implementierung und Politik. Rest-Schuld: `HandFrame`/`BaseCaptureDevice`-Aliase
 | `extract.py` | One-Shot-Segmentschnitt: Bereich → kompakter Clip. **Hand-aware Defacing** (Blur/Mesh spart dilatierte Hand-Konvexhüllen aus), Iris-only `.eyeref.json`, Thumbnail. |
 | `PROTOCOL.md` | Message-typisiertes JSON-über-TCP-Protokoll — neue Modalitäten additiv. |
 
-**Bewertung:** Klare Prozess-Grenze löst das cv2/Py3.14-Problem. Face ist implementiert
+**Bewertung:** Klare Prozess-Grenze löst das cv2/Python-Versions-Problem. Face ist implementiert
 (Preview + Eye-Ref); ein dedizierter Full-Rate-`face`-Stream (+Blendshapes) ist der
 vorbereitete nächste Ausbauschritt.
 
@@ -274,7 +274,7 @@ mehreren Orten statt konsequent `theme.py`.
 | `logging_config.py` | Zentrales Logging → `data/logs/` + GUI-Viewer; Unhandled-Exception-Hook hält die App am Leben. |
 | `main.py` | Bootstrap: Settings → Source (auto/persistiert) → Logging → MainWindow. |
 | `tests/` (225) | Contract-Tests aller Paradigmen über die Sim-Quelle, DB/Migration, Mapping, Runner, SourceProfile, Replay, VideoLab-Store, DB-Export, Sidecar-Integration (echtes Video durch MediaPipe: Loop, Range+done, Extract+Deface, Transcode, Rotate). |
-| `start.sh/.bat/.ps1`, `setup_sidecar.sh` | Start + Einrichtung der zwei venvs (App 3.14 / Sidecar 3.12). |
+| `start.sh` / `start.ps1` (+ `start.bat`-Wrapper), `setup_sidecar.sh` / `setup_sidecar.ps1` | Start + Einrichtung der zwei venvs (App 3.12+ / Sidecar 3.12). Windows und macOS haben je ein eigenes Skriptpaar. |
 
 ---
 

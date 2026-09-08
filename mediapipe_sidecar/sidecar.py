@@ -1,8 +1,9 @@
 """MediaPipe hand-tracking sidecar (runs on Python 3.12).
 
-The main TapPD app runs on Python 3.14, where MediaPipe has no wheels.  This
-standalone process does the camera capture + MediaPipe inference and streams
-results back to the main app over a local TCP socket as newline-delimited JSON.
+The main Motryx app runs on Python 3.12+ (3.13/3.14 in practice), where
+MediaPipe has no wheels.  This standalone process does the camera capture +
+MediaPipe inference and streams results back to the main app over a local TCP
+socket as newline-delimited JSON.
 
 It is *pure perception*: it emits raw landmarks (image + world), handedness and
 (throttled) preview JPEGs.  All domain mapping to TapPD's ``HandFrame`` happens

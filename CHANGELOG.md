@@ -3,6 +3,58 @@
 Format angelehnt an [Keep a Changelog](https://keepachangelog.com/de/);
 Versionierung: SemVer-artig (0.x = Forschungsprototyp).
 
+## [Unveröffentlicht]
+
+**Windows-Portierung der Kamera-Quellen und Klärung der Bildorientierung.**
+
+### Hinzugefügt
+- **`mediapipe_sidecar/setup_sidecar.ps1`** — Windows-Pendant zu
+  `setup_sidecar.sh`: findet Python 3.12 über den `py`-Launcher, baut das venv
+  und lädt beide Landmarker-Modelle. Prüft zusätzlich die Visual-C++-Runtime,
+  deren Fehlen sich sonst nur als leere Kameraauswahl äußert.
+- **Kamera-Aufnahmeformat konfigurierbar** (`capture.yaml` →
+  `sidecar.camera_width/height/fps`, `0` = Treiberwahl). Das tatsächlich
+  ausgehandelte Format wird protokolliert, da Kameras stillschweigend auf einen
+  benachbarten Modus zurückfallen.
+- **Spiegel-Flag pro Video** (VideoLab, Checkbox „Gespiegelt"), gespeichert an
+  der `VideoSession`. Ältere `session.json` laden unverändert.
+- **`sources:`-Block in `capture.yaml`** — deklariert je Eingangsquelle
+  (leap/webcam/video), ob gespiegelt wird und ob die Händigkeit zusätzlich zu
+  tauschen ist.
+- **Sidecar-stderr** landet in `data/logs/sidecar.log` statt in `DEVNULL`.
+
+### Geändert
+- **Kameras werden unter Windows über DirectShow geöffnet**, nicht über Media
+  Foundation: MSMF braucht dort Sekunden zum Öffnen (8,5 s für eine OBSBOT
+  Tiny 2, 3,3 s für eine interne Webcam), DirectShow 0,2 bzw. 0,7 s.
+- **Das Live-Kamerabild wird gespiegelt** (Selfie-Ansicht); die zugehörige
+  Korrektur des Händigkeits-Labels leitet der Sidecar aus demselben Flag ab.
+- **Aufgenommene Clips speichern das Rohbild.** Ein bereits gespiegelt
+  abgelegter Clip ergab beim Abspielen ein korrektes Bild bei vertauschter
+  Händigkeit.
+  ⚠️ Vor dieser Änderung aufgenommene Sim-Clips einmal neu aufnehmen.
+- `start.ps1` richtet das Sidecar mit ein; die Leap-Schritte laufen nur noch
+  mit `--leap`. `start.bat` ist ein Wrapper darauf statt einer zweiten
+  Implementierung.
+- Checkbox „Links/Rechts spiegeln" heißt jetzt „Händigkeit vertauschen" — sie
+  hat nie ein Bild gespiegelt, sondern nur das Etikett getauscht.
+
+### Behoben
+- **Webcam-Tracking startete unter Windows nie**: der Sidecar-Interpreter war
+  fest auf `.venv/bin/python3` verdrahtet.
+- **Kameraauswahl sprang auf die erste Kamera zurück** — das Neubefüllen der
+  Liste setzte die Auswahl zurück, die der Aufrufer direkt danach auslas.
+- **Kamera-Enumeration** listete unter Windows jedes Gerät doppelt (je
+  Backend) unter Indizes, die der Capture-Pfad nicht öffnen kann.
+- Ein einzelner verlorener Frame beendete den gesamten Stream.
+- Fehlgeschlagene `VideoCapture`-Versuche wurden nicht freigegeben.
+- Der Sim-Modus blendete ohne vorhandenen Clip die Vorschau aus, statt den
+  Grund dort anzuzeigen.
+
+### Hinweise
+- Leap Motion ist auf diesem Stand standardmäßig deaktiviert
+  (`MOTRYX_ENABLE_LEAP=1` bzw. `start.ps1 --leap` aktiviert es wieder).
+
 ## [0.3.0] — 2026-07-15
 
 **Multimodal-Release: TrackingFrame-Envelope, Face-Stream, Okulomotorik.**

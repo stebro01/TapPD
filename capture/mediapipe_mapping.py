@@ -1,6 +1,6 @@
 """Map MediaPipe hand landmarks to TapPD ``HandFrame`` objects.
 
-Pure functions, no MediaPipe/OpenCV import — runs in the main app's Python 3.14
+Pure functions, no MediaPipe/OpenCV import — runs in the main app's Python
 environment and is unit-testable with plain dicts (the sidecar speaks JSON, see
 ``mediapipe_sidecar/PROTOCOL.md``).
 

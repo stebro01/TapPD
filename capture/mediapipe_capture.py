@@ -1,6 +1,6 @@
 """Webcam capture device backed by the MediaPipe sidecar.
 
-MediaPipe has no wheels for the app's Python (3.14), so the actual camera +
+MediaPipe has no wheels for the app's Python (3.13/3.14), so the actual camera +
 inference runs in ``mediapipe_sidecar/`` on Python 3.12.  This device is the
 *client*: it spawns the sidecar, acts as the socket server it connects back to,
 sends commands, and converts the sidecar's raw-landmark JSON into ``HandFrame``

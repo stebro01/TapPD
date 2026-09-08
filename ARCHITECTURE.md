@@ -118,7 +118,7 @@ video media responsibilities live in one place:
   loop → the sidecar (`start` with `video`/`start_s`/`end_s`/`loop`, emits `done`
   for a play-once range).
 
-The main app (Py3.14) has **no cv2**; all cv2/MediaPipe work runs in the Py3.12
+The main app (Py3.12+) has **no cv2**; all cv2/MediaPipe work runs in the Py3.12
 sidecar venv (looping playback in-process; transcode/extract as one-shot
 subprocesses). Video *display/scrubbing* uses Qt Multimedia (`QMediaPlayer`).
 
