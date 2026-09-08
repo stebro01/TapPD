@@ -18,6 +18,7 @@ import socket
 import subprocess
 import sys
 import threading
+import time
 from typing import Callable
 
 log = logging.getLogger(__name__)
@@ -34,6 +35,7 @@ _SIDECAR_PY = (
     else os.path.join(_SIDECAR_DIR, ".venv", "bin", "python3")
 )
 _SIDECAR_MODEL = os.path.join(_SIDECAR_DIR, "models", "hand_landmarker.task")
+_SIDECAR_LOG = os.path.join(_REPO_ROOT, "data", "logs", "sidecar.log")
 
 # Preview callback receives the raw preview message dict (jpeg, w, h, landmarks,
 # hand_handedness, face) — see mediapipe_sidecar/PROTOCOL.md.
@@ -56,6 +58,7 @@ class WebcamSource(BaseCaptureDevice):
         self._done_callback = None      # called() when a play-once range finishes
 
         self._proc: subprocess.Popen | None = None
+        self._stderr_file = None
         self._srv: socket.socket | None = None
         self._sock: socket.socket | None = None
         self._writer = None
@@ -116,10 +119,20 @@ class WebcamSource(BaseCaptureDevice):
             port = self._srv.getsockname()[1]
 
             log.info("Starte MediaPipe-Sidecar (Port %d)...", port)
+            # The sidecar is a separate process, so its tracebacks never reach
+            # the app log — discarding stderr makes a crash in it look like a
+            # camera that simply stopped delivering.  Keep it on disk instead.
+            os.makedirs(os.path.dirname(_SIDECAR_LOG), exist_ok=True)
+            self._stderr_file = open(_SIDECAR_LOG, "a", encoding="utf-8", errors="replace")
+            self._stderr_file.write(
+                f"\n--- sidecar start {time.strftime('%Y-%m-%d %H:%M:%S')} "
+                f"(camera {self.camera_index}, port {port}) ---\n"
+            )
+            self._stderr_file.flush()
             self._proc = subprocess.Popen(
                 [_SIDECAR_PY, _SIDECAR_SCRIPT, "--port", str(port)],
                 cwd=_SIDECAR_DIR,
-                stderr=subprocess.DEVNULL,
+                stderr=self._stderr_file,
             )
 
             self._srv.settimeout(10.0)
@@ -166,6 +179,12 @@ class WebcamSource(BaseCaptureDevice):
             except OSError:
                 pass
         self._reader = self._writer = self._sock = self._srv = None
+        if self._stderr_file is not None:
+            try:
+                self._stderr_file.close()
+            except OSError:
+                pass
+            self._stderr_file = None
         t = self._reader_thread
         self._reader_thread = None
         if t is not None and t.is_alive() and t is not threading.current_thread():
