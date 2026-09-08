@@ -83,6 +83,16 @@ Versionierung: SemVer-artig (0.x = Forschungsprototyp).
   640×480-Clip so groß wie die Quelle, da cv2 keine Bitrate setzen kann; jetzt
   ~35× kleiner. Gilt ebenso für Import-Segmente.
 
+### Tests
+- **UI-Integrationstests** (`tests/ui/`) fahren das echte Hauptfenster
+  offscreen durch den Untersucher-Weg — genau die Schicht, in der alle Fehler
+  dieser Iteration saßen. Dazu Unit-Tests für Recorder/Importer,
+  `session_store`, `pinch_detector`, Hanoi/SRT/TMT-Logik, und eine
+  Sidecar-Suite unter dem Sidecar-Python (`mediapipe_sidecar/tests/`), die
+  die Hauptsuite mit dem Marker `sidecar` startet. Dazu Rauchtests für jeden
+  Bildschirm und Dialog und der Live-Messweg bis zum Ergebnis. Zeilenabdeckung
+  21 % → 63 % (Domänenschichten 75–100 %, neue UI-Module 71–93 %).
+
 ### Hinweise
 - Leap Motion ist auf diesem Stand standardmäßig deaktiviert
   (`MOTRYX_ENABLE_LEAP=1` bzw. `start.ps1 --leap` aktiviert es wieder).

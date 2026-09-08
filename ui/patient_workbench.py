@@ -867,8 +867,12 @@ class PatientWorkbench(QWidget):
         self.refresh()
 
     def _show_measurement(self, m: Measurement | None) -> None:
-        if m is not None:
-            DetailDialog(self, m).exec()
+        if m is None or self._patient is None:
+            return
+        # Siblings of the same paradigm let the dialog page through the history.
+        siblings = [x for ms in list(self._measurements.values()) + [self._orphans]
+                    for x in ms if x.test_type == m.test_type]
+        DetailDialog(self._patient, m, siblings=siblings, parent=self).exec()
 
     def _delete_measurement(self, m: Measurement | None) -> None:
         if m is None or QMessageBox.question(

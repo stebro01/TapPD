@@ -3,3 +3,4 @@ opencv-python>=4.9
 cv2-enumerate-cameras>=1.1
 numpy>=1.26
 imageio-ffmpeg>=0.5     # bundled ffmpeg binary: CRF re-encode pass in extract.py
+pytest>=8.0             # mediapipe_sidecar/tests, launched by the main suite

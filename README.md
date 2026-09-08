@@ -200,6 +200,26 @@ Aufgaben-Details stehen in
 Index** (Komposit-Score 0–1, farbcodiert, Default-Merkmal der Verlaufsansicht)
 ist dort in §10 beschrieben.
 
+## Testsuite
+
+```bash
+.\.venv\Scripts\python.exe -m pytest -q                 # alles (~2 min, Sidecar-Tests inklusive)
+.\.venv\Scripts\python.exe -m pytest -q -m "not sidecar" # schnell (~1 min), ohne Sidecar
+```
+
+Drei Ebenen:
+
+- **Unit-Tests** (`tests/test_*.py`): Eingabe-Mapping, Quellen, Protokolle,
+  Video-Store/-Archiv/-Export, Datenbank, Paradigmen-Logik.
+- **UI-Integration** (`tests/ui/`): das echte `MotryxMainWindow` offscreen auf
+  der Simulationsquelle — Patient → Sitzung → Protokoll → Take → Bestaetigen →
+  Akte, Umlabeln, Kamerawechsel, Live-Messung bis zum Ergebnis, alle
+  Bildschirme und Dialoge. Keine Kamera noetig.
+- **Sidecar** (Marker `sidecar`): die Pipeline mit echtem MediaPipe
+  (Analyse → Archiv → Aufraeumen) und `mediapipe_sidecar/tests/` unter dem
+  Sidecar-Python (Haendigkeit, Backend-Wahl, Enumeration, ffmpeg-Nachlauf).
+  Werden uebersprungen, wenn das Sidecar-venv fehlt.
+
 ## Ausgabeformate
 
 ### Automatische Speicherung
