@@ -258,12 +258,17 @@ gehoert zusammen, denn MediaPipe vergibt links/rechts aus Sicht des Bildes, das
 es bekommt; wird das Bild gedreht, muss das Label mitgedreht werden. Der Sidecar
 erledigt das in einem Schritt, ohne Zutun.
 
-Abschalten in `capture/capture.yaml`:
+Welche Quelle gespiegelt wird, steht gesammelt in `capture/capture.yaml`:
 
 ```yaml
-sidecar:
-  mirror: false
+sources:
+  leap:    { mirror: false, swap_handedness: false }   # Sensor, kein Bild
+  webcam:  { mirror: true,  swap_handedness: false }   # Live + Sim-Clip
+  video:   { mirror: false, swap_handedness: false }   # Vorgabe pro Import
 ```
+
+`swap_handedness` ist nur der **Zusatztausch** — die zur Spiegelung gehoerende
+Label-Korrektur passiert automatisch und ist bewusst kein eigener Schalter.
 
 Der Schalter **„Haendigkeit vertauschen"** auf dem Tracking-Screen ist etwas
 anderes: er spiegelt kein Bild, sondern tauscht nur das Etikett nachtraeglich.

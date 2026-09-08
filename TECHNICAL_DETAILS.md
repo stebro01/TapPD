@@ -179,13 +179,38 @@ HandFrame
 └── confidence: float            # Tracking-Konfidenz (0.0-1.0)
 ```
 
-### Spiegelung & Haendigkeit (Kamera-Quellen)
+### Spiegelung & Haendigkeit (alle Eingangsquellen)
 
 Zwei Dinge haengen zusammen und werden **an einer einzigen Stelle** entschieden —
 im Sidecar, direkt nachdem ein Frame gelesen wurde:
 
 1. **wie das Bild aussieht** (Vorschau) und
 2. **welche Hand MediaPipe "links" nennt**.
+
+#### Uebersicht je Quelle
+
+Deklariert in `capture/capture.yaml` → `sources:`:
+
+| Quelle | Bild gespiegelt | Label-Korrektur | Zusatztausch | woher |
+|---|---|---|---|---|
+| **Leap Motion** | — (kein Kamerabild) | — | nein | `hand.type` des SDK ist bereits anatomisch |
+| **Webcam (live)** | **ja** | automatisch | optional | `sources.webcam.mirror` |
+| **Sim-Clip** (Eigenaufnahme) | **ja** | automatisch | optional | ebenfalls `sources.webcam.*` — der Clip ist rohe Kameradaten |
+| **Video-Import** | pro Video | automatisch | optional | `VideoSession.mirrored`, Vorgabe `sources.video.mirror` |
+| **Mock / ReplaySource** | — (synthetisch bzw. Landmarken-JSON) | — | nein | kein Bildpfad |
+
+Es gibt im gesamten Projekt **genau einen** `cv2.flip` (`sidecar.py`, im
+Capture-Loop). Doppelte Spiegelung ist damit strukturell ausgeschlossen: jede
+Quelle durchlaeuft diese eine Stelle hoechstens einmal.
+
+Der **Zusatztausch** (`swap_handedness`, Checkbox „Haendigkeit vertauschen")
+ist die einzige zweite Stufe. Er sitzt in der Hauptapp
+(`mediapipe_mapping.hand_from_world()`) und wirkt zusaetzlich zur
+Label-Korrektur des Sidecars — gedacht fuer Kameras, die bereits in Hardware
+spiegeln. Er wird konsistent angewandt: auf die HandFrames **und** auf die
+augen-referenzierte Zuordnung der Vorschau
+(`tracking_screen._compute_eye_ref`). Das Overlay selbst zeichnet nur Linien
+ohne Seitenbezug.
 
 #### Warum ueberhaupt spiegeln
 
@@ -227,8 +252,8 @@ korrigiert, und sie liest dasselbe Flag, das auch die Spiegelung steuert
 | nur spiegeln | Spiegelsicht | links | `Right` → falsch |
 | **spiegeln + Label drehen (Standard)** | Spiegelsicht | **links** | **`Left` → richtig** |
 
-Abschaltbar ueber `capture/capture.yaml` → `sidecar.mirror: false`; dann
-entfaellt auch die Label-Korrektur.
+Abschaltbar ueber `capture/capture.yaml` → `sources.webcam.mirror: false`; dann
+entfaellt auch die Label-Korrektur, weil beide dasselbe Flag lesen.
 
 #### `flip_handedness` ist etwas anderes
 

@@ -478,7 +478,14 @@ class VideoLabScreen(QWidget):
         if self.session is None:
             return
         from video.clip import VideoClip
+        from capture.config import source_mirrored
         self.session.set_video(dest, name)
+        # Starting point for a freshly imported clip (capture.yaml sources.video);
+        # the clinician corrects it per video with the "Gespiegelt" checkbox.
+        self.session.mirrored = source_mirrored("video")
+        self._mirror_cb.blockSignals(True)
+        self._mirror_cb.setChecked(self.session.mirrored)
+        self._mirror_cb.blockSignals(False)
         self.session.save()
         self._player.setSource(QUrl.fromLocalFile(dest))
         self._show_first_frame()

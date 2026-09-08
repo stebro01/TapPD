@@ -19,10 +19,6 @@ sidecar:
   camera_width: 0          # e.g. 1280 for 720p, 1920 for 1080p
   camera_height: 0         # e.g. 720          , 1080
   camera_fps: 0            # e.g. 30
-  # Mirror the live camera (selfie view): the patient's left hand appears on the
-  # left of the picture, and MediaPipe's handedness comes out right — its output
-  # assumes a mirrored input. Video replay is never mirrored.
-  mirror: true
 
 readiness:
   ready_y_mm: 120.0        # Leap: hand counts as "in position" above this height
@@ -30,3 +26,40 @@ readiness:
 
 preview:
   hand_stale_s: 0.3        # clear a hand panel if no frame for this long
+
+# ── Orientierung & Händigkeit je Eingangsquelle ──────────────────────────────
+# Eine Quelle wird durch zwei Angaben vollständig beschrieben:
+#
+#   mirror           Wird das Bild horizontal gespiegelt, bevor es jemand sieht
+#                    oder auswertet? (Vorschau, MediaPipe, Overlay)
+#   swap_handedness  Wird das Etikett links/rechts ZUSÄTZLICH getauscht?
+#
+# WICHTIG — die zu `mirror` gehörende Label-Korrektur ist KEIN Schalter:
+# MediaPipe vergibt links/rechts aus Sicht des Bildes, das es bekommt. Wird das
+# Bild gespiegelt, dreht sich das Label mit, also dreht der Sidecar es
+# automatisch zurück (sidecar.py::_handedness). Beide lesen dasselbe Flag und
+# können nicht auseinanderlaufen.
+#
+# `swap_handedness` ist der Zusatztausch OBENDRAUF — nur für Kameras, die
+# bereits in Hardware spiegeln. Auf dem Tracking-Screen entspricht er der
+# Checkbox „Händigkeit vertauschen"; hier steht lediglich ihr Startwert.
+sources:
+  leap:
+    # Kein Kamerabild: der Sensor meldet die anatomische Seite direkt
+    # (eLeapHandType_Left). Hier wird nichts gespiegelt und nichts getauscht.
+    mirror: false
+    swap_handedness: false
+
+  webcam:
+    # Live-Kamera zeigt auf den Patienten -> Spiegelansicht, damit die linke
+    # Hand links erscheint. Selbst aufgenommene Clips (Sim) werden ROH
+    # gespeichert und laufen deshalb unter genau dieser Einstellung.
+    mirror: true
+    swap_handedness: false
+
+  video:
+    # Importiertes Material: ob es seitenverkehrt ist, hängt vom Aufnahmegerät
+    # ab. Das hier ist nur die Vorgabe für neue Videos — massgeblich ist das
+    # Flag am Video selbst (VideoLab, Checkbox „Gespiegelt").
+    mirror: false
+    swap_handedness: false

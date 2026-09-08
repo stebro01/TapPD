@@ -209,6 +209,8 @@ class TrackingScreen(QWidget):
         controls.addWidget(self._cam_combo)
 
         self._flip_cb = QCheckBox("Händigkeit vertauschen")
+        from capture.config import source_swap_handedness
+        self._flip_cb.setChecked(source_swap_handedness("webcam"))
         self._flip_cb.setToolTip(
             "Das Kamerabild wird bereits gespiegelt (Selfie-Ansicht), damit die "
             "linke Hand links erscheint und auch als links erkannt wird.\n"
@@ -551,10 +553,10 @@ class TrackingScreen(QWidget):
         dev = WebcamSource(flip_handedness=self._flip_cb.isChecked(),
                                      replay_path=clip)
         # The Sim clip is our own recording, stored as the camera saw it — so it
-        # replays under the same mirror setting as the live camera. (An imported
+        # replays under the *webcam* setting, not the video one. (An imported
         # VideoLab clip is different: it carries its own flag.)
-        from capture.config import cfg as _cap_cfg
-        dev.replay_mirror = bool(_cap_cfg("sidecar", "mirror", default=True))
+        from capture.config import source_mirrored
+        dev.replay_mirror = source_mirrored("webcam")
         dev.connect()
         self._candidate = dev
         self._owns_candidate = True
