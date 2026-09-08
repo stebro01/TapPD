@@ -587,6 +587,11 @@ class TrackingScreen(QWidget):
 
     def _populate_cameras(self, dev: WebcamSource) -> None:
         cams = dev.list_cameras()
+        # clear() resets the selection to the first entry, and this runs from
+        # the rebuild that *picking a camera* triggers — so without carrying the
+        # choice over, selecting the second camera always snapped back to the
+        # first one.  The caller reads _selected_camera_index() right after.
+        previous = self._cam_combo.currentData()
         self._cam_combo.blockSignals(True)
         self._cam_combo.clear()
         if cams:
@@ -594,6 +599,10 @@ class TrackingScreen(QWidget):
                 self._cam_combo.addItem(f"{name}", idx)
         else:
             self._cam_combo.addItem("Keine Kamera gefunden", 0)
+        if previous is not None:
+            restored = self._cam_combo.findData(previous)
+            if restored >= 0:
+                self._cam_combo.setCurrentIndex(restored)
         self._cam_combo.blockSignals(False)
 
     @staticmethod
