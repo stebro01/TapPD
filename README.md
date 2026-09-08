@@ -42,7 +42,26 @@ VideoLab schneiden, anonymisieren und auswerten.
   [Ultraleap Tracking Software](https://www.ultraleap.com/downloads/leap-controller/)
   (Hyperion v6 oder Gemini v5) — ohne Sensor funktionieren Webcam-, Video- und
   Simulationsmodus
-- Fuer Webcam/VideoLab: das MediaPipe-Sidecar-venv (`bash mediapipe_sidecar/setup_sidecar.sh`)
+- Fuer Webcam/VideoLab: das MediaPipe-Sidecar-venv — ein **separates Python 3.12**,
+  weil MediaPipe keine Wheels fuer 3.13/3.14 liefert
+  - **Windows**: `powershell mediapipe_sidecar\setup_sidecar.ps1` (`start.ps1` ruft
+    es beim ersten Start selbst auf)
+  - **macOS**: `bash mediapipe_sidecar/setup_sidecar.sh`
+
+### Zusaetzlich unter Windows
+
+- **Visual C++ Redistributable 2015–2022 (x64)** —
+  `winget install --id Microsoft.VCRedist.2015+.x64` (braucht Adminrechte).
+  Auf einer frischen Windows-Installation fehlt es. Ohne die Runtime bleibt die
+  **Kameraauswahl leer**: die Bibliothek fuer die Kamera-Enumeration laedt nicht,
+  und der Fallback (Indizes einzeln durchprobieren) laeuft in einen Timeout.
+- **Kamerazugriff freigeben** unter *Einstellungen → Datenschutz → Kamera*.
+  Es sind **zwei** Schalter noetig, sonst meldet OpenCV nur
+  `Failed to activate media source`:
+  1. „Kamerazugriff fuer dieses Gerät" (geraeteweit, **braucht Adminrechte**)
+  2. „Zulassen, dass Apps auf Ihre Kamera zugreifen" (pro Benutzer)
+
+  Der dritte Schalter („Desktop-Apps") bleibt wirkungslos, solange Nr. 2 aus ist.
 
 ## Installation
 
@@ -55,12 +74,20 @@ cd TapPD
 ### Windows (empfohlen: PowerShell)
 
 ```powershell
-# Start-Script erstellt venv, installiert Abhaengigkeiten,
-# kopiert LeapC-Bindings aus dem SDK und startet die App:
+# Start-Script erstellt das venv, installiert Abhaengigkeiten, richtet beim
+# ersten Start das MediaPipe-Sidecar ein (Download ~200 MB) und startet die App:
 .\start.ps1
 ```
 
-Alternativ mit `start.bat` (cmd.exe).
+Alternativ mit `start.bat` (cmd.exe) — das ist ein duenner Wrapper um
+`start.ps1` und laeuft auch, wenn die PowerShell-ExecutionPolicy noch auf dem
+Windows-Standard `Restricted` steht.
+
+Ruft man `start.ps1` direkt auf und wird es blockiert, einmalig:
+
+```powershell
+Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
+```
 
 ### macOS
 
@@ -90,12 +117,20 @@ pip install -r requirements.txt
 ### Windows
 
 ```powershell
-# Mit Sensor (Auto-Detection)
+# Webcam-Tracking (Standard)
 .\start.ps1
 
-# Ohne Sensor (Simulationsmodus)
+# Ohne Kamera (Simulationsmodus)
 .\start.ps1 --mock
+
+# Leap Motion zusaetzlich einrichten und aktivieren
+.\start.ps1 --leap
 ```
+
+> **Hinweis:** Auf diesem Branch ist der Leap-Pfad standardmaessig **aus** —
+> `auto` geht direkt zur Webcam. Der Leap-Code ist unveraendert; `--leap`
+> (bzw. `MOTRYX_ENABLE_LEAP=1`) schaltet ihn wieder ein, ebenso die manuelle
+> Auswahl „Leap" auf dem Tracking-Screen.
 
 ### macOS
 
@@ -214,6 +249,41 @@ sqlite3 data/tappd.db \
 5. **Nur eine App-Instanz gleichzeitig**
    LeapC erlaubt nur eine aktive Verbindung. Falls eine alte Instanz laeuft,
    diese zuerst schliessen.
+
+### Kameraauswahl bleibt leer (Windows)
+
+Die Enumeration braucht die **Visual C++ Runtime**; fehlt sie, laedt
+`cv2_enumerate_cameras` nicht und der Fallback laeuft in einen Timeout.
+
+```powershell
+# Pruefen — leer heisst: Runtime fehlt
+Get-ChildItem $env:WINDIR\System32\MSVCP140.dll, $env:WINDIR\System32\VCRUNTIME140.dll
+
+# Installieren (Adminrechte)
+winget install --id Microsoft.VCRedist.2015+.x64
+```
+
+Danach muss `.venv\Scripts\python.exe -c "import cv2_enumerate_cameras"` fehlerfrei
+durchlaufen. `setup_sidecar.ps1` prueft das und warnt.
+
+### Kamera liefert kein Bild / `Failed to activate media source`
+
+Fast immer der Windows-Datenschutz, nicht die Kamera. Beide Schalter unter
+*Einstellungen → Datenschutz → Kamera* muessen an sein (siehe
+[Voraussetzungen](#zusaetzlich-unter-windows)). Zum Nachpruefen:
+
+```powershell
+$k = "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\webcam"
+(Get-ItemProperty $k).Value                     # muss Allow sein
+(Get-ItemProperty "$k\NonPackaged").Value       # muss Allow sein
+```
+
+Der geraeteweite Schalter liegt unter demselben Pfad in `HKLM:` und braucht
+Adminrechte.
+
+Sind beide auf `Allow` und es kommt trotzdem kein Bild: der Sidecar schreibt
+seine Fehler nach `data/logs/sidecar.log` — dort steht, woran das Oeffnen
+scheitert.
 
 ### Import-Fehler `_leapc_cffi`
 

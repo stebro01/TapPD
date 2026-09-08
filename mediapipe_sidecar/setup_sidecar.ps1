@@ -73,5 +73,36 @@ foreach ($m in $models) {
     }
 }
 
+# -- MSVC runtime check --------------------------------------------
+# cv2_enumerate_cameras ships a compiled extension that links against the
+# Visual C++ runtime.  It is NOT part of a bare Windows install, and OpenCV
+# itself does not reveal the gap (its wheel bundles its own copy).  Without it
+# camera enumeration falls back to probing indices one by one, which takes
+# ~20 s and blows past the caller's 5 s timeout: the camera picker then just
+# stays empty, with only a DLL load error deep inside a third-party import to
+# explain it.  Check explicitly and say so.
+$missing = @("MSVCP140.dll", "VCRUNTIME140.dll", "VCRUNTIME140_1.dll") |
+    Where-Object { -not (Test-Path (Join-Path $env:WINDIR "System32\$_")) }
+
+if ($missing) {
+    Write-Host ""
+    Write-Host "WARNUNG: Visual C++ Runtime fehlt ($($missing -join ', '))." -ForegroundColor Yellow
+    Write-Host "  Ohne sie bleibt die Kameraauswahl leer (Enumeration laeuft in einen Timeout)."
+    Write-Host "  Installieren mit:  winget install --id Microsoft.VCRedist.2015+.x64"
+    Write-Host "  (benoetigt Administratorrechte)"
+    Write-Host ""
+} else {
+    # Prove the extension actually loads - the DLLs being present is necessary
+    # but not sufficient.
+    & $venvPy -c "import cv2, cv2_enumerate_cameras" 2>$null
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host ""
+        Write-Host "WARNUNG: cv2_enumerate_cameras laedt nicht." -ForegroundColor Yellow
+        Write-Host "  Die Kameraauswahl faellt auf langsames Index-Probing zurueck."
+        Write-Host "  Details:  .venv\Scripts\python.exe -c ""import cv2_enumerate_cameras"""
+        Write-Host ""
+    }
+}
+
 Write-Host "Sidecar-Setup abgeschlossen." -ForegroundColor Green
 Write-Host "Test:  .venv\Scripts\python.exe sidecar.py --stdio"
