@@ -137,9 +137,6 @@ class RecordingScreen(QWidget):
         self._detect_lbl.setStyleSheet("font-size: 12px;")
         right.addWidget(self._detect_lbl)
 
-        self._status = QLabel()
-        self._status.setStyleSheet(f"color: {theme.TEXT_SECONDARY};")
-        right.addWidget(self._status)
 
         actions = QHBoxLayout()
         actions.addStretch()
@@ -159,11 +156,27 @@ class RecordingScreen(QWidget):
         body.addLayout(right, 1)
         root.addLayout(body)
 
+        # ── status footer ────────────────────────────────────────
+        footer = QHBoxLayout()
+        cam_lbl = QLabel("Kamera:")
+        cam_lbl.setStyleSheet(f"color: {theme.TEXT_SECONDARY};")
+        footer.addWidget(cam_lbl)
+        self._cam_combo = QComboBox()
+        self._cam_combo.setMinimumWidth(220)
+        self._cam_combo.currentIndexChanged.connect(self._on_camera_changed)
+        footer.addWidget(self._cam_combo)
+        footer.addStretch()
+        self._status = QLabel()
+        self._status.setStyleSheet(f"color: {theme.TEXT_SECONDARY};")
+        footer.addWidget(self._status)
+        root.addLayout(footer)
+
     # ── lifecycle ────────────────────────────────────────────────
     def on_enter(self, session: VideoSession) -> None:
         self.session = session
         self._title.setText(session.protocol_name or "Aufnahme")
         self._acquire_device()
+        self._populate_cameras()
         self._refresh_steps()
         # Resume where the protocol was left off rather than at the top.
         nxt = session.next_open_step()
@@ -226,6 +239,56 @@ class RecordingScreen(QWidget):
         self._device.enable_face(True)        # face + iris as visible proof it works
         self._device.enable_preview(True)
         self._preview.set_placeholder("Kamera wird gestartet …")
+
+    def _populate_cameras(self) -> None:
+        """Fill the footer's camera picker from the sidecar's enumeration."""
+        self._cam_combo.blockSignals(True)
+        self._cam_combo.clear()
+        cams = []
+        if self._device is not None:
+            try:
+                cams = self._device.list_cameras()
+            except Exception:
+                log.debug("Kameraliste nicht abrufbar", exc_info=True)
+        for idx, name in cams:
+            self._cam_combo.addItem(name, idx)
+        if not cams:
+            self._cam_combo.addItem("Keine Kamera gefunden", -1)
+        current = getattr(self._device, "camera_index", 0)
+        pos = self._cam_combo.findData(current)
+        if pos >= 0:
+            self._cam_combo.setCurrentIndex(pos)
+        self._cam_combo.setEnabled(bool(cams) and self._device is not None)
+        self._cam_combo.blockSignals(False)
+
+    def _on_camera_changed(self, row: int) -> None:
+        """Switch the live camera without leaving the screen."""
+        if self._device is None or row < 0:
+            return
+        cam = self._cam_combo.currentData()
+        if cam is None or cam < 0 or cam == getattr(self._device, "camera_index", 0):
+            return
+
+        # The sidecar opens the device on `start`, so the stream has to be
+        # cycled for the new index to take effect.
+        streaming = bool(getattr(self._device, "_recording", False))
+        if streaming:
+            self._device.stop_tracking()
+        self._device.camera_index = int(cam)
+        if streaming:
+            self._device.start_tracking(lambda _f: None)
+        self._device.enable_preview(True)
+        self._preview.set_placeholder("Kamera wird gewechselt …")
+        self._preview.clear()
+
+        # Remember it like the tracking screen does, so the choice outlives
+        # this screen instead of silently reverting.
+        try:
+            from app_settings import app_settings
+            app_settings().setValue("camera_index", int(cam))
+        except Exception:
+            log.debug("Kameraindex konnte nicht gespeichert werden", exc_info=True)
+        self._set_status(f"Kamera gewechselt: {self._cam_combo.currentText()}")
 
     def _release_device(self) -> None:
         if self._device is None:
@@ -312,6 +375,10 @@ class RecordingScreen(QWidget):
 
         self._view.setCurrentWidget(self._video if phase == REVIEW else self._preview)
         self._bar.setVisible(phase in (COUNTDOWN, RECORDING))
+        # Swapping the camera mid-take would cut the recording in half.
+        self._cam_combo.setEnabled(phase not in (COUNTDOWN, RECORDING)
+                                   and self._cam_combo.count() > 0
+                                   and self._device is not None)
 
         if phase == IDLE and step is not None:
             self._set_status("Bereit — Aufnahme starten, wenn der Patient bereit ist.")
