@@ -375,6 +375,9 @@ nach.
 | `acquisition_mode` im `VISIT_BLOB` | offen — der Baum leitet die Art bislang aus dem Inhalt ab |
 | Interaktive Paradigmen als Schritt-Typ im Protokoll | offen (experimentell, siehe §6) |
 | Komprimierte Clips je Messung ablegen („Video-Datenbank") | **erledigt** (`video/archive.py`, siehe §8) |
+| Tracking-Overlay aus der gespeicherten Analyse (`seg_XXX.track.json`) | **erledigt** (Sidecar dekodiert nur; ohne Spur live mit Hinweis) |
+| Details zur Auswertung (Zusammenfassung am Schritt, „Details…" → Messungs-Dialog, Rohdaten-JSON je Video-Auswertung) | **erledigt** |
+| Neu auswerten nach dem Aufräumen des Roh-Takes | **erledigt** — läuft auf dem archivierten Clip, `analysed_on` am Ergebnis, Hinweis im Label (Tremor: Augenreferenz fehlt) |
 
 ## 8. Video-Archiv
 
@@ -387,6 +390,15 @@ Schritt nach dem anderen, in einer Warteschlange:
                 (Größencaps, Defacing, Iris-Spur, dann ffmpeg x264-CRF)
            ─► Aufräumen: Roh-Take löschen, sobald Archiv-Clip vorliegt
 ```
+
+Das Auswerten hinterlässt zwei Dateien: die Landmarken pro Frame
+(`<seg_id>.track.json`, für das Overlay) und die Rohdaten-JSON in
+`data/samples/` (dieselbe Form wie bei Live-Paradigmen; die Messung verweist
+darauf, der Details-Dialog zeichnet daraus die Kurven). Ein späteres **Neu
+auswerten** nimmt den Roh-Take, falls er noch liegt, sonst den archivierten
+Clip — dann mit verwischtem Gesicht, was für Hand-Aufgaben ohne Belang ist,
+für Tremor aber die Augenreferenz kostet; das Ergebnis trägt `analysed_on`.
+Archivieren und Aufräumen werden dabei übersprungen.
 
 Damit ist eine Eigenaufnahme am Ende **dasselbe Artefakt wie ein
 Import-Segment** — gleicher Extraktor, gleiche Caps, gleiche Datenschutz-

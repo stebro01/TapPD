@@ -29,6 +29,12 @@ class AlreadyExported(Exception):
         self.measurement_id = measurement_id
 
 
+def _raw_artifact(result: dict, seg: Segment) -> str:
+    """What the measurement points to as raw data: the per-frame JSON the
+    analysis wrote (the detail dialog plots it), else the archived clip."""
+    return result.get("raw_path") or seg.clip_path or ""
+
+
 def export_or_update(session: VideoSession, seg: Segment, paradigm_key: str) -> Measurement:
     """Put a segment result into the record; re-exports update the same row.
 
@@ -56,7 +62,7 @@ def export_or_update(session: VideoSession, seg: Segment, paradigm_key: str) -> 
             hand=seg.hand if seg.hand in ("left", "right", "both") else "right",
             duration_s=seg.duration_s,
             recorded_at=result.get("recorded_at", ""),
-            raw_data_path=seg.clip_path or "",
+            raw_data_path=_raw_artifact(result, seg),
             source_kind=result.get("source_kind", "video"),
         )
         m.features = result.get("features", {})
@@ -96,8 +102,7 @@ def export_result(session: VideoSession, seg: Segment, paradigm_key: str) -> Mea
             hand=seg.hand if seg.hand in ("left", "right", "both") else "right",
             duration_s=seg.duration_s,
             recorded_at=result.get("recorded_at", ""),
-            # The archived (defaced) segment clip is the raw artifact.
-            raw_data_path=seg.clip_path or "",
+            raw_data_path=_raw_artifact(result, seg),
             source_kind=result.get("source_kind", "video"),
         )
         m.features = result.get("features", {})

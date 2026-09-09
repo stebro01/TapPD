@@ -197,3 +197,16 @@ def test_ui_mode_toggle_rebuilds_all_screens(app):
     app.win.toggle_ui_mode()          # back, so the setting does not leak
     app.pump(0.2)
     assert theme.current_ui_mode() == before
+
+
+def test_detail_dialog_tolerates_a_video_clip_as_raw_data(app, workbench, tmp_path):
+    """Older video measurements point at the archived clip, not at JSON."""
+    from ui.detail_dialog import DetailDialog
+    m = _measurement(app)
+    clip = tmp_path / "seg_001.mp4"
+    clip.write_bytes(b"\x00\x00\x00\x18ftypmp42")
+    m.raw_data_path = str(clip)
+    dlg = DetailDialog(app.patient, m, parent=workbench)
+    texts = [t.get_text() for ax in dlg._figure.axes for t in ax.texts]
+    assert any("Nur der Video-Clip" in t for t in texts)
+    dlg.close()

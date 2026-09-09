@@ -162,11 +162,24 @@ pip install -r requirements.txt
    Landmarken ab, die die Analyse **gemessen** hat (gespeichert als
    `seg_XXX.track.json` neben dem Clip) — nicht neu berechnet, was auf einem
    verwischten Archiv auch nicht ginge. Nur fuer Takes ohne gespeicherte
-   Analyse wird live nachgerechnet; die Statuszeile sagt, welcher Fall vorliegt
-5. **Rechtsklick** auf einen Schritt: erneut aufnehmen, **neu auswerten**
-   (aktualisiert dieselbe Messung), **Paradigma/Seite aendern** (loescht das
-   alte Ergebnis, wertet neu aus), entfernen. Auf eine Sitzung: Inhalt
-   hinzufuegen, loeschen. Waehrend einer Auswertung zeigt der Arbeitsbereich
+   Analyse wird live nachgerechnet; die Statuszeile sagt, welcher Fall vorliegt.
+   Ein ausgewerteter Schritt zeigt unter dem Player eine Zusammenfassung
+   (Zeitpunkt, MPI, erste Kennwerte, worauf ausgewertet wurde) und den Button
+   **„Details…"**: Kennwert-Tabelle und Kurven der Messung, derselbe Dialog wie
+   fuer jede andere Messung. Dafuer schreibt jede Video-Auswertung die
+   Rohdaten als JSON nach `data/samples/` (siehe unten), die Messung verweist
+   darauf
+5. **Rechtsklick** auf einen Schritt: **Details…**, erneut aufnehmen, **neu
+   auswerten** (aktualisiert dieselbe Messung), **Paradigma/Seite aendern**
+   (loescht das alte Ergebnis, wertet neu aus), entfernen. Auf eine Sitzung:
+   Inhalt hinzufuegen, loeschen. **Neu auswerten** nimmt den Roh-Take, solange
+   er noch da ist; ist er schon aufgeraeumt (Standard nach dem Archivieren),
+   laeuft die Analyse auf dem archivierten, ggf. verwischten Clip — das Label
+   sagt es. Fuer Hand-Aufgaben (Tapping, Oeffnen/Schliessen, Pro-/Supination)
+   spielt das verwischte Gesicht keine Rolle, die Zahlen weichen nur durch die
+   Kompression minimal ab; fuer Tremor (Absolutposition) fehlt dann die
+   Augenreferenz, auch das steht im Label. Der Clip wird dabei weder erneut
+   komprimiert noch erneut verwischt. Waehrend einer Auswertung zeigt der Arbeitsbereich
    den Take mit Hand-Overlay, einen Fortschrittsbalken und die Messkurve;
    die Dauer entspricht etwa der Clip-Laenge (MediaPipe ist auf einer
    Laptop-CPU der Engpass)
@@ -238,6 +251,10 @@ Drei Ebenen:
 
 Jede Messung wird automatisch in der SQLite-Datenbank gespeichert (`data/tappd.db`).
 Optional koennen Rohdaten als JSON in `data/samples/` gespeichert werden (Checkbox auf dem Ergebnis-Screen).
+Video-Auswertungen (bestaetigte Takes, importierte Segmente ueber die Aufnahme-Pipeline)
+schreiben diese JSON immer; die Messung verweist in `raw_data_path` darauf, damit der
+Details-Dialog die Kurven zeichnet. Aeltere Video-Messungen verweisen nur auf den Clip —
+nach **Neu auswerten** ist die JSON da.
 
 ### CSV-Export
 

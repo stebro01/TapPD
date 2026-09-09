@@ -69,6 +69,7 @@ class RecordingPane(QWidget):
     contentChanged = pyqtSignal()          # the session's steps/segments changed
     statusChanged = pyqtSignal(str, bool)  # (text, is_error) for the footer
     busyChanged = pyqtSignal(bool)         # True while a take is in progress
+    detailsRequested = pyqtSignal(str)     # step id: open the measurement's details
 
     _overlay_src = None                    # sidecar replaying the take with landmarks
 
@@ -178,7 +179,14 @@ class RecordingPane(QWidget):
         self._keep_btn.clicked.connect(self._on_keep)
         self._retake_btn = QPushButton("↻ Wiederholen")
         self._retake_btn.clicked.connect(self._on_retake)
-        for b in (self._record_btn, self._cancel_btn, self._keep_btn, self._retake_btn):
+        # The analysed take is a measurement in the record: open its detail
+        # view (feature table + curves) straight from here.
+        self._details_btn = QPushButton("Details…")
+        self._details_btn.setToolTip("Kennwerte und Kurven dieser Auswertung")
+        self._details_btn.clicked.connect(
+            lambda: self._current_id and self.detailsRequested.emit(self._current_id))
+        for b in (self._record_btn, self._cancel_btn, self._keep_btn,
+                  self._details_btn, self._retake_btn):
             actions.addWidget(b)
         root.addLayout(actions)
 
@@ -252,8 +260,49 @@ class RecordingPane(QWidget):
         self._instruction.setText(step.instruction or "—")
         if step.state in (STEP_RECORDED, STEP_CONFIRMED) and step.clip_path:
             self._enter_review(step.clip_path)
+            if step.state == STEP_CONFIRMED and self._job is None:
+                self._analysis_lbl.setText(self._result_summary(step))
         else:
             self._set_phase(IDLE)
+
+    def _segment_of(self, step):
+        if step is None or self.session is None or not step.segment_id:
+            return None
+        return next((s for s in self.session.segments if s.id == step.segment_id), None)
+
+    def _has_result(self, step) -> bool:
+        seg = self._segment_of(step)
+        return bool(seg and any((r or {}).get("features") for r in seg.results.values()))
+
+    def _result_summary(self, step) -> str:
+        """One line about the stored analysis of a confirmed step."""
+        seg = self._segment_of(step)
+        if seg is None or not seg.results:
+            return "" if step.is_documentation else "Noch nicht ausgewertet."
+        from ui.feature_meta import FEATURE_META
+        parts = []
+        for key, res in seg.results.items():
+            feats = (res or {}).get("features") or {}
+            if not feats:
+                continue
+            shown = []
+            mpi = feats.get("mpi")
+            if isinstance(mpi, (int, float)):
+                shown.append(f"MPI {mpi:.2f}")
+            for k, v in feats.items():
+                if k == "mpi" or k.startswith("_") or not isinstance(v, (int, float)):
+                    continue
+                label, unit = FEATURE_META.get(k, (k, ""))
+                shown.append(f"{label} {v:.2f}{(' ' + unit) if unit else ''}")
+                if len(shown) >= 4:
+                    break
+            when = (res.get("recorded_at") or "")[:16].replace("T", " ")
+            src = ""
+            if res.get("analysed_on") == "clip" and seg.deidentified:
+                src = " · auf dem archivierten Clip (Gesicht unkenntlich)"
+            where = " · in der Akte" if res.get("measurement_id") else ""
+            parts.append(f"✔ Ausgewertet {when}{where}{src}  —  " + "  ·  ".join(shown))
+        return "\n".join(parts)
 
     def _set_phase(self, phase: str) -> None:
         was_busy = self.busy
@@ -266,6 +315,7 @@ class RecordingPane(QWidget):
         self._keep_btn.setVisible(phase == REVIEW and not confirmed)
         self._retake_btn.setVisible(phase == REVIEW)
         self._retake_btn.setText("↻ Neu aufnehmen" if confirmed else "↻ Wiederholen")
+        self._details_btn.setVisible(phase == REVIEW and confirmed and self._has_result(step))
         self._record_btn.setEnabled(self._device is not None and step is not None)
         self._auto_cb.setVisible(bool(step) and not step.is_documentation)
 
@@ -499,7 +549,18 @@ class RecordingPane(QWidget):
                 return
             self._plot.clear_plot()
             self._plot.setVisible(True)
-            self._analysis_lbl.setText(f"Auswertung läuft: {title} …")
+            # Say what is being analysed: the raw take (full quality) or, once
+            # that is gone, the archived clip — with a blurred face on it.
+            norm = lambda p: os.path.normcase(os.path.abspath(p)) if p else ""
+            on_clip = bool(seg.clip_path) and norm(path) == norm(seg.clip_path)
+            self._job["analysed_on"] = "clip" if on_clip else "raw"
+            note = ""
+            if on_clip and seg.deidentified:
+                note = (" — auf dem archivierten Clip (Gesicht unkenntlich, "
+                        "Roh-Take nicht mehr vorhanden)")
+                if self._needs_eye_reference(step.paradigm):
+                    note += "; ohne Gesicht fehlt die Augenreferenz für Absolutwerte"
+            self._analysis_lbl.setText(f"Auswertung läuft: {title}{note} …")
             # Show the analysis, not the review player: the sidecar's preview
             # carries the frame with the tracked landmarks, and a progress bar
             # says how far the replay has come — otherwise this looked like a
@@ -608,6 +669,9 @@ class RecordingPane(QWidget):
                 result["eye_ref_coverage"] = round(self._runner.eye_ref_coverage(), 3)
             if previous.get("measurement_id"):
                 result["measurement_id"] = previous["measurement_id"]
+            result["analysed_on"] = self._job.get("analysed_on", "raw")
+            result["raw_path"] = self._save_raw(test, session, features,
+                                                previous.get("raw_path", ""))
             seg.results[key] = result
             self._save_track(session, seg)
             session.save()
@@ -628,6 +692,35 @@ class RecordingPane(QWidget):
         # view logic (rightly) keeps the analysis preview on screen.
         self._run_stage("compact")
         self._end_analysis_view()
+
+    @staticmethod
+    def _needs_eye_reference(paradigm: str) -> bool:
+        try:
+            from capture.source import CAP_ABS_POSITION
+            from paradigms.config import get_task_requirements
+            return CAP_ABS_POSITION in get_task_requirements(paradigm)
+        except Exception:
+            return False
+
+    def _save_raw(self, test, session, features: dict, previous: str = "") -> str:
+        """The per-frame raw data as JSON in data/samples — the same file every
+        live paradigm writes, so the detail dialog plots a video analysis the
+        same way. A re-analysis replaces the previous file."""
+        try:
+            from ui.results_screen import save_raw_data
+            code = session.patient_code or f"patient_{session.patient_id}"
+            path = save_raw_data(test, code, features)
+            if path and previous and os.path.isfile(previous) \
+                    and os.path.abspath(previous) != os.path.abspath(str(path)):
+                try:
+                    os.remove(previous)
+                except OSError:
+                    pass
+            return str(path) if path else ""
+        except Exception:
+            log.warning("Rohdaten der Auswertung konnten nicht gespeichert werden",
+                        exc_info=True)
+            return ""
 
     def _save_track(self, session, seg) -> None:
         """Write the analysis' per-frame landmarks next to the segment's clip."""

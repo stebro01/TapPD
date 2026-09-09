@@ -267,3 +267,33 @@ def test_refresh_during_selection_does_not_crash(protocol_session, app):
         wb._select(("step", s.id, "tap_left"))
         app.pump(0.05)
     assert wb._current_key() == ("step", s.id, "tap_left")
+
+
+def test_analysed_step_offers_details_from_the_menu_and_the_pane(protocol_session, app,
+                                                                 monkeypatch):
+    """An analysed step is a measurement in the record: "Details…" leads to
+    the same detail dialog as the measurement itself."""
+    from storage.database import Measurement, get_db, save_measurement
+    wb, s, v = protocol_session
+    _fake_take(app, v, "tap_right")
+    seg = v.confirm_step("tap_right")
+    conn = get_db()
+    m = Measurement(patient_id=app.patient.id, session_id=s.id, test_type="finger_tapping",
+                    hand="right", duration_s=20.0)
+    m.features = {"mpi": 0.6}
+    m = save_measurement(conn, m)
+    conn.close()
+    seg.results["finger_tapping"] = {"features": {"mpi": 0.6}, "measurement_id": m.id,
+                                     "recorded_at": "2026-09-09T10:00:00"}
+    v.save(); wb.refresh(); app.pump()
+
+    labels = [a[0] for a in wb._actions_for(("step", s.id, "tap_right"))]
+    assert labels[0] == "Details…"
+    built = []
+    monkeypatch.setattr(wb, "_show_measurement", lambda mm: built.append(mm.id))
+    wb._select(("step", s.id, "tap_right")); app.pump()
+    assert wb._rec._details_btn.isVisibleTo(wb._rec)
+    wb._rec._details_btn.click()
+    assert built == [m.id]
+    wb._actions_for(("step", s.id, "tap_right"))[0][1]()
+    assert built == [m.id, m.id]

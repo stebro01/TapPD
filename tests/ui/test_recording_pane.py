@@ -1,5 +1,7 @@
 """RecordingPane, ProtocolChooser and the camera footer, with a fake device."""
 
+import os
+
 import pytest
 
 from video.protocol import load_protocol
@@ -288,3 +290,100 @@ def test_chooser_returns_a_protocol_either_way(qapp):
     assert "live am Bildschirm" in single._para_combo.currentText()
     assert "live" in single._hint.text() and not single._dur.isEnabled()
     assert single.single_choice()[:2] == ("tower_of_hanoi", "left")
+
+
+def test_finished_analysis_writes_raw_json_and_offers_details(pane, monkeypatch, tmp_path):
+    """A video analysis leaves the same per-frame JSON as a live paradigm (the
+    detail dialog plots it), the step then shows a summary line and a Details
+    button, and the summary says when the archived clip was analysed."""
+    import json
+    import ui.results_screen as rs
+    from capture.base_capture import HandPose
+    monkeypatch.setattr(rs, "SAMPLES_DIR", tmp_path / "samples")
+    monkeypatch.setattr("capture.source.source_kind", lambda dev: "webcam")
+    monkeypatch.setattr("video.archive.compact_enabled", lambda: False)
+    monkeypatch.setattr("video.archive.keep_raw_take", lambda: True)
+    exported = []
+    monkeypatch.setattr("video.export.export_or_update",
+                        lambda s, seg, key: exported.append(key))
+
+    p, v = pane
+    take = v.begin_take("tap_right")
+    take.parent.mkdir(parents=True, exist_ok=True); take.write_bytes(b"x")
+    v.mark_recorded("tap_right", str(take)); p.show_step("tap_right")
+    p._auto_cb.setChecked(False)
+    p._on_keep()                                   # confirmed, nothing to compact
+    seg = v.segments[-1]
+    seg.deidentified = True
+    assert p._job is None and not p._details_btn.isVisibleTo(p)
+    p.show_step("tap_right")
+    assert p._analysis_lbl.text() == "Noch nicht ausgewertet."
+
+    class FakeTest:
+        hand = "right"; duration = 20.0; bilateral = False; face_frames = None
+        capture = type("C", (), {"sample_rate": 30.0})()
+        def test_type(self): return "finger_tapping"
+        def get_frames(self, hand=None):
+            return [HandPose(timestamp_us=i * 33333, hand_type="right",
+                             palm_position=(0, 0, 0), palm_velocity=(0, 0, 0))
+                    for i in range(5)]
+
+    p._job = {"session": v, "step_id": "tap_right", "segment": seg, "stage": "analyse",
+              "deface": None, "analysed_on": "clip"}
+    p._on_analysis_finished(FakeTest(), {"mpi": 0.71, "tap_frequency_hz": 3.1})
+
+    res = seg.results["finger_tapping"]
+    assert res["analysed_on"] == "clip" and res["raw_path"].endswith(".json")
+    data = json.load(open(res["raw_path"], encoding="utf-8"))
+    assert data["test_type"] == "finger_tapping" and data["hand"] == "right"
+    assert len(data["frames"]) == 5 and data["source_kind"] == "webcam"
+    assert exported == ["finger_tapping"]
+
+    p.show_step("tap_right")
+    text = p._analysis_lbl.text()
+    assert "MPI 0.71" in text and "Tapping-Frequenz 3.10 Hz" in text
+    assert "auf dem archivierten Clip (Gesicht unkenntlich)" in text
+    assert p._details_btn.isVisibleTo(p)
+    asked = []
+    p.detailsRequested.connect(asked.append)
+    p._details_btn.click()
+    assert asked == ["tap_right"]
+
+    # a re-analysis replaces the raw file instead of piling up copies
+    p._job = {"session": v, "step_id": "tap_right", "segment": seg, "stage": "analyse",
+              "deface": None, "analysed_on": "clip"}
+    first = res["raw_path"]
+    import time; time.sleep(1.1)                   # the filename carries seconds
+    p._on_analysis_finished(FakeTest(), {"mpi": 0.5})
+    second = seg.results["finger_tapping"]["raw_path"]
+    assert second != first and os.path.isfile(second) and not os.path.isfile(first)
+
+
+def test_reanalysis_on_the_archived_clip_says_so(pane, monkeypatch):
+    """Raw take gone → the analysis runs on the defaced archive clip, and the
+    label tells the clinician (plus the missing eye reference for tremor)."""
+    p, v = pane
+    started = []
+    monkeypatch.setattr(p._runner, "start", lambda *a, **k: started.append(a))
+    take = v.begin_take("tap_right")
+    take.parent.mkdir(parents=True, exist_ok=True); take.write_bytes(b"x")
+    v.mark_recorded("tap_right", str(take)); p.show_step("tap_right")
+    p._auto_cb.setChecked(False)
+    monkeypatch.setattr("video.archive.compact_enabled", lambda: False)
+    monkeypatch.setattr("video.archive.keep_raw_take", lambda: True)
+    p._on_keep()
+    seg = v.segments[-1]
+    clip = take.parent / "seg_001.mp4"; clip.write_bytes(b"c")
+    seg.clip_path, seg.source_path, seg.deidentified = str(clip), "", True
+
+    p.enqueue(v, "tap_right", seg, analyse=True)
+    assert started and started[0][0] == str(clip)
+    assert p._job["analysed_on"] == "clip"
+    assert "auf dem archivierten Clip (Gesicht unkenntlich" in p._analysis_lbl.text()
+    assert "Augenreferenz" not in p._analysis_lbl.text()      # tapping needs none
+    p._job = None
+
+    v.step("tap_right").paradigm = "postural_tremor"
+    p.enqueue(v, "tap_right", seg, analyse=True)
+    assert "ohne Gesicht fehlt die Augenreferenz" in p._analysis_lbl.text()
+    p._job = None

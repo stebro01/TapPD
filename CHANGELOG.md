@@ -108,6 +108,18 @@ Versionierung: SemVer-artig (0.x = Forschungsprototyp).
   gespeicherte Analyse (ältere Takes) wird live nachgerechnet, mit Hinweis.
 - Vorschau-Quellen (Live-Kamera, Overlay, Analyse) sind getrennt; vorher
   sprang die Anzeige zwischen Kamerabild und abgespieltem Take hin und her.
+- **Details zur Auswertung**: ein ausgewerteter Schritt zeigt eine
+  Zusammenfassung (Zeitpunkt, MPI, erste Kennwerte, Quelle) und **„Details…"**
+  (auch im Rechtsklick-Menü) öffnet den Messungs-Dialog mit Kennwert-Tabelle
+  und Kurven. Dafür schreibt jede Video-Auswertung die Rohdaten-JSON nach
+  `data/samples/` (`save_raw_data`, wie die Live-Paradigmen); die Messung
+  verweist darauf statt auf den Clip. Der Dialog stürzt bei älteren
+  Video-Messungen (Clip als `raw_data_path`) nicht mehr ab, sondern sagt, dass
+  Kurven erst nach „Neu auswerten" da sind.
+- **Neu auswerten** sagt, worauf es rechnet: Roh-Take oder — nach dem
+  Aufräumen — der archivierte Clip (Gesicht unkenntlich); bei Tremor der
+  Hinweis auf die fehlende Augenreferenz. `analysed_on` steht am Ergebnis.
+  Der Clip wird nicht erneut komprimiert oder verwischt.
 - Während einer (Neu-)Auswertung zeigt der Arbeitsbereich den Take mit
   Landmarken-Overlay, Fortschritt und großer Messkurve statt des stummen
   Abspiel-Players; Clips werden für die Analyse nicht mehr in Echtzeit

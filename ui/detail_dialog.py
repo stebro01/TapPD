@@ -1,6 +1,7 @@
 """Detail dialog: feature table + analysis plots for a single measurement."""
 
 import json
+import logging
 import math
 from pathlib import Path
 
@@ -177,13 +178,24 @@ class DetailDialog(QDialog):
         # Update plots
         self._figure.clear()
         self.figure = self._figure  # for _plot_from_json methods
-        raw_path = measurement.raw_data_path
-        if raw_path and Path(raw_path).exists():
-            self._plot_from_json(raw_path, measurement.test_type)
+        raw_path = measurement.raw_data_path or ""
+        note = ""
+        if raw_path and Path(raw_path).exists() and raw_path.lower().endswith(".json"):
+            try:
+                self._plot_from_json(raw_path, measurement.test_type)
+            except Exception:
+                logging.getLogger(__name__).warning("Rohdaten nicht lesbar: %s", raw_path,
+                                                    exc_info=True)
+                self._figure.clear()
+                note = "Rohdaten nicht lesbar"
+        elif raw_path and Path(raw_path).exists():
+            # Older video measurements point at the archived clip only.
+            note = "Nur der Video-Clip ist hinterlegt —\nKurven gibt es nach „Neu auswerten“."
         else:
+            note = "Keine Rohdaten vorhanden"
+        if note:
             ax = self._figure.add_subplot(111)
-            ax.text(0.5, 0.5, "Keine Rohdaten vorhanden",
-                    ha="center", va="center", fontsize=12, color="#999")
+            ax.text(0.5, 0.5, note, ha="center", va="center", fontsize=12, color="#999")
             ax.set_facecolor(f"{theme.BG}")
             ax.axis("off")
 

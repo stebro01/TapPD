@@ -280,6 +280,7 @@ class PatientWorkbench(QWidget):
         self._empty = self._build_empty()
         self._rec = RecordingPane()
         self._rec.contentChanged.connect(self._refresh)
+        self._rec.detailsRequested.connect(self._on_step_details)
         self._rec.statusChanged.connect(self._set_status)
         self._rec.busyChanged.connect(self._on_busy)
         from ui.video_lab_screen import VideoLabScreen
@@ -778,6 +779,8 @@ class PatientWorkbench(QWidget):
             if st is None:
                 return []
             if st.state == STEP_CONFIRMED:
+                if self._step_measurement(v, st) is not None:
+                    out.append(("Details…", lambda: self._show_step_details(v, st)))
                 out.append(("↻ Erneut aufnehmen", lambda: self._retake(v, st)))
                 if not st.is_documentation:
                     out.append(("⟳ Neu auswerten", lambda: self._reanalyse(v, st)))
@@ -811,6 +814,29 @@ class PatientWorkbench(QWidget):
         v.save()
         self.refresh()
         self._select(("step", v.db_session_id, st.id))
+
+    def _step_measurement(self, v: VideoSession, st) -> Measurement | None:
+        """The measurement an analysed step was exported to, if any."""
+        seg = next((x for x in v.segments if x.id == st.segment_id), None)
+        for res in (seg.results.values() if seg else []):
+            mid = (res or {}).get("measurement_id")
+            if mid:
+                return self._measurement_by_id(int(mid))
+        return None
+
+    def _show_step_details(self, v: VideoSession, st) -> None:
+        m = self._step_measurement(v, st)
+        if m is None:
+            self._set_status("Für diesen Schritt liegt noch keine Auswertung in der Akte.",
+                             True)
+            return
+        self._show_measurement(m)
+
+    def _on_step_details(self, step_id: str) -> None:
+        v = self._bound
+        st = v.step(step_id) if v is not None else None
+        if st is not None:
+            self._show_step_details(v, st)
 
     def _reanalyse(self, v: VideoSession, st) -> None:
         seg = next((x for x in v.segments if x.id == st.segment_id), None)
