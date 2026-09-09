@@ -191,7 +191,6 @@ class PatientWorkbench(QWidget):
         head = QHBoxLayout()
         back = QPushButton("← Patienten")
         back.setProperty("cssClass", "flat")
-        back.setFixedHeight(SZ.BTN_H)
         back.clicked.connect(lambda: self.main_window.show_patient_screen())
         head.addWidget(back)
         head.addSpacing(8)
@@ -207,7 +206,7 @@ class PatientWorkbench(QWidget):
 
         self._patient_btn = QToolButton()
         self._patient_btn.setText("Patient ▾")
-        self._patient_btn.setFixedHeight(SZ.BTN_H)
+        self._patient_btn.setProperty("cssClass", "menu")
         self._patient_btn.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
         pm = QMenu(self._patient_btn)
         for label, cb in (("Bearbeiten…", self._on_edit_patient),
@@ -225,13 +224,12 @@ class PatientWorkbench(QWidget):
 
         self._new_btn = QPushButton("＋ Neue Sitzung")
         self._new_btn.setProperty("cssClass", "accent")
-        self._new_btn.setFixedHeight(SZ.BTN_H)
         self._new_btn.clicked.connect(self.new_session)
         head.addWidget(self._new_btn)
 
         self._add_btn = QToolButton()
         self._add_btn.setText("＋ Hinzufügen ▾")
-        self._add_btn.setFixedHeight(SZ.BTN_H)
+        self._add_btn.setProperty("cssClass", "menu")
         self._add_btn.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
         am = QMenu(self._add_btn)
         # One "Paradigma" entry covers both kinds: a motor paradigm becomes a
@@ -491,14 +489,14 @@ class PatientWorkbench(QWidget):
         ms = self._measurements.get(s.id, [])
         if v is not None and v.steps:
             done, count = v.progress
-            kind, status = "Protokoll", (f"{done}/{count}" if done < count else "✔")
+            status = f"Protokoll {done}/{count}" if done < count else "Protokoll ✔"
         elif v is not None and v.video_path:
-            kind, status = "Import", f"{len(v.segments)} Seg."
+            status = f"Import · {len(v.segments)} Seg."
         elif ms:
-            kind, status = "Live", f"{len(ms)} Messung{'' if len(ms) == 1 else 'en'}"
+            status = f"Live · {len(ms)} Messung{'' if len(ms) == 1 else 'en'}"
         else:
-            kind, status = "leer", ""
-        node = QTreeWidgetItem([f"Sitzung {number}  ·  {_fmt_dt(s.started_at)}  ·  {kind}",
+            status = "leer"
+        node = QTreeWidgetItem([f"Sitzung {number}  ·  {_fmt_dt(s.started_at)}",
                                 self._mark(status, "session", str(s.id))])
         if v is not None and v.protocol_name:
             node.setToolTip(0, v.protocol_name)
@@ -740,6 +738,7 @@ class PatientWorkbench(QWidget):
                 return
             self._bind(v)
             self._work.setCurrentWidget(self._cut)
+            self._set_status("Video: Bereich auf der Zeitleiste markieren → „Bereich übernehmen“.")
         elif kind == "measurement":
             m = self._measurement_by_id(key[1])
             if m is None:

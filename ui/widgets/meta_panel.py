@@ -9,7 +9,8 @@ shows whether there is anything to worry about.
 from __future__ import annotations
 
 from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QGridLayout, QLabel, QToolButton, QVBoxLayout, QWidget
+from PyQt6.QtWidgets import (QGridLayout, QLabel, QSizePolicy, QToolButton, QVBoxLayout,
+                             QWidget)
 
 from ui import theme
 
@@ -43,6 +44,9 @@ class MetaPanel(QWidget):
         self._grid.setContentsMargins(12, 8, 12, 8)
         self._grid.setHorizontalSpacing(16)
         self._grid.setVerticalSpacing(3)
+        # Never squeezed by neighbours: a crowded pane shrinks the video, not
+        # the rows (they would overlap otherwise).
+        self._body.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Minimum)
         self._body.setVisible(False)
         root.addWidget(self._body)
         self._update_header()
@@ -112,6 +116,7 @@ class MetaPanel(QWidget):
             self._grid.addWidget(v, r, 1)
             r += 1
         self._grid.setColumnStretch(1, 1)
+        self._body.setMinimumHeight(self._body.sizeHint().height())
 
     def texts(self) -> list[str]:
         """Rendered lines (for tests): issues first, then 'label: value'."""

@@ -16,14 +16,16 @@ import logging
 import os
 from pathlib import Path
 
-from PyQt6.QtCore import QThread, QTimer, QUrl, pyqtSignal
+from PyQt6.QtCore import QThread, QTimer, QUrl, Qt, pyqtSignal
 from PyQt6.QtMultimedia import QAudioOutput, QMediaPlayer
 from PyQt6.QtWidgets import (
     QCheckBox,
+    QFrame,
     QHBoxLayout,
     QLabel,
     QProgressBar,
     QPushButton,
+    QScrollArea,
     QStackedWidget,
     QVBoxLayout,
     QWidget,
@@ -115,8 +117,22 @@ class RecordingPane(QWidget):
 
     # ── layout ───────────────────────────────────────────────────
     def _build(self) -> None:
-        root = QVBoxLayout(self)
-        root.setContentsMargins(0, 0, 0, 0)
+        # Everything lives on one scrollable page: the video keeps its height,
+        # and when summary, info panel and plot together need more room than
+        # the window has, the page scrolls instead of clipping rows.
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        self._scroll = QScrollArea()
+        self._scroll.setWidgetResizable(True)
+        self._scroll.setFrameShape(QFrame.Shape.NoFrame)
+        self._scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self._scroll.setStyleSheet("QScrollArea { background: transparent; }")
+        page = QWidget()
+        page.setStyleSheet("background: transparent;")
+        self._scroll.setWidget(page)
+        outer.addWidget(self._scroll)
+        root = QVBoxLayout(page)
+        root.setContentsMargins(0, 0, 8, 0)
         root.setSpacing(8)
 
         # Live preview while filming, the recorded take while reviewing.
@@ -200,6 +216,7 @@ class RecordingPane(QWidget):
         root.addLayout(actions)
 
         self._analysis_lbl = QLabel()
+        self._analysis_lbl.setWordWrap(True)
         self._analysis_lbl.setStyleSheet(f"color: {theme.TEXT_SECONDARY}; font-size: 12px;")
         root.addWidget(self._analysis_lbl)
         # When / how / with what this take was filmed, archived and analysed —

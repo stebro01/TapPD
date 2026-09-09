@@ -10,6 +10,7 @@ from PyQt6.QtWidgets import (
     QComboBox,
     QDialog,
     QDialogButtonBox,
+    QFormLayout,
     QHBoxLayout,
     QLabel,
     QRadioButton,
@@ -32,7 +33,17 @@ class ProtocolChooser(QDialog):
         self._protocols = [] if single_only else list_protocols()
 
         layout = QVBoxLayout(self)
+        layout.setContentsMargins(20, 16, 20, 16)
         layout.setSpacing(10)
+        head = QLabel("Einzelnes Paradigma aufnehmen" if single_only
+                      else "Was soll aufgenommen werden?")
+        head.setStyleSheet("font-size: 15px; font-weight: 600;")
+        layout.addWidget(head)
+        sub = QLabel("Motorische Aufgaben werden als Video-Schritt gefilmt; interaktive "
+                     "Aufgaben (Hanoi, SRT, TMT, Sakkaden) laufen live am Bildschirm.")
+        sub.setWordWrap(True)
+        sub.setStyleSheet(f"color: {theme.TEXT_SECONDARY}; font-size: 12px;")
+        layout.addWidget(sub)
 
         self._rb_protocol = QRadioButton("Protokoll")
         self._proto_combo = QComboBox()
@@ -54,7 +65,9 @@ class ProtocolChooser(QDialog):
         self._rb_single.setChecked(use_single)
         self._rb_protocol.setChecked(not use_single)
 
-        row = QHBoxLayout()
+        form = QFormLayout()
+        form.setHorizontalSpacing(12)
+        form.setVerticalSpacing(8)
         self._para_combo = QComboBox()
         for key in registry.all_keys():
             spec = registry.get(key)
@@ -64,17 +77,21 @@ class ProtocolChooser(QDialog):
             if spec.screen != registry.SCREEN_METRIC:
                 label += "   (live am Bildschirm)"
             self._para_combo.addItem(label, key)
-        row.addWidget(self._para_combo, 1)
+        form.addRow("Paradigma", self._para_combo)
         self._hand_combo = QComboBox()
         for label, value in (("rechts", "right"), ("links", "left"), ("beide", "both")):
             self._hand_combo.addItem(label, value)
-        row.addWidget(self._hand_combo)
         self._dur = QSpinBox()
         self._dur.setRange(5, 120)
         self._dur.setValue(20)
         self._dur.setSuffix(" s")
+        row = QHBoxLayout()
+        row.addWidget(self._hand_combo, 1)
+        row.addSpacing(8)
+        row.addWidget(QLabel("Dauer"))
         row.addWidget(self._dur)
-        layout.addLayout(row)
+        form.addRow("Seite", row)
+        layout.addLayout(form)
 
         self._hint = QLabel()
         self._hint.setWordWrap(True)
@@ -83,8 +100,13 @@ class ProtocolChooser(QDialog):
 
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok
                                    | QDialogButtonBox.StandardButton.Cancel)
+        ok = buttons.button(QDialogButtonBox.StandardButton.Ok)
+        ok.setText("Hinzufügen")
+        ok.setProperty("cssClass", "primary")
+        buttons.button(QDialogButtonBox.StandardButton.Cancel).setText("Abbrechen")
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
+        layout.addSpacing(6)
         layout.addWidget(buttons)
 
         for w in (self._rb_protocol, self._rb_single):

@@ -78,8 +78,8 @@ def test_adding_a_protocol_lists_its_steps_and_opens_the_recording_pane(protocol
     app.pump()
 
     rows = _rows(wb)
-    assert rows[0][1].startswith("Sitzung 1") and "Protokoll" in rows[0][1]
-    assert rows[0][2] == "0/4"
+    assert rows[0][1].startswith("Sitzung 1") and "Protokoll" in rows[0][2]
+    assert rows[0][2] == "Protokoll 0/4"
     assert [r[1] for r in rows[1:5]] == [
         "○  1. Ruheaufnahme  (both)", "○  2. Kopfdrehung",
         "○  3. Finger-Tapping rechts  (right)", "○  4. Finger-Tapping links  (left)"]
@@ -102,7 +102,7 @@ def test_confirming_a_take_advances_and_updates_the_tree(protocol_session, app):
     assert v.progress == (1, 4)
     assert wb._rec._step.id == "head_turn"            # moved on to the next open step
     rows = _rows(wb)
-    assert rows[0][2] == "1/4"
+    assert rows[0][2] == "Protokoll 1/4"
     assert rows[1][1].startswith("✔  1. Ruheaufnahme")
     assert v.segments[0].recorded and v.segments[0].source_path == str(take)
 

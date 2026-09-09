@@ -116,6 +116,18 @@ Versionierung: SemVer-artig (0.x = Forschungsprototyp).
   verweist darauf statt auf den Clip. Der Dialog stürzt bei älteren
   Video-Messungen (Clip als `raw_data_path`) nicht mehr ab, sondern sagt, dass
   Kurven erst nach „Neu auswerten" da sind.
+- **UI-Abstimmung**: Menü-Buttons im Kopf des Arbeitsplatzes sehen aus wie
+  die übrigen Buttons (gleiche Höhe, Rahmen, Radius); Sitzungszeilen zeigen
+  Art und Stand in der Ergebnis-Spalte („Protokoll 1/4", „Live · 3 Messungen")
+  statt abgeschnitten im Namen; der Aufnahme-Bereich scrollt, wenn Info-Panel
+  und Messkurve mehr Platz brauchen (Zeilen wurden vorher zusammengedrückt);
+  die Zusammenfassung bricht um; „Einzelnes Paradigma" hat Überschrift,
+  Feldbezeichnungen und deutsche Buttons; der Schnitt-Bereich setzt beim
+  Öffnen seine eigene Statuszeile.
+- **Handbuch** (`docs/manual.html`) nachgezogen: Notizen, Details/Herkunft,
+  Aufnahme-Info, Overlay, Defacing je Take, Rechts/Links; neue Screenshots
+  (`docs/make_screenshots.py` erzeugt Aufnahme, Take-Info, Notiz, Details,
+  Paradigma-Wahl und Schnitt-Bereich mit).
 - **Overlay an der Player-Position**: das Tracking-Overlay setzt dort ein,
   wo der Abspiel-Player gerade steht (Sidecar-`start` mit `start_s`, läuft
   einmal bis zum Ende, dann Schleife von vorn); beim Ausschalten springt der

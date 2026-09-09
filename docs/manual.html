@@ -75,7 +75,7 @@
 <header>
   <h1>✋👁 Motryx – Nutzerhandbuch</h1>
   <p>Movement Lab: Kontaktlose Bewegungs- und Okulomotorik-Analyse</p>
-  <span class="ver">Version 0.3.0 · Stand Juli 2026</span>
+  <span class="ver">Version 0.3.0 · Stand September 2026</span>
 </header>
 
 <nav>
@@ -122,9 +122,14 @@ Zeit betrachten.</p>
     „live am Bildschirm" markiert und starten direkt.</li>
 <li>Je Schritt: Anweisung lesen → <b>● Aufnahme starten</b> → Countdown → Aufnahme →
     Take ansehen → <b>✔ Übernehmen</b> oder <b>↻ Wiederholen</b>. Unter der Vorschau
-    zeigt eine Zeile live, ob Hände und Gesicht erkannt werden.</li>
+    zeigt eine Zeile live, ob Hände und Gesicht erkannt werden. Die Checkbox
+    <b>„Gesicht unkenntlich machen"</b> steht schon vor der Aufnahme bereit und gilt
+    für diesen Take.</li>
 <li><b>Ergebnis</b>: mit „Nach Übernehmen automatisch auswerten" wird der bestätigte
-    Take sofort analysiert; das Ergebnis steht in der Inhaltsliste und im Sitzungsbaum.</li>
+    Take sofort analysiert; das Ergebnis steht in der Inhaltsliste und im Sitzungsbaum,
+    unter dem Take als Zusammenfassung, und <b>„Details…"</b> öffnet Kennwerte und Kurven.</li>
+<li><b>Notiz</b>: Rechtsklick auf Sitzung, Schritt, Import oder Messung → <b>„📝 Notiz…"</b>
+    — Freitext plus angehängte Dateien (Fotos, PDFs). Ein 📝 im Baum zeigt, wo eine liegt.</li>
 </ol>
 
 <figure><img src="img/01_patienten.png" alt="Patientenliste">
@@ -168,15 +173,24 @@ betroffenen Werte automatisch.</div>
 <figcaption>Patienten-Arbeitsplatz: links alle Sitzungen mit ihren Schritten — Zustand
 (○ offen, ◐ aufgenommen, ✔ bestätigt), Ergebnis und 📋, wenn es in der Akte liegt —,
 rechts der Arbeitsbereich zum gewählten Element (Aufnahme, Take, Video-Schnitt).
-Rechtsklick auf einen Schritt: erneut aufnehmen, neu auswerten, Paradigma/Seite ändern,
-entfernen. Oben rechts: „Patient ▾" (Bearbeiten, Verlauf, CSV, Löschen), „＋ Neue Sitzung",
-„＋ Hinzufügen".</figcaption></figure>
+Rechtsklick auf einen Schritt: Details, erneut aufnehmen, neu auswerten, Paradigma/Seite
+ändern, Notiz, entfernen. Oben rechts: „Patient ▾" (Bearbeiten, Verlauf, CSV, Löschen),
+„＋ Neue Sitzung", „＋ Hinzufügen".</figcaption></figure>
 <ul>
 <li><b>Symbole im Baum:</b> ○ offen · ◐ aufgenommen, noch nicht gesichtet · ✔ bestätigt (Video liegt vor);
-    die Spalte „Ergebnis" zeigt z.&nbsp;B. <code>Ruhetremor: MPI 0.62</code> oder „nicht ausgewertet".</li>
-<li><b>CSV-Export</b> (unten) exportiert alle Messungen des Patienten für die Statistik.</li>
-<li>Jede Messung speichert <b>Quelle</b> (Leap/Webcam/Video/Simulation), Dauer und Rohdaten-Verweis.</li>
+    die Spalte „Ergebnis" zeigt je Sitzung die Art (<i>Protokoll 2/4</i>, <i>Live · 3 Messungen</i>,
+    <i>Import · 2 Seg.</i>) und je Schritt z.&nbsp;B. <code>MPI 0.62 ·📋</code> oder „nicht ausgewertet".
+    📝 = Notiz vorhanden (📎n = Anhänge), der Tooltip zeigt den Text.</li>
+<li><b>Notizen:</b> eine je Eintrag — Sitzung, Aufnahme-Schritt, importiertes Video oder Messung.
+    Der Dialog nimmt Freitext und Dateien auf (Hinzufügen, Öffnen, Entfernen); die Dateien liegen unter
+    <code>data/attachments/</code>, die Notiz in der Datenbank. „Erneut aufnehmen" eines ausgewerteten
+    Schritts fragt nach und entfernt dessen Messung, damit keine Messung ohne Video zurückbleibt.</li>
+<li><b>CSV-Export</b> (Menü „Patient ▾") exportiert alle Messungen des Patienten für die Statistik.</li>
+<li>Jede Messung speichert <b>Quelle</b> (Leap/Webcam/Video/Simulation), Dauer, Rohdaten-Verweis und —
+    bei Video — ihre <b>Herkunft</b> (siehe Abschnitt 8).</li>
 </ul>
+<figure><img src="img/11d_notiz.png" alt="Notiz-Dialog">
+<figcaption>Notiz zu einem Aufnahme-Schritt: Text und angehängte Dateien.</figcaption></figure>
 
 <h2 id="tests">5&nbsp;· Tests durchführen</h2>
 <figure><img src="img/04_dashboard.png" alt="Dashboard">
@@ -243,8 +257,15 @@ als Spitzen) und Lidspalte mit Blink-Schwelle (rechts).</figcaption></figure>
 <li><b>MPI (Motor Performance Index):</b> Komposit-Score 0–1 aus Geschwindigkeit,
     Amplitude, Ermüdung und Regelmäßigkeit — grün &gt; 0,7 · gelb 0,4–0,7 · rot &lt; 0,4.</li>
 <li><b>Automatisches Speichern:</b> Jedes Ergebnis wird sofort in der Datenbank abgelegt
-    („Verwerfen" löscht es wieder). Optional werden die Roh-Frames als JSON gesichert.</li>
+    („Verwerfen" löscht es wieder). Optional werden die Roh-Frames als JSON gesichert;
+    Video-Auswertungen schreiben sie immer.</li>
+<li><b>Details einer Messung</b> (Doppelklick oder „Details…"): Kennwert-Tabelle, Zeitverlauf,
+    Peaks, Spektrum, Amplituden-Dekrement — für Live- wie für Video-Messungen. Darunter
+    aufklappbar <b>„Herkunft der Messung"</b>: Kamera, Aufnahmezeit, Spiegelung, Archiv-Clip,
+    worauf ausgewertet wurde.</li>
 </ul>
+<figure><img src="img/11e_details.png" alt="Details einer Video-Messung">
+<figcaption>Details einer Video-Messung mit aufgeklappter Herkunft.</figcaption></figure>
 <figure><img src="img/03_verlauf.png" alt="Verlaufsansicht">
 <figcaption>📈 Verlauf: beliebiges Merkmal über die Zeit, getrennt nach Hand.
 Hohle Punkte = Kamera-Quelle (≈mm-Modellskala), gefüllte = Leap.</figcaption></figure>
@@ -259,10 +280,33 @@ Unten: Kamera wechseln, Gesichtserkennung, Status.</figcaption></figure>
 (mehrere Schritte nacheinander), <b>Einzelnes Paradigma</b> (ein Schritt) oder
 <b>Video importieren</b>. Ein importiertes Video erscheint als eigener Eintrag;
 angeklickt öffnet es den Schnitt-Bereich.</p>
+<figure><img src="img/11f_paradigma_wahl.png" alt="Einzelnes Paradigma wählen">
+<figcaption>„Einzelnes Paradigma": Paradigma, Seite und Dauer — motorische Aufgaben werden
+gefilmt, interaktive starten live.</figcaption></figure>
 <figure><img src="img/11b_aufnahme.png" alt="Aufnahme eines Protokollschritts">
-<figcaption>Aufnahme-Bereich nach dem Übernehmen eines Schritts: die Auswertung lief
-auf dem Roh-Take, der Clip wurde archiviert (Gesicht unkenntlich), der Schritt
-ist ✔ bestätigt und trägt sein Ergebnis in der Inhaltsliste.</figcaption></figure>
+<figcaption>Aufnahme-Bereich eines offenen Schritts: Kamera-Vorschau, Anweisung, Erkennungszeile,
+die Optionen „automatisch auswerten" und „Gesicht unkenntlich machen", rechts „● Aufnahme starten".</figcaption></figure>
+<figure><img src="img/11c_take_info.png" alt="Bestätigter Take mit Aufnahme-Info">
+<figcaption>Bestätigter, ausgewerteter Take: Zusammenfassung (Zeitpunkt, MPI, erste Kennwerte),
+„Details…", „Tracking-Overlay" und das aufgeklappte <b>Aufnahme-Info</b>-Panel; der Bereich
+scrollt, wenn Info und Messkurve zusammen mehr Platz brauchen.</figcaption></figure>
+<h3>Take ansehen: Player und Tracking-Overlay</h3>
+<p>Der Player zeigt eigene Takes so gespiegelt, wie die Vorschau bei der Aufnahme —
+links ist links. <b>„Tracking-Overlay"</b> spielt den Take mit den Landmarken ab, die die
+Analyse <i>gemessen</i> hat (gespeichert neben dem Clip), nicht mit einer neuen Erkennung;
+das funktioniert deshalb auch auf einem Archiv mit verwischtem Gesicht. Das Overlay setzt
+an der aktuellen Stelle des Players ein („ab 12,3 s" in der Statuszeile), läuft bis zum Ende
+und dann von vorn; beim Ausschalten übernimmt der Player die Stelle. Nur Takes ohne
+gespeicherte Analyse werden live nachgerechnet — die Statuszeile sagt es.</p>
+<h3>Aufnahme-Info: was, wann, womit</h3>
+<p>Unter jedem Take liegt aufklappbar die <b>Aufnahme-Info</b>: Art (eigene Aufnahme oder
+Import), Zeitpunkt, Kamera, Auflösung/fps/Frames, Take-Nr., ob gespiegelt und ob die
+Händigkeit vertauscht war, der Archiv-Clip (Größe, Codec/CRF, anonymisiert ja/nein), ob der
+Roh-Take noch liegt, die Tracking-Spur und jede Auswertung (wann, auf Roh-Take oder Clip,
+Messung #, Rohdaten, Augenreferenz, MediaPipe-Version). Passt etwas nicht zusammen — Clip
+fehlt, Auswertung ohne Spur oder nicht in der Akte, Seite des Schritts ungleich Segment,
+Take aus einer älteren Version ohne Metadaten — steht das als <b>⚠ Hinweis</b> im Kopf des
+Panels. Dieselbe Herkunft trägt die Messung in der Akte.</p>
 <h3>Was von einem Take bleibt (Video-Archiv)</h3>
 <p>Der Recorder schreibt etwa <b>1&nbsp;MB pro Sekunde</b>. Nach dem Übernehmen läuft
 jeder Take automatisch durch drei Stufen: <b>Auswerten</b> (auf dem Roh-Take, volle
@@ -274,12 +318,19 @@ löschen, sobald der Archiv-Clip vorliegt). Ein 640×480-Take wird dabei rund
 <p><b>Nachträglich ändern:</b> Rechtsklick auf einen bestätigten Schritt bietet
 <b>Neu auswerten</b> (dieselbe Messung wird aktualisiert, keine Kopie) und
 <b>Paradigma / Seite ändern</b> (das alte Ergebnis wird aus der Akte entfernt und der
-Take unter dem neuen Label neu ausgewertet). Der Take selbst bleibt unangetastet.</p>
+Take unter dem neuen Label neu ausgewertet). Der Take selbst bleibt unangetastet.
+Ist der Roh-Take schon aufgeräumt, läuft „Neu auswerten" auf dem archivierten Clip —
+mit verwischtem Gesicht, was für Hand-Aufgaben ohne Belang ist, für Tremor aber die
+Augenreferenz kostet; das Label sagt beides. Der Clip wird dabei weder erneut
+komprimiert noch erneut verwischt.</p>
 <p>Einstellungen in <code>video/video.yaml</code>: <code>archive.compact_takes</code>
 (Archivieren an/aus), <code>archive.keep_raw_take</code> (Roh-Take zusätzlich behalten),
 <code>segments.crf</code> (Qualität, 18 ≈ nahezu verlustfrei … 28 klein).
 Solange der Roh-Take noch da ist, wird für eine erneute Auswertung er verwendet;
 danach der Archiv-Clip.</p>
+<figure><img src="img/11g_schnitt.png" alt="Schnitt-Bereich">
+<figcaption>Schnitt-Bereich eines importierten Videos: Zeitleiste, Drehen, „Gespiegelt"
+(gilt für Player und Analyse), Defacing, „Bereich übernehmen"; unten Segmente und Auswertung.</figcaption></figure>
 <p>Das importierte Video wird im Schnitt-Bereich bearbeitet:</p>
 <ol class="steps">
 <li><b>Video laden</b> — wird automatisch normalisiert (Größe/Format);
@@ -330,6 +381,11 @@ Kopfzeile zeigt Patient und aktive Quelle.</figcaption></figure>
 <tr><td>Tremor auf Webcam gesperrt / Warnung „Augen-Referenz"</td>
     <td>Gesicht muss mit im Bild sein (liefert den Maßstab). Bei &lt; 50&nbsp;%
         Abdeckung erscheint eine Warnung — Amplituden dann nicht verwenden.</td></tr>
+<tr><td>Links und rechts vertauscht?</td>
+    <td>Eigene Takes zeigen Player, Vorschau und Overlay unter der Webcam-Einstellung
+        (<code>capture/capture.yaml → sources.webcam.mirror</code>); importierte Videos
+        unter ihrem eigenen „Gespiegelt"-Flag im Schnitt-Bereich. Die Aufnahme-Info
+        nennt beide Flags je Take.</td></tr>
 <tr><td>Fehler direkt nach einem Software-Update</td>
     <td>App einmal <b>neu starten</b> (alte Sitzung kann gemischte Modul-Stände laden).</td></tr>
 <tr><td>Logs einsehen</td>
@@ -344,7 +400,7 @@ Dieses Handbuch ist über den Button „📖 Anleitung" auf dem Startbildschirm 
 zugelassenes Medizinprodukt. Es ersetzt keine ärztliche Untersuchung.</div>
 
 </main>
-<footer>Motryx 0.3.0 · © 2026 Stefan Brodoehl · Screenshots automatisch erzeugt aus der App
+<footer>Motryx 0.3.0 (Video-Lab-Stand 09/2026) · © 2026 Stefan Brodoehl · Screenshots automatisch erzeugt aus der App
 (<code>docs/make_screenshots.py</code>)</footer>
 </body>
 </html>
