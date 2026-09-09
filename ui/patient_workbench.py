@@ -354,6 +354,9 @@ class PatientWorkbench(QWidget):
         self._m_text.setAlignment(Qt.AlignmentFlag.AlignHCenter)
         self._m_text.setStyleSheet(f"color: {theme.TEXT_SECONDARY};")
         lay.addWidget(self._m_text)
+        from ui.widgets.meta_panel import MetaPanel
+        self._m_meta = MetaPanel("Herkunft der Messung")
+        lay.addWidget(self._m_meta)
         row = QHBoxLayout()
         row.addStretch()
         self._m_btn = QPushButton("Details öffnen")
@@ -667,6 +670,8 @@ class PatientWorkbench(QWidget):
             self._m_text.setText(
                 f"{_fmt_dt(m.recorded_at)}  ·  {m.duration_s:g} s  ·  Quelle: {m.source_kind or '–'}"
                 + (f"  ·  MPI {mpi:.2f}" if isinstance(mpi, (int, float)) else ""))
+            from video.meta import describe_measurement, measurement_issues
+            self._m_meta.set_content(describe_measurement(m), measurement_issues(m))
             self._work.setCurrentWidget(self._detail)
 
     def _measurement_by_id(self, mid: int) -> Measurement | None:
@@ -810,6 +815,19 @@ class PatientWorkbench(QWidget):
         menu.exec(self.tree.viewport().mapToGlobal(pos))
 
     def _retake(self, v: VideoSession, st) -> None:
+        # A retake discards the take *and* what was measured on it — leaving the
+        # measurement behind would strand it in the record with no video.
+        m = self._step_measurement(v, st)
+        if m is not None:
+            if QMessageBox.question(
+                    self, "Erneut aufnehmen",
+                    f"„{st.title}“ ist bereits ausgewertet und als Messung #{m.id} in der "
+                    "Akte.\nErneut aufnehmen entfernt diese Messung — der bisherige Take "
+                    "bleibt auf der Platte.") != QMessageBox.StandardButton.Yes:
+                return
+            conn = get_db()
+            delete_measurement(conn, m.id)
+            conn.close()
         v.retake_step(st.id)
         v.save()
         self.refresh()
@@ -1081,6 +1099,9 @@ class PatientWorkbench(QWidget):
         pos = self._cam_combo.findData(getattr(self._device, "camera_index", 0))
         if pos >= 0:
             self._cam_combo.setCurrentIndex(pos)
+        if self._device is not None:
+            # The take's provenance names the camera, not just its index.
+            self._device.camera_name = self._cam_combo.currentText() if cams else ""
         self._cam_combo.setEnabled(bool(cams))
         self._cam_combo.blockSignals(False)
 
@@ -1095,6 +1116,7 @@ class PatientWorkbench(QWidget):
         if streaming:
             d.stop_tracking()
         d.camera_index = int(cam)
+        d.camera_name = self._cam_combo.currentText()
         if streaming:
             d.start_tracking(lambda _f: None)
         d.enable_preview(True)

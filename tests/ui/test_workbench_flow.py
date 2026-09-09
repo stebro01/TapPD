@@ -297,3 +297,37 @@ def test_analysed_step_offers_details_from_the_menu_and_the_pane(protocol_sessio
     assert built == [m.id]
     wb._actions_for(("step", s.id, "tap_right"))[0][1]()
     assert built == [m.id, m.id]
+
+
+def test_retake_asks_and_removes_the_measurement_of_the_old_take(protocol_session, app,
+                                                                 monkeypatch):
+    """A retake used to strand the exported measurement in the record without
+    a video behind it; now it asks and removes the measurement."""
+    from PyQt6.QtWidgets import QMessageBox
+    from storage.database import Measurement, get_db, get_measurements, save_measurement
+    wb, s, v = protocol_session
+    _fake_take(app, v, "tap_right")
+    seg = v.confirm_step("tap_right")
+    conn = get_db()
+    m = Measurement(patient_id=app.patient.id, session_id=s.id, test_type="finger_tapping",
+                    hand="right", duration_s=20.0)
+    m.features = {"mpi": 0.6}
+    m = save_measurement(conn, m)
+    conn.close()
+    seg.results["finger_tapping"] = {"features": {"mpi": 0.6}, "measurement_id": m.id}
+    v.save(); wb.refresh(); app.pump()
+
+    asked = []
+    monkeypatch.setattr(QMessageBox, "question",
+                        staticmethod(lambda *a, **k: asked.append(a[2]) or QMessageBox.StandardButton.No))
+    wb._retake(v, v.step("tap_right"))
+    assert asked and f"Messung #{m.id}" in asked[0]
+    assert v.step("tap_right").state == "confirmed"          # No → nothing happened
+
+    monkeypatch.setattr(QMessageBox, "question",
+                        staticmethod(lambda *a, **k: QMessageBox.StandardButton.Yes))
+    wb._retake(v, v.step("tap_right")); app.pump()
+    assert v.step("tap_right").state == "pending" and v.segments == []
+    conn = get_db()
+    assert [x.id for x in get_measurements(conn, app.patient.id)] == []
+    conn.close()

@@ -77,6 +77,8 @@ def test_confirmed_take_is_analysed_archived_and_cleaned_up(qapp, isolated_data,
     assert not take.is_file()                             # raw take cleaned up
     assert v.step("finger_tapping").clip_path == seg.clip_path
     assert seg.clip_path and os.path.getsize(seg.clip_path) < raw_size / 5   # the ffmpeg pass
+    arch = seg.meta["archive"]
+    assert arch["deface"] == "blur" and arch["width"] > 0 and arch["size_bytes"] > 0
     if real:
         assert "finger_tapping" in seg.results
         assert exported == ["finger_tapping"]
@@ -87,5 +89,8 @@ def test_confirmed_take_is_analysed_archived_and_cleaned_up(qapp, isolated_data,
         assert len(frames) > 30
         any_hand = next(v for v in frames.values() if v["hands"])
         assert len(any_hand["hands"][0][1]) == 21               # 21 normalized points
+        res = seg.results["finger_tapping"]
+        assert res["analysed_on"] == "raw" and res["analysis"]["sidecar"].get("mediapipe")
+        assert res["raw_path"].endswith(".json") and os.path.isfile(res["raw_path"])
     back = VideoSession.load(str(v.save()))
     assert back.segments[0].recorded and back.segments[0].clip_path == seg.clip_path

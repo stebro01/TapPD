@@ -378,6 +378,7 @@ nach.
 | Tracking-Overlay aus der gespeicherten Analyse (`seg_XXX.track.json`) | **erledigt** (Sidecar dekodiert nur; ohne Spur live mit Hinweis) |
 | Details zur Auswertung (Zusammenfassung am Schritt, „Details…" → Messungs-Dialog, Rohdaten-JSON je Video-Auswertung) | **erledigt** |
 | Neu auswerten nach dem Aufräumen des Roh-Takes | **erledigt** — läuft auf dem archivierten Clip, `analysed_on` am Ergebnis, Hinweis im Label (Tremor: Augenreferenz fehlt) |
+| Metadaten je Aufnahme + Info-Panel + Konsistenzprüfung (§9) | **erledigt** (`video/meta.py`, `ui/widgets/meta_panel.py`, `Measurement.provenance`) |
 
 ## 8. Video-Archiv
 
@@ -399,6 +400,31 @@ auswerten** nimmt den Roh-Take, falls er noch liegt, sonst den archivierten
 Clip — dann mit verwischtem Gesicht, was für Hand-Aufgaben ohne Belang ist,
 für Tremor aber die Augenreferenz kostet; das Ergebnis trägt `analysed_on`.
 Archivieren und Aufräumen werden dabei übersprungen.
+
+## 9. Herkunft einer Aufnahme (Metadaten)
+
+Jedes Video, das zu einer Messung wird, durchläuft drei Stationen; jede
+hinterlässt ihre Spur am `Segment` (`video/meta.py`):
+
+| Station | wo | was |
+|---|---|---|
+| Aufnahme | `Segment.meta` (vom `RecordingStep.meta` übernommen) | `kind: recording`, Zeitpunkt, Kamera (Index, Name), `mirror`, `swap_handedness`, Gesichts-Tracking an/aus, Take-Nr. + Datei, `video` (Breite, Höhe, fps, Frames, Codec — aus der `recorded`-Meldung des Sidecars), Sidecar-Versionen (`hello`) |
+| Import | `Segment.meta` | `kind: import`, Import-Zeitpunkt, Originaldatei, Spiegel-Flag des Videos, Ausschnitt |
+| Archiv | `Segment.meta["archive"]` + `deidentified` | Deface-Modus, Codec/CRF, Auflösung, Größe, Augen-Spur vorhanden |
+| Auswertung | `Segment.results[paradigma]` | Zeitpunkt, `analysed_on` (Roh-Take/Clip), Rohdaten-JSON, Messung #, Augenreferenz-Abdeckung, `analysis` (Spiegelung, Software) |
+
+Der Lesefluss für die Darstellung ist immer derselbe: Segment (oder Messung)
+laden → Metadaten in Zeilen übersetzen (`describe_segment` /
+`describe_measurement`) → Konsistenz prüfen (`segment_issues` /
+`measurement_issues`) → Panel füllen. Die Messung in der Akte trägt eine
+Kopie als `provenance` (`build_provenance`), damit der Details-Dialog ohne
+Video-Session auskommt. Das Panel (`MetaPanel`) ist eingeklappt; der Kopf
+zeigt die Zahl der ⚠-Hinweise.
+
+Geprüft wird u. a.: Clip-, Spur- und Rohdaten-Dateien vorhanden; Auswertung
+in der Akte und die Messung existiert noch; Seite/Paradigma von Schritt und
+Segment gleich; Take archiviert; Tremor nicht auf anonymisiertem Clip;
+Takes aus älteren Ständen ohne Metadaten.
 
 Damit ist eine Eigenaufnahme am Ende **dasselbe Artefakt wie ein
 Import-Segment** — gleicher Extraktor, gleiche Caps, gleiche Datenschutz-

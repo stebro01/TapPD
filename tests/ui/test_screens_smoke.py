@@ -210,3 +210,25 @@ def test_detail_dialog_tolerates_a_video_clip_as_raw_data(app, workbench, tmp_pa
     texts = [t.get_text() for ax in dlg._figure.axes for t in ax.texts]
     assert any("Nur der Video-Clip" in t for t in texts)
     dlg.close()
+
+
+def test_detail_dialog_shows_the_measurement_provenance(app, workbench):
+    from ui.detail_dialog import DetailDialog
+    m = _measurement(app)
+    m.source_kind = "video"
+    m.provenance = {"capture": {"kind": "recording", "recorded_at": "2026-09-09T08:48:00",
+                                "camera": {"index": 1, "name": "OBSBOT Tiny 2"},
+                                "mirror": True, "swap_handedness": False},
+                    "clip_path": "", "track_path": "", "analysed_on": "clip",
+                    "analysed_at": "2026-09-09T11:27:00", "deidentified": True}
+    dlg = DetailDialog(app.patient, m, parent=workbench)
+    lines = dlg._meta.texts()
+    assert "Kamera: OBSBOT Tiny 2" in lines
+    assert "Ausgewertet: 2026-09-09 11:27  ·  auf: archivierter Clip" in lines
+    assert "Gespiegelt: ja (Anzeige und Analyse)" in lines
+    dlg.close()
+
+    # the measurement pane in the workbench carries the same panel
+    workbench.refresh(); app.pump()
+    workbench._select(("measurement", m.id)); app.pump()
+    assert workbench._m_meta.texts()          # legacy row at least

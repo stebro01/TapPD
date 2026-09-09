@@ -33,6 +33,7 @@ from PyQt6.QtWidgets import (
 from ui import theme
 from ui.analysis_runner import AnalysisRunner
 from ui.widgets.live_metric_plot import LiveMetricPlot
+from ui.widgets.meta_panel import MetaPanel
 from ui.widgets.webcam_preview import WebcamPreview
 from video.store import STEP_CONFIRMED, STEP_RECORDED, VideoSession
 
@@ -72,6 +73,7 @@ class RecordingPane(QWidget):
     detailsRequested = pyqtSignal(str)     # step id: open the measurement's details
 
     _overlay_src = None                    # sidecar replaying the take with landmarks
+    _take_meta: dict = {}                  # provenance of the take being filmed
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
@@ -193,6 +195,11 @@ class RecordingPane(QWidget):
         self._analysis_lbl = QLabel()
         self._analysis_lbl.setStyleSheet(f"color: {theme.TEXT_SECONDARY}; font-size: 12px;")
         root.addWidget(self._analysis_lbl)
+        # When / how / with what this take was filmed, archived and analysed —
+        # and whether all of that still lines up (video.meta).
+        self._meta = MetaPanel("Aufnahme-Info")
+        self._meta.setVisible(False)
+        root.addWidget(self._meta)
         self._plot = LiveMetricPlot(figsize=(8, 2.4))
         self._plot.setMinimumHeight(200)
         self._plot.setMaximumHeight(260)
@@ -235,6 +242,8 @@ class RecordingPane(QWidget):
         self._runner.teardown()
         self._plot.setVisible(False)
         self._analysis_lbl.setText("")
+        self._meta.clear()
+        self._meta.setVisible(False)
         self.session = None
         self._device = None
 
@@ -264,6 +273,19 @@ class RecordingPane(QWidget):
                 self._analysis_lbl.setText(self._result_summary(step))
         else:
             self._set_phase(IDLE)
+        self._refresh_meta()
+
+    def _refresh_meta(self) -> None:
+        step = self._step
+        seg = self._segment_of(step)
+        if seg is None or self.session is None:
+            self._meta.clear()
+            self._meta.setVisible(False)
+            return
+        from video.meta import describe_segment, segment_issues
+        self._meta.set_content(describe_segment(self.session, seg, step),
+                               segment_issues(self.session, seg, step))
+        self._meta.setVisible(True)
 
     def _segment_of(self, step):
         if step is None or self.session is None or not step.segment_id:
@@ -453,6 +475,8 @@ class RecordingPane(QWidget):
         if step is None or self.session is None or self._device is None:
             return
         path = self.session.begin_take(step.id)
+        from video.meta import capture_meta
+        self._take_meta = capture_meta(self._device, take=step.takes, take_file=str(path))
         self._recorded_path = None
         self._t_left = step.duration_s
         self._device.record_clip(str(path), step.duration_s)
@@ -552,7 +576,10 @@ class RecordingPane(QWidget):
             # Say what is being analysed: the raw take (full quality) or, once
             # that is gone, the archived clip — with a blurred face on it.
             norm = lambda p: os.path.normcase(os.path.abspath(p)) if p else ""
-            on_clip = bool(seg.clip_path) and norm(path) == norm(seg.clip_path)
+            # Before archiving, clip_path still *is* the raw take — only a clip
+            # that differs from the source counts as the archive.
+            on_clip = (bool(seg.clip_path) and norm(path) == norm(seg.clip_path)
+                       and norm(seg.clip_path) != norm(seg.source_path))
             self._job["analysed_on"] = "clip" if on_clip else "raw"
             note = ""
             if on_clip and seg.deidentified:
@@ -615,6 +642,7 @@ class RecordingPane(QWidget):
                 self._schedule_discard(session, seg)
             self._job = None
             self.contentChanged.emit()
+            self._refresh_meta()
             self._next_job()
 
     # Raw takes still open elsewhere cannot be deleted right away on Windows;
@@ -670,6 +698,9 @@ class RecordingPane(QWidget):
             if previous.get("measurement_id"):
                 result["measurement_id"] = previous["measurement_id"]
             result["analysed_on"] = self._job.get("analysed_on", "raw")
+            from capture.config import source_mirrored as _mirrored
+            from video.meta import analysis_meta
+            result["analysis"] = analysis_meta(self._runner, mirrored=_mirrored("webcam"))
             result["raw_path"] = self._save_raw(test, session, features,
                                                 previous.get("raw_path", ""))
             seg.results[key] = result
@@ -843,6 +874,9 @@ class RecordingPane(QWidget):
             self._status("Aufnahme fehlgeschlagen — keine Datei entstanden.", error=True)
             return
         self.session.mark_recorded(step.id, path)
+        from video.meta import note_recorded
+        step.meta = note_recorded(dict(self._take_meta),
+                                  getattr(self._device, "last_recorded", None))
         self.session.save()
         self.contentChanged.emit()
         self._enter_review(path)

@@ -638,6 +638,8 @@ class VideoLabScreen(QWidget):
             return
         name = registry.get(para).label.replace("\n", " ")
         seg = self.session.add_segment(name, s, e, paradigm=para, hand=hand)
+        from video.meta import import_meta
+        seg.meta = import_meta(self.session, seg)
         self.session.save()
         self._refresh_segment_list()
         self._extract_segment(seg)
@@ -695,6 +697,9 @@ class VideoLabScreen(QWidget):
             seg.deidentified = deid
             clip = VideoClip.load(clip_path)
             seg.thumb_path = (clip.extra or {}).get("thumb", "") if clip else ""
+            if clip is not None:
+                from video.meta import note_archive
+                note_archive(seg, clip, None)
             self.session.save()
             self._refresh_segment_list()
             if self.current_segment and self.current_segment.id == seg_id:

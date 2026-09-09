@@ -52,6 +52,9 @@ class WebcamSource(BaseCaptureDevice):
         self.camera_index = camera_index
         self.flip_handedness = flip_handedness
         self.replay_path = replay_path  # if set, sidecar loops this video clip
+        self.camera_name = ""           # display name of camera_index (set by the UI)
+        self.sidecar_info: dict = {}    # versions from the sidecar's hello message
+        self.last_recorded: dict = {}   # facts of the last clip written by `record`
         # Whether that clip has to be mirrored to show the subject as in a
         # mirror. Per clip, because it depends on the recording device — a
         # front-camera phone clip is usually already mirrored, a clip filmed by
@@ -408,8 +411,11 @@ class WebcamSource(BaseCaptureDevice):
                              for c in msg.get("items", [])]
             self._cameras_event.set()
         elif mtype == "recorded":
+            self.last_recorded = {k: v for k, v in msg.items() if k != "type"}
             if self._recorded_callback is not None:
                 self._recorded_callback(msg.get("path", ""))
+        elif mtype == "hello":
+            self.sidecar_info = {k: v for k, v in msg.items() if k != "type"}
         elif mtype == "done":
             self._recording = False   # drop any late frames
             if self._done_callback is not None:

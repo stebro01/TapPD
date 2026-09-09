@@ -387,3 +387,44 @@ def test_reanalysis_on_the_archived_clip_says_so(pane, monkeypatch):
     p.enqueue(v, "tap_right", seg, analyse=True)
     assert "ohne Gesicht fehlt die Augenreferenz" in p._analysis_lbl.text()
     p._job = None
+
+
+def test_take_provenance_is_captured_and_shown_in_the_info_panel(pane, monkeypatch, qapp):
+    """Recording a take notes camera, settings and the file's facts; the
+    collapsible panel under the take shows them, plus what is inconsistent."""
+    monkeypatch.setattr("video.archive.compact_enabled", lambda: False)
+    monkeypatch.setattr("video.archive.keep_raw_take", lambda: True)
+    p, v = pane
+    dev = p._device
+    dev.camera_name = "OBSBOT Tiny 2"
+    dev.sidecar_info = {"mediapipe": "1.0.1", "opencv": "4.12.0"}
+    p.show_step("tap_right")
+    p._on_record()
+    p._t_left = 0.0
+    p._tick()                                          # countdown over → capture
+    path, _seconds = dev.recorded[-1]
+    from pathlib import Path
+    Path(path).parent.mkdir(parents=True, exist_ok=True); Path(path).write_bytes(b"x")
+    dev.last_recorded = {"path": path, "w": 1280, "h": 720, "fps": 30.0, "frames": 600,
+                         "codec": "avc1"}
+    p._recorded_path = path
+    p._tick()                                          # the sidecar's "recorded"
+    step = v.step("tap_right")
+    assert step.meta["kind"] == "recording" and step.meta["camera"]["name"] == "OBSBOT Tiny 2"
+    assert step.meta["video"]["width"] == 1280 and step.meta["take"] == 1
+    assert step.meta["sidecar"]["mediapipe"] == "1.0.1"
+
+    p._auto_cb.setChecked(False)
+    p._on_keep()
+    seg = v.segments[-1]
+    assert seg.meta == step.meta                      # travels onto the segment
+    p.show_step("tap_right")                          # keep moved on to the next step
+    lines = p._meta.texts()
+    assert p._meta.isVisibleTo(p) and not p._meta.expanded
+    assert "Art: eigene Aufnahme (Kamera-Stream)" in lines
+    assert "Kamera: OBSBOT Tiny 2" in lines
+    assert any(l.startswith("Video: 1280×720  ·  30 fps  ·  600 Frames") for l in lines)
+    assert "⚠ Take ist nicht archiviert (nur der Roh-Take liegt vor)." in lines
+    assert "Software: MediaPipe 1.0.1  ·  OpenCV 4.12.0" in lines
+    p._meta.set_expanded(True)
+    assert p._meta.expanded

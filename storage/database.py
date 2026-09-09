@@ -11,7 +11,7 @@ import json
 import logging
 import shutil
 import sqlite3
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date, datetime
 from pathlib import Path
 
@@ -123,6 +123,10 @@ class Measurement:
     recorded_at: str = ""
     raw_data_path: str = ""
     source_kind: str = ""  # capture source: "leap" | "webcam" | "mock" (provenance)
+    # For video-based measurements: where the footage came from and what became
+    # of it (camera, mirror/handedness settings, archive clip, track, analysis
+    # source) — see video.meta.build_provenance. Empty for live Leap/webcam runs.
+    provenance: dict = field(default_factory=dict)
 
     @property
     def features(self) -> dict:
@@ -149,19 +153,21 @@ def _unmarshal_patient_blob(blob: str | None) -> dict:
 
 
 def _marshal_observation_blob(hand: str, duration_s: float, raw_data_path: str,
-                              features: dict, source_kind: str = "") -> str:
+                              features: dict, source_kind: str = "",
+                              provenance: dict | None = None) -> str:
     return json.dumps({
         "hand": hand,
         "duration_s": duration_s,
         "raw_data_path": raw_data_path,
         "source_kind": source_kind,
         "features": features,
+        "provenance": provenance or {},
     }, default=str)
 
 
 def _unmarshal_observation_blob(blob: str | None) -> dict:
     default = {"hand": "", "duration_s": 0.0, "raw_data_path": "",
-               "source_kind": "", "features": {}}
+               "source_kind": "", "features": {}, "provenance": {}}
     if not blob:
         return default
     try:
@@ -534,6 +540,7 @@ def _row_to_measurement(r) -> Measurement:
         features_json=json.dumps(features, default=str),
         recorded_at=d.get("START_DATE") or "",
         raw_data_path=blob.get("raw_data_path", ""),
+        provenance=blob.get("provenance") or {},
         # Blob is authoritative; the SOURCESYSTEM_CD column ('TAPPD:<kind>')
         # is the SQL-queryable mirror and the fallback for old rows.
         source_kind=blob.get("source_kind", "")
@@ -659,7 +666,7 @@ def save_measurement(conn: sqlite3.Connection, m: Measurement) -> Measurement:
     category = _category_for_test(m.test_type)
     features = m.features
     obs_blob = _marshal_observation_blob(m.hand, m.duration_s, m.raw_data_path,
-                                         features, m.source_kind)
+                                         features, m.source_kind, m.provenance)
     mpi = features.get("mpi")
 
     source_cd = f"TAPPD:{m.source_kind}" if m.source_kind else "TAPPD"
@@ -688,7 +695,7 @@ def update_measurement(conn: sqlite3.Connection, m: Measurement) -> Measurement:
         raise ValueError("update_measurement braucht eine Messung mit ID")
     features = m.features
     obs_blob = _marshal_observation_blob(m.hand, m.duration_s, m.raw_data_path,
-                                         features, m.source_kind)
+                                         features, m.source_kind, m.provenance)
     source_cd = f"TAPPD:{m.source_kind}" if m.source_kind else "TAPPD"
     conn.execute(
         "UPDATE OBSERVATION_FACT SET TVAL_CHAR=?, NVAL_NUM=?, OBSERVATION_BLOB=?, "
@@ -781,7 +788,7 @@ def update_raw_data_path(conn: sqlite3.Connection, observation_id: int, path: st
             return
     else:
         blob = {"hand": "", "duration_s": 0.0, "raw_data_path": "",
-                "source_kind": "", "features": {}}
+                "source_kind": "", "features": {}, "provenance": {}}
 
     blob["raw_data_path"] = path
     conn.execute(

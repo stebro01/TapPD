@@ -43,6 +43,10 @@ class Segment:
     # so a review overlay shows what was measured, not a fresh re-tracking —
     # on a defaced archive the face could not be re-tracked anyway.
     track_path: str = ""
+    # Provenance: how this footage came about (camera, resolution, mirror /
+    # handedness settings, take number — or the import it was cut from) and,
+    # under "archive", what the compact clip is. Written by video.meta.
+    meta: dict = field(default_factory=dict)
     # analysis results keyed by paradigm key → {features, recorded_at, raw_path}
     results: dict = field(default_factory=dict)
 
@@ -97,6 +101,7 @@ class RecordingStep:
     recorded_at: str = ""
     segment_id: str = ""          # set once confirmed
     takes: int = 0                # how often it was filmed (older takes are kept)
+    meta: dict = field(default_factory=dict)   # capture facts of the kept take (video.meta)
 
     @property
     def is_documentation(self) -> bool:
@@ -313,6 +318,7 @@ class VideoSession:
         seg.clip_path = step.clip_path      # replaced by the compact clip once archived
         seg.source_path = step.clip_path    # the raw take itself
         seg.recorded = True
+        seg.meta = dict(step.meta)          # the take's provenance travels with it
         step.segment_id = seg.id
         step.state = STEP_CONFIRMED
         return seg
@@ -330,6 +336,7 @@ class VideoSession:
             step.segment_id = ""
         step.clip_path = ""
         step.recorded_at = ""
+        step.meta = {}
         step.state = STEP_PENDING
         return step
 
@@ -366,9 +373,11 @@ class VideoSession:
                  db_session_id=d.get("db_session_id"),
                  protocol_id=d.get("protocol_id", ""),
                  protocol_name=d.get("protocol_name", ""))
-        vs.segments = [Segment(**s) for s in d.get("segments", [])]
         # Unknown keys are dropped rather than raising: a session written by a
         # newer version must still open here, only without what it cannot know.
+        known_seg = {f.name for f in fields(Segment)}
+        vs.segments = [Segment(**{k: v for k, v in s.items() if k in known_seg})
+                       for s in d.get("segments", [])]
         known = {f.name for f in fields(RecordingStep)}
         vs.steps = [RecordingStep(**{k: v for k, v in s.items() if k in known})
                     for s in d.get("steps", [])]

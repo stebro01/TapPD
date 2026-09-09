@@ -106,6 +106,12 @@ class DetailDialog(QDialog):
         content.addWidget(self._canvas, stretch=1)
         self._root_layout.addLayout(content, stretch=1)
 
+        # Where the numbers come from: camera / import, mirror settings,
+        # archive clip, analysis source — collapsed until asked for.
+        from ui.widgets.meta_panel import MetaPanel
+        self._meta = MetaPanel("Herkunft der Messung")
+        self._root_layout.addWidget(self._meta)
+
         # Show initial measurement
         self._show_measurement(self._measurements[self._current_idx])
 
@@ -201,6 +207,10 @@ class DetailDialog(QDialog):
 
         self._figure.tight_layout()
         self._canvas.draw()
+
+        from video.meta import describe_measurement, measurement_issues
+        self._meta.set_content(describe_measurement(measurement),
+                               measurement_issues(measurement))
 
     def _style_ax(self, ax):
         ax.set_facecolor(f"{theme.BG}")

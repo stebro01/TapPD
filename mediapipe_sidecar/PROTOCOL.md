@@ -56,8 +56,12 @@ modalities (face/eye) can be added without breaking changes.
  "ear":[0.31,0.30],                           // eye aspect ratio L/R (blink)
  "w":640,"h":360}
 
-// recording finished (reply to record)
-{"type":"recorded","path":"/clip.mp4"}
+// recording finished (reply to record): the file's facts, kept by the app as
+// the take's provenance
+{"type":"recorded","path":"/clip.mp4","w":640,"h":480,"fps":30.0,"frames":600,"codec":"avc1"}
+
+// sent once right after connecting: what is doing the tracking
+{"type":"hello","mediapipe":"1.0.1","opencv":"4.12.0","python":"3.12.10"}
 
 // a play-once range (loop:false) reached its offset or EOF — authoritative stop.
 // Emitted exactly once; never emitted in looping mode. The capture thread then

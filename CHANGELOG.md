@@ -116,6 +116,28 @@ Versionierung: SemVer-artig (0.x = Forschungsprototyp).
   verweist darauf statt auf den Clip. Der Dialog stürzt bei älteren
   Video-Messungen (Clip als `raw_data_path`) nicht mehr ab, sondern sagt, dass
   Kurven erst nach „Neu auswerten" da sind.
+- **Metadaten je Aufnahme** (`video/meta.py`, `Segment.meta`): beim Start
+  eines Takes werden Kamera (Index + Name), Spiegelung und Händigkeits-Flag,
+  Gesichts-Tracking, Take-Nr. und Sidecar-Versionen notiert; das Sidecar
+  meldet mit `recorded` jetzt Auflösung, fps, Frames und Codec der Datei, beim
+  Verbinden ein `hello` mit MediaPipe/OpenCV/Python-Version. Das Archivieren
+  ergänzt Deface-Modus, Codec/CRF, Größe, Augen-Spur; ein Import-Segment
+  trägt Originaldatei, Import-Zeitpunkt, Spiegel-Flag und Ausschnitt. Die
+  Auswertung hält `analysed_on`, Spiegelung und Software fest. Die Messung
+  in der Akte bekommt all das als `provenance` im `OBSERVATION_BLOB`
+  (`Measurement.provenance`) — sie erklärt sich ohne die Video-Session.
+- **Aufklappbares Info-Panel** (`ui/widgets/meta_panel.py`) unter jedem Take
+  („Aufnahme-Info") und unter jeder Messung („Herkunft der Messung", im
+  Details-Dialog und in der Messungs-Ansicht des Baums) — mit
+  Konsistenz-Hinweisen (`segment_issues`/`measurement_issues`): fehlende
+  Clip-/Spur-/Rohdaten-Dateien, Auswertung nicht in der Akte, Seite oder
+  Paradigma zwischen Schritt und Segment verschieden, Tremor auf
+  anonymisiertem Clip, Takes ohne Metadaten aus älteren Ständen.
+- **Erneut aufnehmen** eines ausgewerteten Schritts fragt nach und entfernt
+  die zugehörige Messung; vorher blieb sie ohne Video als Waise in der Akte
+  (so entstand Messung 6 im Testdatensatz).
+- Alte Sessions ohne `meta` laden weiterhin; unbekannte Felder in
+  `segments` werden wie bei `steps` ignoriert.
 - **Neu auswerten** sagt, worauf es rechnet: Roh-Take oder — nach dem
   Aufräumen — der archivierte Clip (Gesicht unkenntlich); bei Tremor der
   Hinweis auf die fehlende Augenreferenz. `analysed_on` steht am Ergebnis.

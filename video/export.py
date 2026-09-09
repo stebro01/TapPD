@@ -29,6 +29,9 @@ class AlreadyExported(Exception):
         self.measurement_id = measurement_id
 
 
+from video.meta import build_provenance
+
+
 def _raw_artifact(result: dict, seg: Segment) -> str:
     """What the measurement points to as raw data: the per-frame JSON the
     analysis wrote (the detail dialog plots it), else the archived clip."""
@@ -64,6 +67,7 @@ def export_or_update(session: VideoSession, seg: Segment, paradigm_key: str) -> 
             recorded_at=result.get("recorded_at", ""),
             raw_data_path=_raw_artifact(result, seg),
             source_kind=result.get("source_kind", "video"),
+            provenance=build_provenance(session, seg, result),
         )
         m.features = result.get("features", {})
         update_measurement(conn, m)
@@ -104,6 +108,7 @@ def export_result(session: VideoSession, seg: Segment, paradigm_key: str) -> Mea
             recorded_at=result.get("recorded_at", ""),
             raw_data_path=_raw_artifact(result, seg),
             source_kind=result.get("source_kind", "video"),
+            provenance=build_provenance(session, seg, result),
         )
         m.features = result.get("features", {})
         save_measurement(conn, m)

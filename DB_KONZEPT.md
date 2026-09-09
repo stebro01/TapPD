@@ -162,7 +162,7 @@ Klinische Beobachtungen und Messwerte. **Zentrale Datentabelle.**
 |---|---|---|
 | N | NVAL_NUM | 73 (MoCA Score) |
 | T | TVAL_CHAR | "Metformin 2x500mg" |
-| B | OBSERVATION_BLOB | JSON-Objekt (z.B. Fragebogen-Ergebnisse) |
+| B | OBSERVATION_BLOB | JSON-Objekt (z.B. Fragebogen-Ergebnisse); Messungen: `hand`, `duration_s`, `raw_data_path`, `source_kind`, `features`, `provenance` (Video-Messungen: Kamera/Import, Spiegel-Flags, Archiv-Clip, Spur, Auswertungs-Quelle — siehe `video/meta.py`; leer bei Live-Messungen) |
 | D | START_DATE | "2024-11-29" |
 | Q | OBSERVATION_BLOB | Fragebogen-Antworten |
 

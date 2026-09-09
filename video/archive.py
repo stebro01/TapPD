@@ -65,6 +65,8 @@ def compact_take(session: VideoSession, seg: Segment, deface: str | None = None)
     seg.clip_path = dest
     seg.deidentified = bool(clip.deidentified)
     seg.thumb_path = str((clip.extra or {}).get("thumb") or seg.thumb_path)
+    from video.meta import note_archive
+    note_archive(seg, clip, deface)
     # Review plays the archive clip from now on. Leaving the step on the raw
     # take would have every re-render load the raw file into the player, which
     # then can never be deleted — the archive clip is what is kept anyway.

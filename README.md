@@ -168,7 +168,17 @@ pip install -r requirements.txt
    **„Details…"**: Kennwert-Tabelle und Kurven der Messung, derselbe Dialog wie
    fuer jede andere Messung. Dafuer schreibt jede Video-Auswertung die
    Rohdaten als JSON nach `data/samples/` (siehe unten), die Messung verweist
-   darauf
+   darauf. Darunter das aufklappbare **„Aufnahme-Info"**: wann und mit welcher
+   Kamera gefilmt wurde (Aufloesung, fps, Frames, Take-Nr.), ob gespiegelt und
+   ob die Haendigkeit vertauscht war, ob der Archiv-Clip anonymisiert ist
+   (Modus, Groesse, Codec/CRF), ob der Roh-Take noch liegt, ob eine
+   Tracking-Spur existiert und welche Auswertung wann auf welcher Datei lief
+   (Messung #, Rohdaten, Augenreferenz, MediaPipe-Version). Passt etwas nicht
+   zusammen — Clip fehlt, Auswertung ohne Spur oder nicht in der Akte, Seite
+   des Schritts ungleich Segment, Take aus einer aelteren Version ohne
+   Metadaten — steht das als ⚠-Hinweis im Kopf des Panels. Dieselbe
+   Herkunft zeigt der Details-Dialog einer Messung („Herkunft der Messung")
+   und die Messungs-Ansicht im Baum, gespeist aus `provenance` in der Akte
 5. **Rechtsklick** auf einen Schritt: **Details…**, erneut aufnehmen, **neu
    auswerten** (aktualisiert dieselbe Messung), **Paradigma/Seite aendern**
    (loescht das alte Ergebnis, wertet neu aus), entfernen. Auf eine Sitzung:
@@ -179,7 +189,10 @@ pip install -r requirements.txt
    spielt das verwischte Gesicht keine Rolle, die Zahlen weichen nur durch die
    Kompression minimal ab; fuer Tremor (Absolutposition) fehlt dann die
    Augenreferenz, auch das steht im Label. Der Clip wird dabei weder erneut
-   komprimiert noch erneut verwischt. Waehrend einer Auswertung zeigt der Arbeitsbereich
+   komprimiert noch erneut verwischt. **Erneut aufnehmen** bei einem bereits
+   ausgewerteten Schritt fragt nach und entfernt die zugehoerige Messung aus der
+   Akte — sonst bliebe eine Messung ohne Video zurueck (die Datei des alten
+   Takes bleibt). Waehrend einer Auswertung zeigt der Arbeitsbereich
    den Take mit Hand-Overlay, einen Fortschrittsbalken und die Messkurve;
    die Dauer entspricht etwa der Clip-Laenge (MediaPipe ist auf einer
    Laptop-CPU der Engpass)

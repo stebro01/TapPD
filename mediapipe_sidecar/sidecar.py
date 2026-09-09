@@ -570,13 +570,21 @@ class Sidecar:
             h, w = frame_bgr.shape[:2]
             fourcc = cv2.VideoWriter_fourcc(*self._record_codec)
             self._writer = cv2.VideoWriter(self._record_path, fourcc, self._record_fps, (w, h))
+            self._record_size = (w, h)
+            self._record_frames = 0
         if time.perf_counter() < self._record_until:
             self._writer.write(frame_bgr)
+            self._record_frames += 1
         else:
             self._writer.release()
             self._writer = None
             path, self._record_path = self._record_path, None
-            self._send({"type": "recorded", "path": path})
+            w, h = self._record_size
+            # The facts of the file just written — the app keeps them as the
+            # take's provenance (resolution, rate, length, codec).
+            self._send({"type": "recorded", "path": path, "w": w, "h": h,
+                        "fps": self._record_fps, "frames": self._record_frames,
+                        "codec": self._record_codec})
 
     # ── serialization ────────────────────────────────────────────
     @staticmethod
@@ -678,6 +686,13 @@ def _run(reader, writer, model_path: str) -> None:
                 pass
 
     sidecar = Sidecar(send, model_path)
+    # Who is talking: the app records these versions with every take/analysis.
+    try:
+        import platform
+        send({"type": "hello", "mediapipe": getattr(mp, "__version__", "?"),
+              "opencv": cv2.__version__, "python": platform.python_version()})
+    except Exception:
+        pass
     try:
         for line in reader:
             line = line.strip()
