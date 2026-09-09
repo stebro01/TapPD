@@ -58,7 +58,12 @@ class ProtocolChooser(QDialog):
         self._para_combo = QComboBox()
         for key in registry.all_keys():
             spec = registry.get(key)
-            self._para_combo.addItem((spec.label or key).replace("\n", " "), key)
+            label = (spec.label or key).replace("\n", " ")
+            # Interactive paradigms are tasks on screen, not something to film:
+            # they run live. Say so in the list rather than in a later error.
+            if spec.screen != registry.SCREEN_METRIC:
+                label += "   (live am Bildschirm)"
+            self._para_combo.addItem(label, key)
         row.addWidget(self._para_combo, 1)
         self._hand_combo = QComboBox()
         for label, value in (("rechts", "right"), ("links", "left"), ("beide", "both")):
@@ -93,6 +98,11 @@ class ProtocolChooser(QDialog):
         self._proto_combo.setEnabled(use_protocol)
         for w in (self._para_combo, self._hand_combo, self._dur):
             w.setEnabled(not use_protocol)
+        if not use_protocol and self.is_interactive:
+            self._dur.setEnabled(False)          # the task decides its own duration
+            self._hint.setText("Hinweis: läuft live am Bildschirm — wird nicht als "
+                               "Video-Schritt aufgenommen.")
+            return
         # Surface the loader's notes here rather than mid-session: "needs face
         # tracking" is something to know before the patient is sitting down.
         try:
@@ -100,6 +110,24 @@ class ProtocolChooser(QDialog):
         except Exception as e:
             notes = [str(e)]
         self._hint.setText("Hinweis: " + "  ".join(notes) if notes else "")
+
+    @property
+    def uses_protocol(self) -> bool:
+        return self._rb_protocol.isChecked() and bool(self._protocols)
+
+    @property
+    def is_interactive(self) -> bool:
+        """The chosen single paradigm is a screen task (Hanoi, SRT, TMT, …)."""
+        from paradigms import registry
+        if self.uses_protocol:
+            return False
+        key = self._para_combo.currentData()
+        return bool(key) and registry.get(key).screen != registry.SCREEN_METRIC
+
+    def single_choice(self) -> tuple[str, str, float]:
+        """(paradigm key, hand, duration_s) of the single-paradigm section."""
+        return (self._para_combo.currentData(), self._hand_combo.currentData(),
+                float(self._dur.value()))
 
     def protocol(self):
         """The chosen protocol (raises if it cannot be built)."""

@@ -50,14 +50,16 @@ class _ArchiveWorker(QThread):
 
     done = pyqtSignal(bool)
 
-    def __init__(self, session: VideoSession, segment, parent=None) -> None:
+    def __init__(self, session: VideoSession, segment, deface: str | None = None,
+                 parent=None) -> None:
         super().__init__(parent)
-        self._session, self._segment = session, segment
+        self._session, self._segment, self._deface = session, segment, deface
 
     def run(self) -> None:
         try:
             from video.archive import compact_take
-            self.done.emit(bool(compact_take(self._session, self._segment)))
+            self.done.emit(bool(compact_take(self._session, self._segment,
+                                             deface=self._deface)))
         except Exception:
             log.exception("Take-Archivierung fehlgeschlagen")
             self.done.emit(False)
@@ -67,6 +69,8 @@ class RecordingPane(QWidget):
     contentChanged = pyqtSignal()          # the session's steps/segments changed
     statusChanged = pyqtSignal(str, bool)  # (text, is_error) for the footer
     busyChanged = pyqtSignal(bool)         # True while a take is in progress
+
+    _overlay_src = None                    # sidecar replaying the take with landmarks
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
@@ -81,6 +85,10 @@ class RecordingPane(QWidget):
         self._runner = AnalysisRunner(self)
         self._runner.finished.connect(self._on_analysis_finished)
         self._runner.failed.connect(self._on_analysis_failed)
+        # The analysis replays through its own sidecar; its preview (frame +
+        # landmarks) is what the clinician sees while it runs.
+        self._runner.previewReady.connect(self._on_preview)
+        self._analysis_t0 = 0.0
         # After a take is confirmed it goes through a small pipeline, one step
         # at a time: analyse (on the raw take, full quality) → compact it into
         # the archive clip → drop the raw file if so configured. Queued, so the
@@ -141,6 +149,20 @@ class RecordingPane(QWidget):
             "Läuft die Analyse direkt auf dem bestätigten Take — derselbe Weg "
             "wie beim Video-Import, also dieselben Zahlen.")
         actions.addWidget(self._auto_cb)
+        # Per-recording privacy choice; the default comes from video.yaml.
+        from video.config import cfg as _vcfg
+        self._deface_cb = QCheckBox("Gesicht unkenntlich machen")
+        self._deface_cb.setChecked(str(_vcfg("privacy", "deface", default="blur")) != "off")
+        self._deface_cb.setToolTip(
+            "Im archivierten Clip das Gesicht verwischen (Datenschutz). Die Analyse "
+            "läuft immer auf dem unveränderten Take.")
+        actions.addWidget(self._deface_cb)
+        # Review with landmarks: replays the clip through the sidecar instead of
+        # the plain player, so the tracking can be checked after the fact.
+        self._overlay_cb = QCheckBox("Tracking-Overlay")
+        self._overlay_cb.setToolTip("Den Take mit erkannten Hand-/Gesichtspunkten ansehen")
+        self._overlay_cb.toggled.connect(self._on_overlay_toggled)
+        actions.addWidget(self._overlay_cb)
         actions.addStretch()
         self._record_btn = QPushButton("● Aufnahme starten")
         self._record_btn.setProperty("cssClass", "accent")
@@ -159,8 +181,9 @@ class RecordingPane(QWidget):
         self._analysis_lbl = QLabel()
         self._analysis_lbl.setStyleSheet(f"color: {theme.TEXT_SECONDARY}; font-size: 12px;")
         root.addWidget(self._analysis_lbl)
-        self._plot = LiveMetricPlot(figsize=(8, 1.6))
-        self._plot.setMaximumHeight(140)
+        self._plot = LiveMetricPlot(figsize=(8, 2.4))
+        self._plot.setMinimumHeight(200)
+        self._plot.setMaximumHeight(260)
         self._plot.setVisible(False)
         root.addWidget(self._plot)
 
@@ -194,6 +217,7 @@ class RecordingPane(QWidget):
             self._on_cancel()
         self._tick_timer.stop()
         self._player.stop()
+        self._stop_overlay()
         self._queue.clear()
         self._job = None
         self._runner.teardown()
@@ -241,8 +265,16 @@ class RecordingPane(QWidget):
         self._record_btn.setEnabled(self._device is not None and step is not None)
         self._auto_cb.setVisible(bool(step) and not step.is_documentation)
 
-        self._view.setCurrentWidget(self._video if phase == REVIEW else self._preview)
-        self._bar.setVisible(phase in (COUNTDOWN, RECORDING))
+        overlay = phase == REVIEW and self._overlay_cb.isChecked()
+        if self._analysing or overlay:
+            self._view.setCurrentWidget(self._preview)       # landmarks on top
+        else:
+            self._view.setCurrentWidget(self._video if phase == REVIEW else self._preview)
+        self._bar.setVisible(phase in (COUNTDOWN, RECORDING) or bool(self._analysing))
+        self._overlay_cb.setVisible(phase == REVIEW)
+        self._deface_cb.setVisible(phase == REVIEW and not confirmed)
+        if phase != REVIEW:
+            self._stop_overlay()
 
         if phase == IDLE and step is not None:
             self._status("Bereit — Aufnahme starten, wenn der Patient bereit ist."
@@ -258,6 +290,66 @@ class RecordingPane(QWidget):
         self._player.setSource(QUrl.fromLocalFile(str(clip_path)))
         self._player.play()
         self._set_phase(REVIEW)
+        if self._overlay_cb.isChecked():
+            self._start_overlay(clip_path)
+
+    # ── review with landmarks ────────────────────────────────────
+    def _on_overlay_toggled(self, on: bool) -> None:
+        if self._phase != REVIEW:
+            return
+        step = self._step
+        if on and step is not None and step.clip_path:
+            self._start_overlay(step.clip_path)
+        else:
+            self._stop_overlay()
+        self._set_phase(self._phase)
+
+    def _start_overlay(self, clip_path: str) -> None:
+        """Loop the take through a sidecar of its own, showing the landmarks.
+
+        The plain player cannot draw them; the sidecar's preview stream can.
+        Our own take is stored raw, so it replays under the webcam mirror
+        setting — same picture, same left/right as during the recording."""
+        from capture.mediapipe_capture import WebcamSource
+        from capture.config import source_mirrored
+        self._stop_overlay()
+        try:
+            src = WebcamSource(replay_path=str(clip_path))
+            src.replay_mirror = source_mirrored("webcam")
+            src.connect()
+            src.configure(num_hands=2, preview_fps=15)
+            src.set_preview_callback(self._on_preview)
+            src.enable_preview(True)
+            src.enable_face(True)
+            src.start_tracking(lambda _f: None)
+        except Exception as e:
+            log.warning("Overlay-Wiedergabe nicht möglich: %s", e)
+            self._overlay_cb.blockSignals(True)
+            self._overlay_cb.setChecked(False)
+            self._overlay_cb.blockSignals(False)
+            self._status(f"Overlay nicht möglich: {e}", error=True)
+            return
+        self._overlay_src = src
+        self._player.pause()
+        self._latest_preview = None
+        self._preview.set_placeholder("Wiedergabe mit Tracking wird gestartet …")
+        self._preview.clear()
+
+    def _stop_overlay(self) -> None:
+        src, self._overlay_src = self._overlay_src, None
+        if src is None:
+            return
+        try:
+            src.stop_tracking()
+            src.disconnect()
+        except Exception:
+            log.debug("Overlay-Sidecar konnte nicht sauber beendet werden", exc_info=True)
+        if self._phase == REVIEW and self._player.source().isValid():
+            self._player.play()
+
+    @property
+    def overlay_active(self) -> bool:
+        return self._overlay_src is not None
 
     def _status(self, text: str, error: bool = False) -> None:
         self.statusChanged.emit(text, error)
@@ -305,7 +397,10 @@ class RecordingPane(QWidget):
             return
         self.session.save()
         analyse = self._auto_cb.isChecked() and not step.is_documentation
-        self._enqueue_step(self.session, step.id, segment, analyse)
+        # The checkbox is the clinician's word for *this* take; "off" bypasses
+        # the configured default explicitly, "on" uses the configured mode.
+        deface = None if self._deface_cb.isChecked() else "off"
+        self._enqueue_step(self.session, step.id, segment, analyse, deface)
         self.contentChanged.emit()
         nxt = self.session.next_open_step()
         if nxt is not None:
@@ -332,24 +427,24 @@ class RecordingPane(QWidget):
 
     def enqueue(self, session: VideoSession, step_id: str, segment, analyse: bool) -> None:
         """Public entry for the host: (re)run the pipeline on a confirmed step."""
-        self._enqueue_step(session, step_id, segment, analyse)
+        self._enqueue_step(session, step_id, segment, analyse, deface=None)
 
     def _enqueue_step(self, session: VideoSession, step_id: str, segment,
-                      analyse: bool) -> None:
+                      analyse: bool, deface: str | None) -> None:
         # The job carries its own session: the host may switch the pane to
         # another session while this one is still being processed.
-        self._queue.append((session, step_id, segment, analyse))
+        self._queue.append((session, step_id, segment, analyse, deface))
         self._next_job()
 
     def _next_job(self) -> None:
         if self._job is not None or not self._queue:
             return
-        session, step_id, segment, analyse = self._queue.pop(0)
+        session, step_id, segment, analyse, deface = self._queue.pop(0)
         if session.step(step_id) is None:
             self._next_job()
             return
         self._job = {"session": session, "step_id": step_id, "segment": segment,
-                     "stage": ""}
+                     "stage": "", "deface": deface}
         self._run_stage("analyse" if analyse else "compact")
 
     def _job_step(self):
@@ -372,6 +467,19 @@ class RecordingPane(QWidget):
             self._plot.clear_plot()
             self._plot.setVisible(True)
             self._analysis_lbl.setText(f"Auswertung läuft: {title} …")
+            # Show the analysis, not the review player: the sidecar's preview
+            # carries the frame with the tracked landmarks, and a progress bar
+            # says how far the replay has come — otherwise this looked like a
+            # video playing with nothing happening and no end in sight.
+            self._player.pause()
+            self._latest_preview = None
+            self._preview.set_placeholder("Auswertung wird gestartet …")
+            self._preview.clear()
+            self._view.setCurrentWidget(self._preview)
+            self._bar.setValue(0)
+            self._bar.setVisible(True)
+            import time as _t
+            self._analysis_t0 = _t.time()
             # Identical call to VideoLab's segment analysis, on the raw take
             # (full quality, no blur). A take is our own capture, so it replays
             # under the *webcam* mirror setting, never the import flag.
@@ -388,7 +496,7 @@ class RecordingPane(QWidget):
                 self._run_stage("cleanup")
                 return
             self._analysis_lbl.setText(f"Clip wird archiviert: {title} …")
-            self._worker = _ArchiveWorker(session, seg, self)
+            self._worker = _ArchiveWorker(session, seg, self._job.get("deface"), self)
             self._worker.done.connect(self._on_compact_done)
             self._worker.start()
 
@@ -480,9 +588,12 @@ class RecordingPane(QWidget):
         mpi = (features or {}).get("mpi")
         summary = f"MPI {mpi:.2f}" if isinstance(mpi, (int, float)) else "fertig"
         self._analysis_lbl.setText(
-            f"Ausgewertet: {step.title if step else self._job['step_id']} — {summary}")
+            f"✔ Ausgewertet: {step.title if step else self._job['step_id']} — {summary}")
         self.contentChanged.emit()
+        # Leave the analyse stage first: while the job is still in it, the
+        # view logic (rightly) keeps the analysis preview on screen.
         self._run_stage("compact")
+        self._end_analysis_view()
 
     def _on_analysis_failed(self, msg: str) -> None:
         if self._job is None or self._job["stage"] != "analyse":
@@ -490,6 +601,15 @@ class RecordingPane(QWidget):
         log.warning("Auto-Auswertung von '%s' fehlgeschlagen: %s", self._job["step_id"], msg)
         self._analysis_lbl.setText(f"Auswertung fehlgeschlagen: {msg}")
         self._run_stage("compact")   # still archive the take
+        self._end_analysis_view()
+
+    def _end_analysis_view(self) -> None:
+        """Back to whatever the selected step shows (usually the review player)."""
+        self._bar.setValue(100)
+        self._bar.setVisible(self.busy)
+        self._set_phase(self._phase)
+        if self._phase == REVIEW:
+            self._player.play()
 
     def _refresh_plot(self, force: bool = False) -> None:
         if force or self._analysing:
@@ -520,7 +640,16 @@ class RecordingPane(QWidget):
         try:
             if self._analysing:
                 self._refresh_plot()
-            if self._phase != REVIEW and self._latest_preview is not None:
+                step = self._job_step()
+                total = max(0.5, step.duration_s if step else 1.0)
+                import time as _t
+                # Replay runs faster than real time; the bar is a lower bound
+                # that jumps to 100 on completion.
+                elapsed = _t.time() - self._analysis_t0
+                self._bar.setValue(min(95, int(100 * elapsed / total)))
+                self._status(f"Auswertung läuft … {min(elapsed, total):.0f} / {total:.0f} s")
+            if (self._phase != REVIEW or self._analysing or self._overlay_src is not None) \
+                    and self._latest_preview is not None:
                 msg = self._latest_preview
                 self._preview.set_frame(msg.get("jpeg", ""), msg.get("landmarks", []),
                                         msg.get("face", []))

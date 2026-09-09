@@ -97,8 +97,16 @@ Versionierung: SemVer-artig (0.x = Forschungsprototyp).
 - Leap Motion ist auf diesem Stand standardmäßig deaktiviert
   (`MOTRYX_ENABLE_LEAP=1` bzw. `start.ps1 --leap` aktiviert es wieder).
 - Der alte Live-Weg über das Paradigmen-Dashboard bleibt für interaktive
-  Paradigmen (Hanoi, SRT, TMT, Sakkaden) und ist aus dem Sitzungsbaum über
-  „Live-Messung hinzufügen…" erreichbar.
+  Paradigmen (Hanoi, SRT, TMT, Sakkaden): „Einzelnes Paradigma…" startet sie
+  direkt am Bildschirm statt einen Video-Schritt anzulegen; ein Protokoll mit
+  einer interaktiven Aufgabe wird beim Laden abgelehnt.
+- Aufnahme-Optionen: **„Gesicht unkenntlich machen"** pro Take (Vorgabe aus
+  `privacy.deface`), **„Tracking-Overlay"** beim Ansehen eines bestätigten
+  Takes — Wiedergabe über den Sidecar mit Landmarken statt des Players.
+- Während einer (Neu-)Auswertung zeigt der Arbeitsbereich den Take mit
+  Landmarken-Overlay, Fortschritt und großer Messkurve statt des stummen
+  Abspiel-Players; Clips werden für die Analyse nicht mehr in Echtzeit
+  gedrosselt (auf schnellen Rechnern kürzer, auf dieser CPU ≈ Clip-Länge).
 
 ## [0.3.0] — 2026-07-15
 

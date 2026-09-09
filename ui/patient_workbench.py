@@ -229,10 +229,12 @@ class PatientWorkbench(QWidget):
         self._add_btn.setFixedHeight(SZ.BTN_H)
         self._add_btn.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
         am = QMenu(self._add_btn)
+        # One "Paradigma" entry covers both kinds: a motor paradigm becomes a
+        # filmed step, an interactive one (Hanoi, SRT, TMT, saccades) runs
+        # live on screen. The paradigm decides, not the menu.
         for label, cb in (("Protokoll aufnehmen…", self._add_protocol),
                           ("Einzelnes Paradigma…", self._add_single),
-                          ("Video importieren…", self._add_import),
-                          ("Live-Messung (Sensor/Bildschirm)…", self._add_live)):
+                          ("Video importieren…", self._add_import)):
             a = QAction(label, self)
             a.triggered.connect(lambda _c=False, f=cb: f())
             am.addAction(a)
@@ -328,7 +330,8 @@ class PatientWorkbench(QWidget):
                               "Kopfdrehung, Finger-Tapping beidseits.",
                               self._add_protocol, primary=True))
         cards.addWidget(_Card("▶", "Einzelnes Paradigma",
-                              "Nur eine motorische Aufgabe auf Video, sofort auswertbar.",
+                              "Eine Aufgabe: motorische auf Video, sofort auswertbar — "
+                              "interaktive (Hanoi, SRT, TMT) live am Bildschirm.",
                               self._add_single))
         cards.addWidget(_Card("🎬", "Video importieren",
                               "Ein vorhandenes Video laden, Bereiche schneiden und auswerten.",
@@ -723,6 +726,10 @@ class PatientWorkbench(QWidget):
         dlg = ProtocolChooser(self, single_only=single_only)
         if dlg.exec() != QDialog.DialogCode.Accepted:
             return
+        if dlg.is_interactive:
+            key, hand, _dur = dlg.single_choice()
+            self._start_live(s, key, hand)
+            return
         try:
             protocol = dlg.protocol()
         except Exception as e:
@@ -745,17 +752,11 @@ class PatientWorkbench(QWidget):
         self._work.setCurrentWidget(self._cut)
         self._cut.import_video()
 
-    def _add_live(self) -> None:
-        s = self._target_session() or self.new_session()
-        if s is None:
-            return
-        dlg = _LabelDialog(self, "Live-Messung hinzufügen")
-        if dlg.exec() != QDialog.DialogCode.Accepted:
-            return
+    def _start_live(self, s: Session, key: str, hand: str) -> None:
+        """Run an interactive paradigm on screen, into this session."""
         self.main_window.resume_session(s)
         self.main_window.dashboard.set_patient(self._patient)
-        self.main_window.start_test(dlg.para.currentData(), dlg.hand.currentData(),
-                                    self.main_window.dashboard.duration_spin.value())
+        self.main_window.start_test(key, hand, self.main_window.dashboard.duration_spin.value())
 
     # ── context actions ──────────────────────────────────────────
     def _actions_for(self, key) -> list:
@@ -771,7 +772,6 @@ class PatientWorkbench(QWidget):
             out.append(("＋ Protokoll aufnehmen…", self._add_protocol))
             out.append(("＋ Einzelnes Paradigma…", self._add_single))
             out.append(("＋ Video importieren…", self._add_import))
-            out.append(("＋ Live-Messung…", self._add_live))
             out.append(("Sitzung löschen…", lambda: self._delete_session(s)))
         elif kind == "step":
             v = self._videos.get(key[1]); st = v.step(key[2]) if v else None

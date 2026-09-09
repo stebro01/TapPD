@@ -119,6 +119,11 @@ def test_face_dependent_paradigm_is_a_note_not_an_error():
     assert "Gesichts-Tracking" in notes[0].message
 
 
+def test_interactive_paradigm_cannot_be_a_video_step():
+    errors = _errors(_steps(_valid_step(paradigm="tower_of_hanoi")))
+    assert len(errors) == 1 and "interaktive" in errors[0].message
+
+
 def test_unilateral_paradigm_with_both_hands_is_a_note():
     issues = P.validate(P.protocol_from_dict(_steps(_valid_step(hand="both"))))
 

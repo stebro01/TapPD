@@ -99,6 +99,73 @@ def test_documentation_step_hides_the_analysis_toggle(pane):
     assert p._auto_cb.isVisibleTo(p)
 
 
+def test_deface_choice_reaches_the_archive_step(pane, monkeypatch):
+    """Off on the checkbox → an explicit "off" for this take; on → the
+    configured default (None)."""
+    from ui import recording_pane as rp
+    seen = []
+
+    class FakeWorker:
+        def __init__(self, session, seg, deface=None, parent=None):
+            seen.append(deface)
+            self.done = type("S", (), {"connect": lambda self, cb: None})()
+        def start(self): pass
+    monkeypatch.setattr(rp, "_ArchiveWorker", FakeWorker)
+    monkeypatch.setattr("video.archive.compact_enabled", lambda: True)
+
+    p, v = pane
+    for step_id, deface_on in (("rest", False), ("head_turn", True)):
+        p.show_step(step_id)
+        take = v.begin_take(step_id)
+        take.parent.mkdir(parents=True, exist_ok=True); take.write_bytes(b"x")
+        v.mark_recorded(step_id, str(take)); p.show_step(step_id)
+        p._auto_cb.setChecked(False)
+        p._deface_cb.setChecked(deface_on)
+        p._on_keep()
+        p._job = None                         # the fake worker never finishes
+    assert seen == ["off", None]
+
+
+def test_overlay_toggle_replays_the_take_through_a_sidecar(pane, monkeypatch):
+    import capture.mediapipe_capture as mc
+    made = []
+
+    class FakeSrc:
+        def __init__(self, camera_index=0, flip_handedness=False, replay_path=""):
+            self.replay_path = replay_path; self.replay_mirror = None
+            self.calls = []; made.append(self)
+        def connect(self): self.calls.append("connect")
+        def configure(self, **k): self.calls.append(("configure", k))
+        def set_preview_callback(self, cb): self.calls.append("preview_cb")
+        def enable_preview(self, on): self.calls.append(("preview", on))
+        def enable_face(self, on, *a): self.calls.append(("face", on))
+        def start_tracking(self, cb): self.calls.append("start")
+        def stop_tracking(self): self.calls.append("stop")
+        def disconnect(self): self.calls.append("disconnect")
+    monkeypatch.setattr(mc, "WebcamSource", FakeSrc)
+
+    p, v = pane
+    take = v.begin_take("rest"); take.parent.mkdir(parents=True, exist_ok=True)
+    take.write_bytes(b"x"); v.mark_recorded("rest", str(take)); p.show_step("rest")
+    assert p._phase == "review" and p._overlay_cb.isVisibleTo(p)
+    assert type(p._view.currentWidget()).__name__ == "QVideoWidget"
+
+    p._overlay_cb.setChecked(True)
+    assert p.overlay_active and made[0].replay_path == str(take)
+    assert made[0].replay_mirror is True                 # own take → webcam setting
+    assert "start" in made[0].calls and ("preview", True) in made[0].calls
+    assert type(p._view.currentWidget()).__name__ == "WebcamPreview"
+
+    p._overlay_cb.setChecked(False)
+    assert not p.overlay_active and "disconnect" in made[0].calls
+    assert type(p._view.currentWidget()).__name__ == "QVideoWidget"
+
+    # leaving review stops it too
+    p._overlay_cb.setChecked(True)
+    p.show_step("head_turn")                              # pending → idle
+    assert not p.overlay_active
+
+
 def test_switching_steps_is_refused_mid_take(pane):
     p, _ = pane
     p._on_record()
@@ -152,7 +219,15 @@ def test_chooser_returns_a_protocol_either_way(qapp):
     single._para_combo.setCurrentIndex(single._para_combo.findData("finger_tapping"))
     single._hand_combo.setCurrentIndex(single._hand_combo.findData("left"))
     single._dur.setValue(12)
+    assert not single.is_interactive
     q = single.protocol()
     assert q.is_ad_hoc and len(q.steps) == 1
     assert (q.steps[0].paradigm, q.steps[0].hand, q.steps[0].duration_s) == \
         ("finger_tapping", "left", 12)
+
+    # an interactive paradigm is flagged and routed live, never filmed
+    single._para_combo.setCurrentIndex(single._para_combo.findData("tower_of_hanoi"))
+    assert single.is_interactive
+    assert "live am Bildschirm" in single._para_combo.currentText()
+    assert "live" in single._hint.text() and not single._dur.isEnabled()
+    assert single.single_choice()[:2] == ("tower_of_hanoi", "left")

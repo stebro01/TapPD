@@ -234,13 +234,18 @@ class WebcamSource(BaseCaptureDevice):
         return []
 
     # ── recording ─────────────────────────────────────────────────
-    def play_range(self, video: str, start_s: float, end_s: float) -> None:
+    def play_range(self, video: str, start_s: float, end_s: float,
+                   realtime: bool = True) -> None:
         """Configure a one-shot bounded playback of `video[start_s:end_s]`
         (VideoLab). The next start_recording() plays it once and fires the
-        done-callback at the offset. Leaves the looping `replay_path` path alone."""
+        done-callback at the offset. Leaves the looping `replay_path` path alone.
+
+        ``realtime=False`` lets the sidecar run the clip as fast as it can —
+        right for an analysis nobody watches frame by frame."""
         self.replay_path = video
         self._range = (float(start_s), float(end_s))
         self._loop = False
+        self._realtime = bool(realtime)
 
     def start_recording(self, callback: Callable[[HandFrame], None]) -> None:
         if not self.is_connected():
@@ -252,7 +257,8 @@ class WebcamSource(BaseCaptureDevice):
         self._send({"cmd": "start", "index": self.camera_index,
                     "video": self.replay_path or None,
                     "start_s": s, "end_s": e, "loop": self._loop,
-                    "mirror": bool(self.replay_mirror)})
+                    "mirror": bool(self.replay_mirror),
+                    "realtime": bool(getattr(self, "_realtime", True))})
         log.debug("MediaPipe-Aufnahme gestartet (Kamera %d, replay=%s, range=%s)",
                   self.camera_index, self.replay_path or "-", self._range)
 

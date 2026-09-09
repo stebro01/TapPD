@@ -196,6 +196,7 @@ class Sidecar:
         self._mirror = True
         self._video_mirror = False      # per-clip, set with the "start" command
         self._frames_mirrored = False   # what the running capture actually does
+        self._realtime = True           # throttle video replay to the clip's fps
         self._capture_thread: threading.Thread | None = None
         self._closing = threading.Event()   # tells the camera thread to exit
         self._quit = threading.Event()      # process should terminate
@@ -271,6 +272,9 @@ class Sidecar:
             # Per-clip mirror flag; only meaningful for video (a live camera
             # uses the global sidecar.mirror setting).
             self._video_mirror = bool(msg.get("mirror", False))
+            # realtime=False: replay a clip as fast as MediaPipe can chew it —
+            # for analysis, where nobody watches the frames go by.
+            self._realtime = bool(msg.get("realtime", True))
             self.start(int(msg.get("index", 0)), msg.get("video") or None,
                        None if ss is None else float(ss),
                        None if ee is None else float(ee),
@@ -443,7 +447,7 @@ class Sidecar:
                         time.sleep(_MISS_RETRY_S)
                     continue
 
-                if is_video and frame_interval:   # throttle replay to the clip's fps
+                if is_video and frame_interval and self._realtime:   # throttle to the clip's fps
                     dt = time.perf_counter() - last_frame_t
                     if dt < frame_interval:
                         time.sleep(frame_interval - dt)

@@ -91,11 +91,15 @@ class AnalysisRunner(QObject):
             return
 
         src = self._src
-        src.configure(num_hands=2)          # track both hands → pick the moving one
+        # Both hands → pick the moving one. A slower preview stream during
+        # analysis: MediaPipe is the bottleneck on a laptop CPU, and every JPEG
+        # encode competes with it — the overlay only needs a few frames a second.
+        src.configure(num_hands=2, preview_fps=6)
         # Per-clip mirror flag (set at import); the sidecar reads it with
         # the next start and swaps the handedness label to match.
         src.replay_mirror = bool(mirrored)
-        src.play_range(video_path, start_s, end_s)
+        # Faster than real time: a 20 s take no longer costs 20 s of waiting.
+        src.play_range(video_path, start_s, end_s, realtime=False)
         src.set_preview_callback(lambda m: self.previewReady.emit(m))
         src.set_done_callback(lambda: self._doneSignal.emit())
         src.enable_preview(True)

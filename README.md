@@ -147,17 +147,26 @@ pip install -r requirements.txt
 1. **Patient anklicken** — das ist bereits der Arbeitsplatz: links alle
    Sitzungen mit ihrem Inhalt, rechts der Arbeitsbereich, der der Auswahl folgt
 2. **„＋ Neue Sitzung"** legt eine Gruppe an; **„＋ Hinzufuegen"** fuellt die
-   gewaehlte Sitzung: *Protokoll aufnehmen*, *Einzelnes Paradigma*,
-   *Video importieren* oder *Live-Messung* (Sensor/Bildschirm-Paradigmen)
+   gewaehlte Sitzung: *Protokoll aufnehmen*, *Einzelnes Paradigma* oder
+   *Video importieren*. Das Paradigma entscheidet selbst: motorische Aufgaben
+   werden als Video-Schritt gefilmt, interaktive (Hanoi, SRT, TMT, Sakkaden)
+   laufen live am Bildschirm — in der Auswahl entsprechend markiert
 3. **Aufnehmen** je Schritt: Anweisung lesen → Countdown → Aufnahme →
    Take ansehen → **Uebernehmen** oder **Wiederholen**
 4. Nach dem Uebernehmen laeuft automatisch: **Auswerten** (Ergebnis landet
    sofort in der Akte, 📋 im Baum) → **Archivieren** (kompakter Clip) →
-   Roh-Take aufraeumen
+   Roh-Take aufraeumen. Vor dem Uebernehmen entscheidet die Checkbox
+   **„Gesicht unkenntlich machen"** pro Take ueber das Defacing des Archivs
+   (Vorgabe aus `video.yaml`); die Analyse laeuft immer auf dem unveraenderten
+   Take. **„Tracking-Overlay"** spielt einen bestaetigten Take mit den
+   erkannten Hand-/Gesichtspunkten ab
 5. **Rechtsklick** auf einen Schritt: erneut aufnehmen, **neu auswerten**
    (aktualisiert dieselbe Messung), **Paradigma/Seite aendern** (loescht das
    alte Ergebnis, wertet neu aus), entfernen. Auf eine Sitzung: Inhalt
-   hinzufuegen, loeschen
+   hinzufuegen, loeschen. Waehrend einer Auswertung zeigt der Arbeitsbereich
+   den Take mit Hand-Overlay, einen Fortschrittsbalken und die Messkurve;
+   die Dauer entspricht etwa der Clip-Laenge (MediaPipe ist auf einer
+   Laptop-CPU der Engpass)
 6. Ein importiertes Video erscheint als Eintrag der Sitzung; angeklickt
    oeffnet es den Schnitt-Bereich (Bereich markieren → Segment → auswerten)
 7. Menue **„Patient ▾"**: Bearbeiten, 📈 Verlauf, CSV-Export, Patient loeschen

@@ -33,13 +33,17 @@ def keep_raw_take() -> bool:
     return bool(cfg("archive", "keep_raw_take", default=False))
 
 
-def compact_take(session: VideoSession, seg: Segment) -> bool:
+def compact_take(session: VideoSession, seg: Segment, deface: str | None = None) -> bool:
     """Re-encode a recorded segment's raw take into its compact clip.
 
     Returns True when ``seg.clip_path`` now points at the compact clip. On any
     failure the segment is left untouched — still referencing the raw take —
     so nothing is lost, just not compressed. Runs the sidecar extractor, so
     call it off the GUI thread.
+
+    ``deface`` overrides the configured privacy mode for this take
+    (``"off" | "blur" | "mesh"``); None keeps ``privacy.deface`` from
+    video.yaml — the clinician's per-recording choice on the recording pane.
     """
     if not seg.recorded:
         return False
@@ -53,7 +57,7 @@ def compact_take(session: VideoSession, seg: Segment) -> bool:
         return False    # would overwrite the source
 
     from video.extractor import VideoSegmentExtractor
-    clip = VideoSegmentExtractor().extract(raw, 0.0, seg.duration_s, dest)
+    clip = VideoSegmentExtractor().extract(raw, 0.0, seg.duration_s, dest, deface=deface)
     if clip is None or not os.path.isfile(dest):
         return False
 

@@ -187,8 +187,31 @@ def test_actions_follow_the_step_state(protocol_session, app):
     # a documentation step is never analysed → no analysis actions
     assert labels(("step", s.id, "head_turn")) == ["↻ Erneut aufnehmen", "Schritt entfernen…"]
 
-    assert labels(("session", s.id))[0] == "● Aufnahme fortsetzen"
-    assert labels(("session", s.id))[-1] == "Sitzung löschen…"
+    assert labels(("session", s.id)) == [
+        "● Aufnahme fortsetzen", "＋ Protokoll aufnehmen…", "＋ Einzelnes Paradigma…",
+        "＋ Video importieren…", "Sitzung löschen…"]
+
+
+def test_single_interactive_paradigm_runs_live_not_as_a_step(workbench, app, monkeypatch):
+    """One "Paradigma" entry: Hanoi is a screen task, so choosing it starts the
+    live test instead of adding a video step."""
+    from ui import patient_workbench as pw
+    app.win.start_new_session(); app.pump()
+    s = workbench._sessions[0]
+
+    class _Chooser:
+        def __init__(self, *a, **k): pass
+        def exec(self): return 1
+        is_interactive = True
+        def single_choice(self): return ("tower_of_hanoi", "right", 20.0)
+    monkeypatch.setattr("ui.protocol_chooser.ProtocolChooser", _Chooser)
+    started = []
+    monkeypatch.setattr(app.win, "start_test", lambda k, h, d: started.append((k, h)))
+
+    workbench._add_single()
+
+    assert started == [("tower_of_hanoi", "right")]
+    assert workbench._videos.get(s.id) is None or not workbench._videos[s.id].steps
 
 
 # ── leaving and coming back ─────────────────────────────────────────
