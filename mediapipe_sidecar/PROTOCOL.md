@@ -95,6 +95,12 @@ modalities (face/eye) can be added without breaking changes.
 - On top of that the main app has an *additional* left/right swap
   (`flip_handedness`), for cameras that already mirror in hardware. It is off
   by default and does not belong to this protocol.
+- `preview` messages of a video replay carry `frame` (index in the file) and
+  `t` (seconds into the file), so the app can hand a position between its own
+  player and the sidecar replay (the review overlay starts where the player
+  was and gives the position back when switched off).
+- `start` with `start_s` and `loop:false` plays from that offset to the end
+  once; the app then restarts without a range to continue from the top.
 - Clips recorded via `record` store the **unmirrored** camera view, so a clip
   replays exactly like the live camera when `start` carries `mirror:true`.
 

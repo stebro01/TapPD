@@ -152,7 +152,11 @@ pip install -r requirements.txt
    werden als Video-Schritt gefilmt, interaktive (Hanoi, SRT, TMT, Sakkaden)
    laufen live am Bildschirm — in der Auswahl entsprechend markiert
 3. **Aufnehmen** je Schritt: Anweisung lesen → Countdown → Aufnahme →
-   Take ansehen → **Uebernehmen** oder **Wiederholen**
+   Take ansehen → **Uebernehmen** oder **Wiederholen**. Die Checkbox
+   **„Gesicht unkenntlich machen"** steht schon vor der Aufnahme unter dem Bild
+   (Vorgabe aus `video.yaml`, `privacy.deface`) und bleibt bis zum Uebernehmen
+   aenderbar — pro Take, also lassen sich einzelne Aufnahmen bewusst ohne
+   Defacing archivieren
 4. Nach dem Uebernehmen laeuft automatisch: **Auswerten** (Ergebnis landet
    sofort in der Akte, 📋 im Baum) → **Archivieren** (kompakter Clip) →
    Roh-Take aufraeumen. Vor dem Uebernehmen entscheidet die Checkbox
@@ -164,8 +168,10 @@ pip install -r requirements.txt
    verwischten Archiv auch nicht ginge. Nur fuer Takes ohne gespeicherte
    Analyse wird live nachgerechnet; die Statuszeile sagt, welcher Fall vorliegt.
    Das Overlay ist eine zweite Wiedergabe ueber den Sidecar (er dekodiert den
-   Clip), kein Zeichnen ueber den Player — beim Einschalten startet der Take
-   deshalb von vorn. Player und Overlay zeigen dieselbe Seite: der Player
+   Clip), kein Zeichnen ueber den Player. Es setzt an der aktuellen Stelle des
+   Players ein (Statuszeile: „ab 12,3 s"), laeuft bis zum Ende und dann von
+   vorn; beim Ausschalten springt der Player an die Stelle, an der das Overlay
+   stand. Player und Overlay zeigen dieselbe Seite: der Player
    spiegelt eigene Takes unter der Webcam-Einstellung, importierte Videos
    unter ihrem eigenen Flag (`ui/widgets/video_view.py`).
    Ein ausgewerteter Schritt zeigt unter dem Player eine Zusammenfassung

@@ -145,6 +145,9 @@ def test_overlay_toggle_replays_the_take_through_a_sidecar(pane, monkeypatch):
         def start_tracking(self, cb): self.calls.append("start")
         def stop_tracking(self): self.calls.append("stop")
         def disconnect(self): self.calls.append("disconnect")
+        def play_from(self, video, start_s): self.calls.append(("play_from", round(start_s, 2)))
+        def play_loop(self, video=None): self.calls.append("play_loop")
+        def set_done_callback(self, cb): self.done_cb = cb
     monkeypatch.setattr(mc, "WebcamSource", FakeSrc)
 
     p, v = pane
@@ -190,6 +193,9 @@ def test_overlay_uses_the_stored_track_and_keeps_sources_apart(pane, monkeypatch
         def start_tracking(self, cb): pass
         def stop_tracking(self): pass
         def disconnect(self): pass
+        def play_from(self, video, start_s): self.calls.append(("play_from", round(start_s, 2)))
+        def play_loop(self, video=None): self.calls.append("play_loop")
+        def set_done_callback(self, cb): self.done_cb = cb
     monkeypatch.setattr(mc, "WebcamSource", FakeSrc)
 
     p, v = pane
@@ -459,3 +465,60 @@ def test_review_player_mirrors_own_takes_like_the_overlay(pane, monkeypatch, qap
     vv.set_mirrored(False)
     shot = vv.grab().toImage()
     assert shot.pixelColor(10, cy).name() == "#ff0000"
+
+
+def test_overlay_starts_at_the_player_position_and_hands_it_back(pane, monkeypatch):
+    """Switching the overlay on continues where the plain player was; when
+    the clip runs out it loops from the top; switching off seeks the player
+    to where the overlay stopped."""
+    import capture.mediapipe_capture as mc
+    made = []
+
+    class FakeSrc:
+        def __init__(self, camera_index=0, flip_handedness=False, replay_path=""):
+            self.replay_path = replay_path; self.replay_mirror = None; self.replay_track = True
+            self.calls = []; made.append(self)
+        def connect(self): pass
+        def configure(self, **k): pass
+        def set_preview_callback(self, cb): pass
+        def enable_preview(self, on): pass
+        def enable_face(self, on, *a): pass
+        def start_tracking(self, cb): self.calls.append("start")
+        def stop_tracking(self): pass
+        def disconnect(self): pass
+        def play_from(self, video, start_s): self.calls.append(("play_from", round(start_s, 2)))
+        def play_loop(self, video=None): self.calls.append("play_loop")
+        def set_done_callback(self, cb): self.done_cb = cb
+    monkeypatch.setattr(mc, "WebcamSource", FakeSrc)
+
+    p, v = pane
+    take = v.begin_take("rest"); take.parent.mkdir(parents=True, exist_ok=True)
+    take.write_bytes(b"x"); v.mark_recorded("rest", str(take)); p.show_step("rest")
+    monkeypatch.setattr(p._player, "position", lambda: 12300)
+    seeks = []
+    monkeypatch.setattr(p._player, "setPosition", lambda ms: seeks.append(ms))
+
+    p._overlay_cb.setChecked(True)
+    assert ("play_from", 12.3) in made[0].calls and "ab 12,3 s" in p._last_status
+    p._on_preview({"jpeg": "", "landmarks": [], "face": [], "frame": 480, "t": 15.9}, "overlay")
+    made[0].done_cb()                                   # clip ran out → from the top
+    assert made[0].calls[-2:] == ["play_loop", "start"]
+
+    p._overlay_cb.setChecked(False)
+    assert seeks == [15900] and not p.overlay_active
+
+    # from the beginning there is nothing to skip: a plain loop
+    monkeypatch.setattr(p._player, "position", lambda: 0)
+    p._overlay_cb.setChecked(True)
+    assert made[1].calls[0] == "play_loop" and "ab " not in p._last_status
+    p._overlay_cb.setChecked(False)
+    assert seeks[-1] == 0
+
+
+def test_deface_choice_is_visible_before_recording(pane):
+    p, v = pane
+    p.show_step("tap_right")                            # idle, nothing filmed yet
+    assert p._deface_cb.isVisibleTo(p)
+    take = v.begin_take("tap_right"); take.parent.mkdir(parents=True, exist_ok=True)
+    take.write_bytes(b"x"); v.mark_recorded("tap_right", str(take)); p.show_step("tap_right")
+    assert p._deface_cb.isVisibleTo(p)                  # still open in review

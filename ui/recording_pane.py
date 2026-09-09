@@ -71,6 +71,7 @@ class RecordingPane(QWidget):
     statusChanged = pyqtSignal(str, bool)  # (text, is_error) for the footer
     busyChanged = pyqtSignal(bool)         # True while a take is in progress
     detailsRequested = pyqtSignal(str)     # step id: open the measurement's details
+    _overlayDone = pyqtSignal()            # the overlay replay reached the end of the clip
 
     _overlay_src = None                    # sidecar replaying the take with landmarks
     extra_rows = None                      # host hook: step → [(label, value)] for the info panel
@@ -97,6 +98,8 @@ class RecordingPane(QWidget):
         # whichever had written last.
         self._previews: dict = {"live": None, "overlay": None, "analysis": None}
         self._overlay_track: dict | None = None    # stored track being replayed
+        self._overlay_t = 0.0                      # seconds into the clip the overlay shows
+        self._overlayDone.connect(self._on_overlay_done)
         # After a take is confirmed it goes through a small pipeline, one step
         # at a time: analyse (on the raw take, full quality) → compact it into
         # the archive clip → drop the raw file if so configured. Queued, so the
@@ -357,7 +360,9 @@ class RecordingPane(QWidget):
             self._view.setCurrentWidget(self._video if phase == REVIEW else self._preview)
         self._bar.setVisible(phase in (COUNTDOWN, RECORDING) or bool(self._analysing))
         self._overlay_cb.setVisible(phase == REVIEW)
-        self._deface_cb.setVisible(phase == REVIEW and not confirmed)
+        # The privacy choice is made *for this recording*: visible from the
+        # moment the step is open until the take is confirmed.
+        self._deface_cb.setVisible(bool(step) and phase in (IDLE, REVIEW) and not confirmed)
         if phase != REVIEW:
             self._stop_overlay()
 
@@ -386,8 +391,9 @@ class RecordingPane(QWidget):
             return
         step = self._step
         if on and step is not None and step.clip_path:
+            pos_s = max(0.0, self._player.position() / 1000.0)
             self._set_phase(self._phase)          # switch the view first …
-            self._start_overlay(step.clip_path)   # … so the overlay's status note survives
+            self._start_overlay(step.clip_path, start_s=pos_s)   # … keeps the status note
         else:
             self._stop_overlay()
             self._set_phase(self._phase)
@@ -409,7 +415,7 @@ class RecordingPane(QWidget):
             log.warning("Overlay-Track nicht lesbar: %s", seg.track_path, exc_info=True)
             return None
 
-    def _start_overlay(self, clip_path: str) -> None:
+    def _start_overlay(self, clip_path: str, start_s: float = 0.0) -> None:
         """Play the take with its landmarks — the stored ones where they exist.
 
         With a stored track the sidecar only decodes and streams frames
@@ -426,6 +432,14 @@ class RecordingPane(QWidget):
             src = WebcamSource(replay_path=str(clip_path))
             src.replay_mirror = source_mirrored("webcam")
             src.replay_track = track is None
+            # Pick up where the plain player was; the clip then runs to its
+            # end once and continues looping from the top (_on_overlay_done).
+            if start_s > 0.2:
+                src.play_from(str(clip_path), start_s)
+            else:
+                start_s = 0.0
+                src.play_loop(str(clip_path))
+            src.set_done_callback(lambda: self._overlayDone.emit())
             src.connect()
             src.configure(num_hands=2, preview_fps=15)
             src.set_preview_callback(lambda m: self._on_preview(m, "overlay"))
@@ -441,13 +455,26 @@ class RecordingPane(QWidget):
             return
         self._overlay_src = src
         self._overlay_track = track
+        self._overlay_t = start_s
         self._player.pause()
         self._previews["overlay"] = None
         self._preview.set_placeholder("Wiedergabe mit Tracking wird gestartet …")
         self._preview.clear()
-        self._status("Overlay: gespeicherte Analyse" if track is not None else
-                     "Overlay: neu berechnet — für diesen Take liegt keine gespeicherte "
-                     "Analyse vor")
+        where = f" (ab {start_s:.1f} s)".replace(".", ",") if start_s else ""
+        self._status(f"Overlay: gespeicherte Analyse{where}" if track is not None else
+                     f"Overlay: neu berechnet{where} — für diesen Take liegt keine "
+                     "gespeicherte Analyse vor")
+
+    def _on_overlay_done(self) -> None:
+        """A replay that started mid-clip reached the end: loop from the top."""
+        src = self._overlay_src
+        if src is None:
+            return
+        try:
+            src.play_loop()
+            src.start_tracking(lambda _f: None)
+        except Exception:
+            log.debug("Overlay konnte nicht von vorn weiterlaufen", exc_info=True)
 
     def _stop_overlay(self) -> None:
         src, self._overlay_src = self._overlay_src, None
@@ -460,6 +487,9 @@ class RecordingPane(QWidget):
         except Exception:
             log.debug("Overlay-Sidecar konnte nicht sauber beendet werden", exc_info=True)
         if self._phase == REVIEW and self._player.source().isValid():
+            # Hand the position back: the plain player continues where the
+            # overlay replay was, instead of jumping to wherever it paused.
+            self._player.setPosition(int(self._overlay_t * 1000))
             self._player.play()
 
     @property
@@ -802,6 +832,8 @@ class RecordingPane(QWidget):
     # ── frame loop ───────────────────────────────────────────────
     def _on_preview(self, msg: dict, source: str = "live") -> None:
         self._previews[source] = msg    # reader thread: only store, never draw
+        if source == "overlay" and msg.get("t") is not None:
+            self._overlay_t = float(msg["t"])
 
     def _current_preview(self):
         """(message, source) of whatever the pane is showing right now."""

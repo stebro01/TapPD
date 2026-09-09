@@ -253,6 +253,22 @@ class WebcamSource(BaseCaptureDevice):
         self._loop = False
         self._realtime = bool(realtime)
 
+    def play_from(self, video: str, start_s: float) -> None:
+        """Review replay that begins at ``start_s`` and runs once to the end
+        (then the done-callback fires); ``play_loop()`` continues from the top."""
+        self.replay_path = video
+        self._range = (float(start_s), None)
+        self._loop = False
+        self._realtime = True
+
+    def play_loop(self, video: str | None = None) -> None:
+        """Plain looping replay of the whole clip (the default)."""
+        if video:
+            self.replay_path = video
+        self._range = None
+        self._loop = True
+        self._realtime = True
+
     def start_recording(self, callback: Callable[[HandFrame], None]) -> None:
         if not self.is_connected():
             self.connect()

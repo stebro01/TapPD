@@ -116,6 +116,13 @@ Versionierung: SemVer-artig (0.x = Forschungsprototyp).
   verweist darauf statt auf den Clip. Der Dialog stürzt bei älteren
   Video-Messungen (Clip als `raw_data_path`) nicht mehr ab, sondern sagt, dass
   Kurven erst nach „Neu auswerten" da sind.
+- **Overlay an der Player-Position**: das Tracking-Overlay setzt dort ein,
+  wo der Abspiel-Player gerade steht (Sidecar-`start` mit `start_s`, läuft
+  einmal bis zum Ende, dann Schleife von vorn); beim Ausschalten springt der
+  Player an die Stelle des Overlays. `preview`-Meldungen einer Wiedergabe
+  tragen dafür `t` (Sekunden im Clip).
+- Die Checkbox **„Gesicht unkenntlich machen"** ist schon vor der Aufnahme
+  sichtbar, nicht erst bei der Sichtung — die Wahl gilt je Take.
 - **Notizen mit Anhängen** an Sitzung, Aufnahme-Schritt, Import und Messung
   (Rechtsklick → „Notiz…", `ui/note_dialog.py`): eine Notiz je Eintrag in
   `NOTE_FACT` (CATEGORY_CHAR = Art, NAME_CHAR = Bezug, NOTE_TEXT, NOTE_BLOB

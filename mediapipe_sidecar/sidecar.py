@@ -502,6 +502,8 @@ class Sidecar:
                         last_preview = now
                         payload = self._preview_payload(frame_bgr, None, None)
                         payload["frame"] = frame_idx - 1
+                        if is_video:   # seconds into the file, so the app can seek its player there
+                            payload["t"] = round(max(0.0, (cap.get(cv2.CAP_PROP_POS_FRAMES) - 1) / vid_fps), 3)
                         self._send(payload)
                     continue
 
@@ -555,6 +557,8 @@ class Sidecar:
                     payload = self._preview_payload(frame_bgr, result,
                                                     self._last_face_result if self._face_on else None)
                     payload["frame"] = frame_idx - 1
+                    if is_video:   # seconds into the file, so the app can seek its player there
+                        payload["t"] = round(max(0.0, (cap.get(cv2.CAP_PROP_POS_FRAMES) - 1) / vid_fps), 3)
                     self._send(payload)
         finally:
             cap.release()
