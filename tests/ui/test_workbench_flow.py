@@ -177,19 +177,21 @@ def test_actions_follow_the_step_state(protocol_session, app):
     wb, s, v = protocol_session
     labels = lambda key: [a[0] for a in wb._actions_for(key)]
 
-    assert labels(("step", s.id, "rest")) == ["● Aufnehmen", "Schritt entfernen…"]
+    assert labels(("step", s.id, "rest")) == ["● Aufnehmen", "📝 Notiz…", "Schritt entfernen…"]
 
     _fake_take(app, v, "rest"); v.confirm_step("rest"); v.save(); wb.refresh(); app.pump()
     assert labels(("step", s.id, "rest")) == [
-        "↻ Erneut aufnehmen", "⟳ Neu auswerten", "Paradigma / Seite ändern…", "Schritt entfernen…"]
+        "↻ Erneut aufnehmen", "⟳ Neu auswerten", "Paradigma / Seite ändern…", "📝 Notiz…",
+        "Schritt entfernen…"]
 
     _fake_take(app, v, "head_turn"); v.confirm_step("head_turn"); v.save(); wb.refresh(); app.pump()
     # a documentation step is never analysed → no analysis actions
-    assert labels(("step", s.id, "head_turn")) == ["↻ Erneut aufnehmen", "Schritt entfernen…"]
+    assert labels(("step", s.id, "head_turn")) == ["↻ Erneut aufnehmen", "📝 Notiz…",
+                                                    "Schritt entfernen…"]
 
     assert labels(("session", s.id)) == [
         "● Aufnahme fortsetzen", "＋ Protokoll aufnehmen…", "＋ Einzelnes Paradigma…",
-        "＋ Video importieren…", "Sitzung löschen…"]
+        "＋ Video importieren…", "📝 Notiz…", "Sitzung löschen…"]
 
 
 def test_single_interactive_paradigm_runs_live_not_as_a_step(workbench, app, monkeypatch):
@@ -331,3 +333,62 @@ def test_retake_asks_and_removes_the_measurement_of_the_old_take(protocol_sessio
     conn = get_db()
     assert [x.id for x in get_measurements(conn, app.patient.id)] == []
     conn.close()
+
+
+def test_note_on_a_step_is_saved_marked_and_shown(protocol_session, app, monkeypatch, tmp_path):
+    """Right-click → Notiz…: text + attachment land in NOTE_FACT, the tree
+    marks the item, the recording pane's info panel shows the note."""
+    from storage import attachments as att
+    from storage.database import get_db, get_notes
+    from ui import note_dialog as nd
+    from ui import patient_workbench as pw
+    monkeypatch.setattr(att, "ATTACHMENTS_DIR", tmp_path / "attachments")
+    wb, s, v = protocol_session
+    labels = [a[0] for a in wb._actions_for(("step", s.id, "tap_right"))]
+    assert "📝 Notiz…" in labels and labels[-1] == "Schritt entfernen…"
+
+    photo = tmp_path / "hand.jpg"; photo.write_bytes(b"jpg")
+
+    class AutoDialog(nd.NoteDialog):
+        def exec(self):
+            self._text.setPlainText("Tremor sichtbar, Patient nervös")
+            self.add_file(str(photo))
+            self.accept()
+            return 1
+    monkeypatch.setattr(nd, "NoteDialog", AutoDialog)
+
+    next(a for a in wb._actions_for(("step", s.id, "tap_right")) if a[0].startswith("📝"))[1]()
+    app.pump()
+    conn = get_db(); (n,) = get_notes(conn, app.patient.id); conn.close()
+    assert n.kind == "step" and n.ref == f"{s.id}:tap_right" and n.text.startswith("Tremor")
+    assert n.attachments[0]["name"] == "hand.jpg" and (tmp_path / "attachments").exists()
+
+    rows = _rows(wb)
+    assert any("Finger-Tapping rechts" in r[1] and "📝📎1" in r[2] for r in rows)
+    assert [a[0] for a in wb._actions_for(("step", s.id, "tap_right"))][-2] == "📝 Notiz bearbeiten…"
+
+    _fake_take(app, v, "tap_right"); v.confirm_step("tap_right"); v.save(); wb.refresh(); app.pump()
+    wb._select(("step", s.id, "tap_right")); app.pump()
+    lines = wb._rec._meta.texts()
+    assert "Notiz: Tremor sichtbar, Patient nervös" in lines and "Anhänge: hand.jpg" in lines
+
+    # deleting through the dialog removes note and file
+    class DeleteDialog(nd.NoteDialog):
+        def exec(self):
+            self.deleted = True
+            self.accept()
+            return 1
+    monkeypatch.setattr(nd, "NoteDialog", DeleteDialog)
+    next(a for a in wb._actions_for(("step", s.id, "tap_right")) if a[0].startswith("📝"))[1]()
+    app.pump()
+    conn = get_db(); assert get_notes(conn, app.patient.id) == []; conn.close()
+    assert not (tmp_path / "attachments" / "T001" / f"step_{s.id}_tap_right").exists()
+
+
+def test_note_actions_exist_for_session_import_and_measurement(protocol_session, app):
+    wb, s, v = protocol_session
+    from tests.ui.test_screens_smoke import _measurement
+    m = _measurement(app)
+    wb.refresh(); app.pump()
+    assert "📝 Notiz…" in [a[0] for a in wb._actions_for(("session", s.id))]
+    assert "📝 Notiz…" in [a[0] for a in wb._actions_for(("measurement", m.id))]

@@ -116,6 +116,19 @@ Versionierung: SemVer-artig (0.x = Forschungsprototyp).
   verweist darauf statt auf den Clip. Der Dialog stürzt bei älteren
   Video-Messungen (Clip als `raw_data_path`) nicht mehr ab, sondern sagt, dass
   Kurven erst nach „Neu auswerten" da sind.
+- **Notizen mit Anhängen** an Sitzung, Aufnahme-Schritt, Import und Messung
+  (Rechtsklick → „Notiz…", `ui/note_dialog.py`): eine Notiz je Eintrag in
+  `NOTE_FACT` (CATEGORY_CHAR = Art, NAME_CHAR = Bezug, NOTE_TEXT, NOTE_BLOB
+  mit Anhang-Liste; neue Spalte `NOTE_BLOB` per Inline-Migration), Dateien
+  kopiert nach `data/attachments/<Patient>/<Art_Bezug>/`
+  (`storage/attachments.py`). Baum markiert Einträge mit 📝/📎n, Tooltip
+  zeigt den Text; Aufnahme-Info und Messungs-Ansicht führen die Notiz auf.
+  Löschen einer Messung oder Sitzung räumt ihre Notizen mit weg.
+- **Rechts/Links im Player**: der Abspiel-Player zeigte eigene Takes so, wie
+  sie gespeichert sind (roh, ungespiegelt), das Overlay aber gespiegelt.
+  Neuer `VideoView` (QVideoSink) spiegelt eigene Takes unter der
+  Webcam-Einstellung und importierte Videos unter ihrem Flag — Player,
+  Vorschau und Overlay zeigen dieselbe Seite.
 - **Metadaten je Aufnahme** (`video/meta.py`, `Segment.meta`): beim Start
   eines Takes werden Kamera (Index + Name), Spiegelung und Händigkeits-Flag,
   Gesichts-Tracking, Take-Nr. und Sidecar-Versionen notiert; das Sidecar

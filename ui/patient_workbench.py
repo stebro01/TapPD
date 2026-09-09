@@ -45,6 +45,10 @@ from PyQt6.QtWidgets import (
 
 from storage.database import (
     Measurement,
+    Note,
+    delete_note,
+    get_notes,
+    save_note,
     Patient,
     Session,
     create_session,
@@ -166,6 +170,7 @@ class PatientWorkbench(QWidget):
         self._sessions: list[Session] = []
         self._measurements: dict[int, list[Measurement]] = {}
         self._orphans: list[Measurement] = []
+        self._notes: dict[tuple, Note] = {}
         self._videos: dict[int, VideoSession] = {}
         self._bound: VideoSession | None = None      # video the panes show
         self._binding = False                        # re-entrancy guard, see _bind
@@ -281,6 +286,7 @@ class PatientWorkbench(QWidget):
         self._rec = RecordingPane()
         self._rec.contentChanged.connect(self._refresh)
         self._rec.detailsRequested.connect(self._on_step_details)
+        self._rec.extra_rows = self._step_note_rows
         self._rec.statusChanged.connect(self._set_status)
         self._rec.busyChanged.connect(self._on_busy)
         from ui.video_lab_screen import VideoLabScreen
@@ -419,6 +425,7 @@ class PatientWorkbench(QWidget):
         self._sessions = get_sessions(conn, self._patient.id)
         self._measurements = {s.id: get_session_measurements(conn, s.id) for s in self._sessions}
         self._orphans = [m for m in get_measurements(conn, self._patient.id) if m.session_id is None]
+        self._notes = {(n.kind, n.ref): n for n in get_notes(conn, self._patient.id)}
         conn.close()
         newest = self._sessions[0].id if self._sessions else None
         videos = {}
@@ -491,9 +498,11 @@ class PatientWorkbench(QWidget):
             kind, status = "Live", f"{len(ms)} Messung{'' if len(ms) == 1 else 'en'}"
         else:
             kind, status = "leer", ""
-        node = QTreeWidgetItem([f"Sitzung {number}  ·  {_fmt_dt(s.started_at)}  ·  {kind}", status])
+        node = QTreeWidgetItem([f"Sitzung {number}  ·  {_fmt_dt(s.started_at)}  ·  {kind}",
+                                self._mark(status, "session", str(s.id))])
         if v is not None and v.protocol_name:
             node.setToolTip(0, v.protocol_name)
+        self._note_tip(node, "session", str(s.id))
         f = node.font(0); f.setBold(True); node.setFont(0, f)
         self._tag(node, ("session", s.id))
         self.tree.addTopLevelItem(node)
@@ -504,7 +513,9 @@ class PatientWorkbench(QWidget):
                 node.addChild(self._step_node(s.id, v, i, st, used))
             if v.video_path:
                 n_imp = sum(1 for sg in v.segments if not sg.recorded)
-                it = QTreeWidgetItem([f"🎬  Import: {v.video_name or 'Video'}", f"{n_imp} Seg."])
+                it = QTreeWidgetItem([f"🎬  Import: {v.video_name or 'Video'}",
+                                      self._mark(f"{n_imp} Seg.", "import", str(s.id))])
+                self._note_tip(it, "import", str(s.id))
                 self._tag(it, ("import", s.id))
                 node.addChild(it)
         for m in ms:
@@ -531,9 +542,10 @@ class PatientWorkbench(QWidget):
         label = f"{_MARK.get(st.state, '○')}  {i}. {st.title}"
         if not st.is_documentation:
             label += f"  ({st.hand})"
-        it = QTreeWidgetItem([label, result])
+        it = QTreeWidgetItem([label, self._mark(result, "step", f"{sid}:{st.id}")])
         it.setToolTip(0, _STATE.get(st.state, ""))
         it.setToolTip(1, "📋 = in der Akte" if "📋" in result else "")
+        self._note_tip(it, "step", f"{sid}:{st.id}")
         if st.state == STEP_CONFIRMED:
             it.setForeground(0, QColor(theme.ACCENT_DARK))
         self._tag(it, ("step", sid, st.id))
@@ -542,10 +554,78 @@ class PatientWorkbench(QWidget):
     def _measurement_node(self, m: Measurement) -> QTreeWidgetItem:
         mpi = (m.features or {}).get("mpi")
         it = QTreeWidgetItem([f"    {_paradigm_label(m.test_type)}  ({m.hand})",
-                              f"MPI {mpi:.2f}" if isinstance(mpi, (int, float)) else "✔"])
+                              self._mark(f"MPI {mpi:.2f}" if isinstance(mpi, (int, float)) else "✔",
+                                         "measurement", str(m.id))])
         it.setForeground(0, QColor(theme.TEXT_SECONDARY))
+        self._note_tip(it, "measurement", str(m.id))
         self._tag(it, ("measurement", m.id))
         return it
+
+    # ── notes ────────────────────────────────────────────────────
+    def _note(self, kind: str, ref: str) -> Note | None:
+        return self._notes.get((kind, ref))
+
+    def _mark(self, text: str, kind: str, ref: str) -> str:
+        """Result-column text with the note marker when the item has one."""
+        n = self._note(kind, ref)
+        if n is None:
+            return text
+        mark = "📝" + (f"📎{len(n.attachments)}" if n.attachments else "")
+        return f"{text}  {mark}" if text else mark
+
+    def _note_tip(self, item, kind: str, ref: str) -> None:
+        n = self._note(kind, ref)
+        if n is not None:
+            tip = n.text or ""
+            if n.attachments:
+                tip += ("\n" if tip else "") + "Anhänge: " + ", ".join(
+                    a.get("name", "?") for a in n.attachments)
+            item.setToolTip(1, tip)
+            item.setForeground(1, QColor(theme.PRIMARY_DARK))
+
+    def _note_rows(self, kind: str, ref: str) -> list[tuple[str, str]]:
+        n = self._note(kind, ref)
+        if n is None:
+            return []
+        rows = []
+        if n.text:
+            rows.append(("Notiz", n.text))
+        if n.attachments:
+            rows.append(("Anhänge", ", ".join(a.get("name", "?") for a in n.attachments)))
+        return rows
+
+    def _step_note_rows(self, step) -> list[tuple[str, str]]:
+        v = self._bound
+        if v is None or step is None or v.db_session_id is None:
+            return []
+        return self._note_rows("step", f"{v.db_session_id}:{step.id}")
+
+    def _edit_note(self, kind: str, ref: str, session_id: int | None, title: str) -> None:
+        if self._patient is None:
+            return
+        from ui.note_dialog import NoteDialog
+        note = self._note(kind, ref) or Note(patient_id=self._patient.id, session_id=session_id,
+                                              kind=kind, ref=ref)
+        dlg = NoteDialog(self, title, note, self._patient.patient_code)
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return
+        conn = get_db()
+        try:
+            if dlg.deleted or dlg.is_empty:
+                if note.id:
+                    delete_note(conn, note.id, remove_files=False)   # dialog removed the files
+                self._set_status("Notiz entfernt.")
+            else:
+                save_note(conn, dlg.note)
+                self._set_status("Notiz gespeichert.")
+        finally:
+            conn.close()
+        self.refresh()
+        self._rec._refresh_meta() if self._work.currentWidget() is self._rec else None
+
+    def _note_action(self, kind: str, ref: str, session_id, title: str):
+        label = "📝 Notiz bearbeiten…" if self._note(kind, ref) else "📝 Notiz…"
+        return (label, lambda: self._edit_note(kind, ref, session_id, title))
 
     def _tag(self, item, key: tuple) -> None:
         self._node[id(item)] = {"key": key}
@@ -671,7 +751,8 @@ class PatientWorkbench(QWidget):
                 f"{_fmt_dt(m.recorded_at)}  ·  {m.duration_s:g} s  ·  Quelle: {m.source_kind or '–'}"
                 + (f"  ·  MPI {mpi:.2f}" if isinstance(mpi, (int, float)) else ""))
             from video.meta import describe_measurement, measurement_issues
-            self._m_meta.set_content(describe_measurement(m), measurement_issues(m))
+            self._m_meta.set_content(self._note_rows("measurement", str(m.id))
+                                     + describe_measurement(m), measurement_issues(m))
             self._work.setCurrentWidget(self._detail)
 
     def _measurement_by_id(self, mid: int) -> Measurement | None:
@@ -778,6 +859,8 @@ class PatientWorkbench(QWidget):
             out.append(("＋ Protokoll aufnehmen…", self._add_protocol))
             out.append(("＋ Einzelnes Paradigma…", self._add_single))
             out.append(("＋ Video importieren…", self._add_import))
+            out.append(self._note_action("session", str(s.id), s.id,
+                                         f"Sitzung vom {_fmt_dt(s.started_at)}"))
             out.append(("Sitzung löschen…", lambda: self._delete_session(s)))
         elif kind == "step":
             v = self._videos.get(key[1]); st = v.step(key[2]) if v else None
@@ -792,14 +875,20 @@ class PatientWorkbench(QWidget):
                     out.append(("Paradigma / Seite ändern…", lambda: self._relabel(v, st)))
             else:
                 out.append(("● Aufnehmen", lambda: self._select(key)))
+            out.append(self._note_action("step", f"{key[1]}:{st.id}", key[1], st.title))
             out.append(("Schritt entfernen…", lambda: self._remove_step(v, st)))
         elif kind == "import":
             v = self._videos.get(key[1])
             out.append(("Im Schnitt-Bereich öffnen", lambda: self._select(key)))
+            out.append(self._note_action("import", str(key[1]), key[1],
+                                         f"Import: {v.video_name or 'Video'}" if v else "Import"))
             out.append(("Video entfernen…", lambda: self._remove_import(v)))
         elif kind == "measurement":
             m = self._measurement_by_id(key[1])
             out.append(("Details…", lambda: self._show_measurement(m)))
+            if m is not None:
+                out.append(self._note_action("measurement", str(m.id), m.session_id,
+                                             f"{_paradigm_label(m.test_type)} ({m.hand})"))
             out.append(("Messung löschen…", lambda: self._delete_measurement(m)))
         return out
 

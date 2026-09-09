@@ -151,7 +151,7 @@ def test_overlay_toggle_replays_the_take_through_a_sidecar(pane, monkeypatch):
     take = v.begin_take("rest"); take.parent.mkdir(parents=True, exist_ok=True)
     take.write_bytes(b"x"); v.mark_recorded("rest", str(take)); p.show_step("rest")
     assert p._phase == "review" and p._overlay_cb.isVisibleTo(p)
-    assert type(p._view.currentWidget()).__name__ == "QVideoWidget"
+    assert type(p._view.currentWidget()).__name__ == "VideoView"
 
     p._overlay_cb.setChecked(True)
     assert p.overlay_active and made[0].replay_path == str(take)
@@ -164,7 +164,7 @@ def test_overlay_toggle_replays_the_take_through_a_sidecar(pane, monkeypatch):
 
     p._overlay_cb.setChecked(False)
     assert not p.overlay_active and "disconnect" in made[0].calls
-    assert type(p._view.currentWidget()).__name__ == "QVideoWidget"
+    assert type(p._view.currentWidget()).__name__ == "VideoView"
 
     # leaving review stops it too
     p._overlay_cb.setChecked(True)
@@ -428,3 +428,34 @@ def test_take_provenance_is_captured_and_shown_in_the_info_panel(pane, monkeypat
     assert "Software: MediaPipe 1.0.1  ·  OpenCV 4.12.0" in lines
     p._meta.set_expanded(True)
     assert p._meta.expanded
+
+
+def test_review_player_mirrors_own_takes_like_the_overlay(pane, monkeypatch, qapp):
+    """The stored take is the raw camera view; the review shows it under the
+    webcam mirror setting — the same side the live preview and overlay show."""
+    from PyQt6.QtGui import QImage, QColor
+    from PyQt6.QtCore import Qt
+    p, v = pane
+    monkeypatch.setattr("capture.config.source_mirrored", lambda kind="webcam": True)
+    take = v.begin_take("tap_right")
+    take.parent.mkdir(parents=True, exist_ok=True); take.write_bytes(b"x")
+    v.mark_recorded("tap_right", str(take)); p.show_step("tap_right")
+    assert p._video.mirrored is True
+
+    # left half red, right half blue → mirrored paints blue on the left
+    img = QImage(100, 50, QImage.Format.Format_RGB32)
+    img.fill(QColor("blue"))
+    for x in range(50):
+        for y in range(50):
+            img.setPixelColor(x, y, QColor("red"))
+    from ui.widgets.video_view import VideoView
+    vv = VideoView()                                   # same widget, free-standing
+    vv.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, True)
+    vv.resize(200, 100); vv.set_mirrored(True); vv.show_image(img)
+    shot = vv.grab().toImage()
+    cy = shot.height() // 2                           # the widget keeps a minimum height
+    assert shot.pixelColor(10, cy).name() == "#0000ff"      # blue left
+    assert shot.pixelColor(shot.width() - 10, cy).name() == "#ff0000"     # red right
+    vv.set_mirrored(False)
+    shot = vv.grab().toImage()
+    assert shot.pixelColor(10, cy).name() == "#ff0000"

@@ -18,7 +18,6 @@ from pathlib import Path
 
 from PyQt6.QtCore import QThread, QTimer, QUrl, pyqtSignal
 from PyQt6.QtMultimedia import QAudioOutput, QMediaPlayer
-from PyQt6.QtMultimediaWidgets import QVideoWidget
 from PyQt6.QtWidgets import (
     QCheckBox,
     QHBoxLayout,
@@ -34,6 +33,7 @@ from ui import theme
 from ui.analysis_runner import AnalysisRunner
 from ui.widgets.live_metric_plot import LiveMetricPlot
 from ui.widgets.meta_panel import MetaPanel
+from ui.widgets.video_view import VideoView
 from ui.widgets.webcam_preview import WebcamPreview
 from video.store import STEP_CONFIRMED, STEP_RECORDED, VideoSession
 
@@ -73,6 +73,7 @@ class RecordingPane(QWidget):
     detailsRequested = pyqtSignal(str)     # step id: open the measurement's details
 
     _overlay_src = None                    # sidecar replaying the take with landmarks
+    extra_rows = None                      # host hook: step → [(label, value)] for the info panel
     _take_meta: dict = {}                  # provenance of the take being filmed
 
     def __init__(self, parent=None) -> None:
@@ -122,9 +123,12 @@ class RecordingPane(QWidget):
         self._player = QMediaPlayer(self)
         self._audio = QAudioOutput(self)
         self._player.setAudioOutput(self._audio)
-        self._video = QVideoWidget()
-        self._video.setStyleSheet("background:#000;")
-        self._player.setVideoOutput(self._video)
+        # Not a plain QVideoWidget: our takes are stored raw (unmirrored camera
+        # view) and have to be shown under the webcam mirror setting, like the
+        # live preview and the overlay — otherwise left and right differ
+        # between the player and the overlay.
+        self._video = VideoView()
+        self._player.setVideoSink(self._video.sink)
         self._view.addWidget(self._preview)
         self._view.addWidget(self._video)
         root.addWidget(self._view, 1)
@@ -283,8 +287,13 @@ class RecordingPane(QWidget):
             self._meta.setVisible(False)
             return
         from video.meta import describe_segment, segment_issues
-        self._meta.set_content(describe_segment(self.session, seg, step),
-                               segment_issues(self.session, seg, step))
+        rows = describe_segment(self.session, seg, step)
+        if self.extra_rows is not None:
+            try:
+                rows = list(self.extra_rows(step)) + rows
+            except Exception:
+                log.debug("extra_rows fehlgeschlagen", exc_info=True)
+        self._meta.set_content(rows, segment_issues(self.session, seg, step))
         self._meta.setVisible(True)
 
     def _segment_of(self, step):
@@ -363,6 +372,8 @@ class RecordingPane(QWidget):
             self.busyChanged.emit(self.busy)
 
     def _enter_review(self, clip_path: str) -> None:
+        from capture.config import source_mirrored
+        self._video.set_mirrored(source_mirrored("webcam"))   # own take → webcam setting
         self._player.setSource(QUrl.fromLocalFile(str(clip_path)))
         self._player.play()
         self._set_phase(REVIEW)

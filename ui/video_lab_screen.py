@@ -16,7 +16,7 @@ from PyQt6.QtWidgets import (
     QStyle, QVBoxLayout, QWidget,
 )
 from PyQt6.QtMultimedia import QAudioOutput, QMediaPlayer
-from PyQt6.QtMultimediaWidgets import QVideoWidget
+from ui.widgets.video_view import VideoView
 
 from paradigms import registry
 from paradigms.config import get_unmet_capabilities
@@ -242,10 +242,11 @@ class VideoLabScreen(QWidget):
         self._player = QMediaPlayer(self)
         self._audio = QAudioOutput(self)
         self._player.setAudioOutput(self._audio)
-        self._video_widget = QVideoWidget()
+        # Shows the clip under its own mirror flag (see the "Gespiegelt" box),
+        # so the player agrees with the analysis about left and right.
+        self._video_widget = VideoView()
         self._video_widget.setMinimumHeight(240)
-        self._video_widget.setStyleSheet("background:#000;")
-        self._player.setVideoOutput(self._video_widget)
+        self._player.setVideoSink(self._video_widget.sink)
         self._player.durationChanged.connect(self._timeline_duration)
         self._player.positionChanged.connect(lambda ms: self._timeline.setPosition(ms))
         vrow.addWidget(self._video_widget, 1)
@@ -445,6 +446,7 @@ class VideoLabScreen(QWidget):
         self._mirror_cb.blockSignals(True)
         self._mirror_cb.setChecked(bool(video.mirrored))
         self._mirror_cb.blockSignals(False)
+        self._video_widget.set_mirrored(bool(video.mirrored))
         if video.video_path:
             from video.clip import VideoClip
             self._player.setSource(QUrl.fromLocalFile(video.video_path))
@@ -511,6 +513,7 @@ class VideoLabScreen(QWidget):
         if self.session is None:
             return
         mirrored = self._mirror_cb.isChecked()
+        self._video_widget.set_mirrored(mirrored)
         if mirrored == self.session.mirrored:
             return
         self.session.mirrored = mirrored

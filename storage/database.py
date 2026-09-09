@@ -232,6 +232,10 @@ def _ensure_schema(conn: sqlite3.Connection) -> None:
 def _migrate_v2(conn: sqlite3.Connection) -> None:
     """Inline migrations for existing v2 star schema databases."""
     # Add LOOKUP_BLOB column to CODE_LOOKUP if missing
+    note_cols = {r[1] for r in conn.execute("PRAGMA table_info(NOTE_FACT)").fetchall()}
+    if note_cols and "NOTE_BLOB" not in note_cols:
+        conn.execute("ALTER TABLE NOTE_FACT ADD COLUMN NOTE_BLOB TEXT")
+        conn.commit()
     cols = {r[1] for r in conn.execute("PRAGMA table_info(CODE_LOOKUP)").fetchall()}
     if "LOOKUP_BLOB" not in cols:
         conn.execute("ALTER TABLE CODE_LOOKUP ADD COLUMN LOOKUP_BLOB TEXT")
@@ -360,6 +364,7 @@ def _create_tables(conn: sqlite3.Connection) -> None:
             CATEGORY_CHAR TEXT,
             NAME_CHAR TEXT,
             NOTE_TEXT TEXT,
+            NOTE_BLOB TEXT,
             PATIENT_NUM INTEGER REFERENCES PATIENT_DIMENSION(PATIENT_NUM) ON DELETE CASCADE,
             ENCOUNTER_NUM INTEGER REFERENCES VISIT_DIMENSION(ENCOUNTER_NUM) ON DELETE CASCADE,
             UPDATE_DATE TEXT,
@@ -718,8 +723,112 @@ def get_measurements(conn: sqlite3.Connection, patient_id: int) -> list[Measurem
 
 def delete_measurement(conn: sqlite3.Connection, measurement_id: int) -> None:
     conn.execute("DELETE FROM OBSERVATION_FACT WHERE OBSERVATION_ID=?", (measurement_id,))
+    # A note about the measurement has nothing left to be about.
+    for n in get_notes_for(conn, "measurement", str(measurement_id)):
+        _remove_note_files(n)
+    conn.execute("DELETE FROM NOTE_FACT WHERE CATEGORY_CHAR='MEASUREMENT' AND NAME_CHAR=?",
+                 (str(measurement_id),))
     conn.commit()
     log.info("Messung gelöscht: ID %d", measurement_id)
+
+
+# ── Notes (NOTE_FACT) ───────────────────────────────────────────────
+#
+# One free-text note with attachments per item of the record. The item is
+# addressed the way the workbench tree addresses it:
+#   kind        NAME_CHAR (ref)          ENCOUNTER_NUM
+#   session     "<session id>"           the session
+#   step        "<session id>:<step id>" the session      (a recording step / its take)
+#   import      "<session id>"           the session      (the imported video)
+#   measurement "<observation id>"       the measurement's session (or NULL)
+# CATEGORY_CHAR carries the kind (upper case), NOTE_TEXT the text, NOTE_BLOB
+# {"attachments": [{name, path, size, added_at}]} — the files themselves live
+# in data/attachments (storage.attachments).
+
+NOTE_KINDS = ("session", "step", "import", "measurement")
+
+
+@dataclass
+class Note:
+    id: int | None = None
+    patient_id: int = 0
+    session_id: int | None = None
+    kind: str = "session"
+    ref: str = ""
+    text: str = ""
+    attachments: list = field(default_factory=list)
+    created_at: str = ""
+    updated_at: str = ""
+
+    @property
+    def is_empty(self) -> bool:
+        return not self.text.strip() and not self.attachments
+
+
+def _row_to_note(r) -> Note:
+    d = dict(r)
+    try:
+        blob = json.loads(d.get("NOTE_BLOB") or "{}")
+    except (json.JSONDecodeError, TypeError):
+        blob = {}
+    return Note(id=d["NOTE_ID"], patient_id=d["PATIENT_NUM"], session_id=d.get("ENCOUNTER_NUM"),
+                kind=(d.get("CATEGORY_CHAR") or "").lower(), ref=d.get("NAME_CHAR") or "",
+                text=d.get("NOTE_TEXT") or "", attachments=list(blob.get("attachments") or []),
+                created_at=d.get("CREATED_AT") or "", updated_at=d.get("UPDATE_DATE") or "")
+
+
+def get_notes(conn: sqlite3.Connection, patient_id: int) -> list[Note]:
+    rows = conn.execute("SELECT * FROM NOTE_FACT WHERE PATIENT_NUM=? ORDER BY NOTE_ID",
+                        (patient_id,)).fetchall()
+    return [_row_to_note(r) for r in rows]
+
+
+def get_notes_for(conn: sqlite3.Connection, kind: str, ref: str) -> list[Note]:
+    rows = conn.execute("SELECT * FROM NOTE_FACT WHERE CATEGORY_CHAR=? AND NAME_CHAR=? "
+                        "ORDER BY NOTE_ID", (kind.upper(), ref)).fetchall()
+    return [_row_to_note(r) for r in rows]
+
+
+def save_note(conn: sqlite3.Connection, note: Note) -> Note:
+    """Insert a new note or overwrite the one with ``note.id`` in place."""
+    if note.kind not in NOTE_KINDS:
+        raise ValueError(f"Unbekannte Notiz-Art: {note.kind!r}")
+    blob = json.dumps({"attachments": list(note.attachments)}, default=str)
+    now = datetime.now().isoformat()
+    if note.id:
+        conn.execute("UPDATE NOTE_FACT SET NOTE_TEXT=?, NOTE_BLOB=?, UPDATE_DATE=?, "
+                     "ENCOUNTER_NUM=? WHERE NOTE_ID=?",
+                     (note.text, blob, now, note.session_id, note.id))
+        note.updated_at = now
+    else:
+        cur = conn.execute(
+            "INSERT INTO NOTE_FACT (CATEGORY_CHAR, NAME_CHAR, NOTE_TEXT, NOTE_BLOB, "
+            "PATIENT_NUM, ENCOUNTER_NUM, UPDATE_DATE) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (note.kind.upper(), note.ref, note.text, blob, note.patient_id, note.session_id, now))
+        note.id = cur.lastrowid
+        note.created_at = note.updated_at = now
+    conn.commit()
+    log.info("Notiz gespeichert: %s %s (ID %d)", note.kind, note.ref, note.id)
+    return note
+
+
+def delete_note(conn: sqlite3.Connection, note_id: int, remove_files: bool = True) -> None:
+    if remove_files:
+        row = conn.execute("SELECT * FROM NOTE_FACT WHERE NOTE_ID=?", (note_id,)).fetchone()
+        if row is not None:
+            _remove_note_files(_row_to_note(row))
+    conn.execute("DELETE FROM NOTE_FACT WHERE NOTE_ID=?", (note_id,))
+    conn.commit()
+    log.info("Notiz gelöscht: ID %d", note_id)
+
+
+def _remove_note_files(note: Note) -> None:
+    try:
+        from storage.attachments import remove_attachment
+        for a in note.attachments:
+            remove_attachment(a)
+    except Exception:
+        log.debug("Anhänge konnten nicht entfernt werden", exc_info=True)
 
 
 def delete_patient(conn: sqlite3.Connection, patient_id: int) -> None:

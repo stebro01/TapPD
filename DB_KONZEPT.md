@@ -280,7 +280,7 @@ Klinische Notizen und Dokumentation.
 | CATEGORY_CHAR | TEXT | Notiz-Kategorie |
 | NAME_CHAR | TEXT | Titel |
 | NOTE_TEXT | TEXT | Notizinhalt |
-| NOTE_BLOB | TEXT | Erweiterte Notizdaten |
+| NOTE_BLOB | TEXT | Erweiterte Notizdaten — TapPD: `{"attachments": [{name, path, size, added_at}]}`, Dateien unter `data/attachments/` |
 | **PATIENT_NUM** | INTEGER FK → PATIENT_DIMENSION | Verweis auf Patient |
 | **ENCOUNTER_NUM** | INTEGER FK → VISIT_DIMENSION | Verweis auf Besuch |
 | UPDATE_DATE | TEXT | Letzte Aenderung |
@@ -290,6 +290,19 @@ Klinische Notizen und Dokumentation.
 | UPLOAD_ID | NUMERIC | Upload-Batch-ID |
 
 **Indizes:** `idx_note_patient_num`, `idx_note_encounter_num`, `idx_note_category`
+
+**TapPD-Nutzung (`storage.database.Note`):** eine Notiz je Eintrag der Akte.
+`CATEGORY_CHAR` traegt die Art des Eintrags, `NAME_CHAR` den Bezug:
+
+| Art (`CATEGORY_CHAR`) | `NAME_CHAR` | `ENCOUNTER_NUM` |
+|---|---|---|
+| SESSION | `<Sitzungs-ID>` | die Sitzung |
+| STEP | `<Sitzungs-ID>:<Schritt-ID>` (Aufnahme-Schritt / Take) | die Sitzung |
+| IMPORT | `<Sitzungs-ID>` (das importierte Video) | die Sitzung |
+| MEASUREMENT | `<OBSERVATION_ID>` | Sitzung der Messung |
+
+Loeschen einer Messung entfernt ihre Notiz samt Dateien (`delete_measurement`),
+Loeschen einer Sitzung per FK-Kaskade.
 
 ---
 
