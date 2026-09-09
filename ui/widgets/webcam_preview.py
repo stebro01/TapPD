@@ -40,12 +40,16 @@ class WebcamPreview(QWidget):
         if self._pixmap is None:
             self.update()
 
-    def set_frame(self, jpeg_b64: str, landmarks: list, face: list | None = None) -> None:
+    def set_frame(self, jpeg_b64: str, landmarks: list, face: list | None = None,
+                  iris: list | None = None) -> None:
+        """``iris``: two normalized points drawn like the face mesh's iris
+        markers — for a stored track that kept only the eye reference."""
         if jpeg_b64:
             img = QImage.fromData(base64.b64decode(jpeg_b64), "JPG")
             self._pixmap = QPixmap.fromImage(img) if not img.isNull() else None
         self._landmarks = landmarks or []
         self._face = face or []
+        self._iris = iris or []
         self.update()
 
     def clear(self) -> None:
@@ -88,6 +92,12 @@ class WebcamPreview(QWidget):
             p.setPen(Qt.PenStyle.NoPen)
             p.setBrush(QColor("#FFEB3B"))
             for lm in hand:
+                p.drawEllipse(pt(lm), 3, 3)
+
+        if getattr(self, "_iris", None):
+            p.setPen(Qt.PenStyle.NoPen)
+            p.setBrush(QColor("#FF4081"))
+            for lm in self._iris:
                 p.drawEllipse(pt(lm), 3, 3)
 
         # Face mesh (478 points; indices 468-477 are the iris/eyes).

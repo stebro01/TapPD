@@ -102,7 +102,12 @@ Versionierung: SemVer-artig (0.x = Forschungsprototyp).
   einer interaktiven Aufgabe wird beim Laden abgelehnt.
 - Aufnahme-Optionen: **„Gesicht unkenntlich machen"** pro Take (Vorgabe aus
   `privacy.deface`), **„Tracking-Overlay"** beim Ansehen eines bestätigten
-  Takes — Wiedergabe über den Sidecar mit Landmarken statt des Players.
+  Takes: die Analyse legt ihre Landmarken pro Frame als `seg_XXX.track.json`
+  ab, das Overlay zeichnet **diese** über den vom Sidecar nur dekodierten Clip
+  (`track:false`) — was gemessen wurde, nicht eine neue Erkennung. Ohne
+  gespeicherte Analyse (ältere Takes) wird live nachgerechnet, mit Hinweis.
+- Vorschau-Quellen (Live-Kamera, Overlay, Analyse) sind getrennt; vorher
+  sprang die Anzeige zwischen Kamerabild und abgespieltem Take hin und her.
 - Während einer (Neu-)Auswertung zeigt der Arbeitsbereich den Take mit
   Landmarken-Overlay, Fortschritt und großer Messkurve statt des stummen
   Abspiel-Players; Clips werden für die Analyse nicht mehr in Echtzeit

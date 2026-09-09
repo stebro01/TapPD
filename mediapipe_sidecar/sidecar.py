@@ -197,6 +197,7 @@ class Sidecar:
         self._video_mirror = False      # per-clip, set with the "start" command
         self._frames_mirrored = False   # what the running capture actually does
         self._realtime = True           # throttle video replay to the clip's fps
+        self._track = True              # run the landmarkers (False = frames only)
         self._capture_thread: threading.Thread | None = None
         self._closing = threading.Event()   # tells the camera thread to exit
         self._quit = threading.Event()      # process should terminate
@@ -275,6 +276,9 @@ class Sidecar:
             # realtime=False: replay a clip as fast as MediaPipe can chew it —
             # for analysis, where nobody watches the frames go by.
             self._realtime = bool(msg.get("realtime", True))
+            # track=False: decode and stream frames only, no MediaPipe at all —
+            # for replaying an archived take under a *stored* overlay.
+            self._track = bool(msg.get("track", True))
             self.start(int(msg.get("index", 0)), msg.get("video") or None,
                        None if ss is None else float(ss),
                        None if ee is None else float(ee),
@@ -491,6 +495,16 @@ class Sidecar:
 
                 self._maybe_record(raw_bgr)   # write live frames to a clip if requested
 
+                if not self._track:
+                    # Frames only: the app draws a stored track over them.
+                    now = time.perf_counter()
+                    if self._preview_on and (now - last_preview) >= (1.0 / self._preview_fps):
+                        last_preview = now
+                        payload = self._preview_payload(frame_bgr, None, None)
+                        payload["frame"] = frame_idx - 1
+                        self._send(payload)
+                    continue
+
                 frame_rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
                 mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=frame_rgb)
                 # Absolute monotonic ms; strictly greater than the last value so
@@ -527,7 +541,10 @@ class Sidecar:
 
                 h0, w0 = frame_bgr.shape[:2]
                 hands = self._hands_payload(result, w0, h0, self._frames_mirrored)
-                msg = {"type": "hand", "ts": int(time.time() * 1_000_000), "hands": hands}
+                # frame / w / h let the app keep a per-frame track of the
+                # analysis (image landmarks) and replay it over the archived clip.
+                msg = {"type": "hand", "ts": int(time.time() * 1_000_000), "hands": hands,
+                       "frame": frame_idx - 1, "w": w0, "h": h0}
                 if self._face_on and self._last_iris_px is not None:
                     msg["iris_px"] = self._last_iris_px
                     msg["iris_age_ms"] = int(ts_ms - self._last_iris_ts_ms)
@@ -535,8 +552,10 @@ class Sidecar:
 
                 if self._preview_on and (now - last_preview) >= (1.0 / self._preview_fps):
                     last_preview = now
-                    self._send(self._preview_payload(frame_bgr, result,
-                                                     self._last_face_result if self._face_on else None))
+                    payload = self._preview_payload(frame_bgr, result,
+                                                    self._last_face_result if self._face_on else None)
+                    payload["frame"] = frame_idx - 1
+                    self._send(payload)
         finally:
             cap.release()
             if self._writer is not None:
@@ -582,6 +601,8 @@ class Sidecar:
                     sum(lms[j].x for j in _PALM_ANCHORS) / len(_PALM_ANCHORS) * w,
                     sum(lms[j].y for j in _PALM_ANCHORS) / len(_PALM_ANCHORS) * h,
                 ]
+                # Normalized image landmarks: what an overlay needs, per frame.
+                entry["image"] = [[round(lm.x, 4), round(lm.y, 4)] for lm in lms]
             hands.append(entry)
         return hands
 

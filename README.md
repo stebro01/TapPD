@@ -159,7 +159,10 @@ pip install -r requirements.txt
    **„Gesicht unkenntlich machen"** pro Take ueber das Defacing des Archivs
    (Vorgabe aus `video.yaml`); die Analyse laeuft immer auf dem unveraenderten
    Take. **„Tracking-Overlay"** spielt einen bestaetigten Take mit den
-   erkannten Hand-/Gesichtspunkten ab
+   Landmarken ab, die die Analyse **gemessen** hat (gespeichert als
+   `seg_XXX.track.json` neben dem Clip) — nicht neu berechnet, was auf einem
+   verwischten Archiv auch nicht ginge. Nur fuer Takes ohne gespeicherte
+   Analyse wird live nachgerechnet; die Statuszeile sagt, welcher Fall vorliegt
 5. **Rechtsklick** auf einen Schritt: erneut aufnehmen, **neu auswerten**
    (aktualisiert dieselbe Messung), **Paradigma/Seite aendern** (loescht das
    alte Ergebnis, wertet neu aus), entfernen. Auf eine Sitzung: Inhalt

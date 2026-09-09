@@ -15,6 +15,8 @@ modalities (face/eye) can be added without breaking changes.
 | | `mirror`: mirror the **live camera** (selfie view). Video replay is not covered here — a clip brings its own flag with `start` |
 | `{"cmd":"start","index":0}` | open camera `index` and begin streaming `hand` frames |
 | `{"cmd":"start","video":"/path.mp4","mirror":true}` | `mirror` applies to **this clip only** (default `false`); whether a recording is the wrong way round depends on the device that made it, so it is decided per video, not globally |
+| `{"cmd":"start","video":"/path.mp4","realtime":false}` | replay as fast as MediaPipe allows instead of at the clip's fps (analysis nobody watches). Default `true` |
+| `{"cmd":"start","video":"/path.mp4","track":false}` | decode and stream `preview` frames only — **no** hand/face inference, no `hand` messages. For replaying an archived take under a *stored* overlay track. Default `true` |
 | `{"cmd":"start","video":"/path.mp4"}` | open a video file instead of a camera (default: loop forever) |
 | `{"cmd":"start","video":"/path.mp4","start_s":2.0,"end_s":7.5,"loop":false}` | play only `[start_s,end_s]` once, then emit `done` (VideoLab). `start_s`/`end_s`/`loop` are optional; no range + `loop:true` (default) = legacy looping |
 | `{"cmd":"stop"}` | stop streaming, keep source warm |
@@ -74,6 +76,13 @@ modalities (face/eye) can be added without breaking changes.
   in `capture/mediapipe_mapping.py`.
 - 21-landmark index order: 0 wrist; 1–4 thumb (CMC, MCP, IP, TIP); 5–8 index
   (MCP, PIP, DIP, TIP); 9–12 middle; 13–16 ring; 17–20 pinky.
+- Every `hand` and `preview` message carries `frame` (0-based index into the
+  source; for a camera a running count), and `hand` messages carry `w`/`h`
+  (frame size in pixels) plus, per hand, `image`: the 21 landmarks in
+  normalized image coordinates. Together these let the main app keep a
+  per-frame track of an analysis and draw it over the archived clip later
+  (`track:false` replay), instead of re-detecting — which a defaced archive
+  could not support anyway.
 - `handedness` is reported as seen in the image the model was given — so when a
   frame is mirrored the label flips with it. The sidecar therefore swaps the
   label back whenever it mirrors (`_handedness()`), reading the same flag it

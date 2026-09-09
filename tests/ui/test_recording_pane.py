@@ -133,6 +133,7 @@ def test_overlay_toggle_replays_the_take_through_a_sidecar(pane, monkeypatch):
     class FakeSrc:
         def __init__(self, camera_index=0, flip_handedness=False, replay_path=""):
             self.replay_path = replay_path; self.replay_mirror = None
+            self.replay_track = True
             self.calls = []; made.append(self)
         def connect(self): self.calls.append("connect")
         def configure(self, **k): self.calls.append(("configure", k))
@@ -153,8 +154,11 @@ def test_overlay_toggle_replays_the_take_through_a_sidecar(pane, monkeypatch):
     p._overlay_cb.setChecked(True)
     assert p.overlay_active and made[0].replay_path == str(take)
     assert made[0].replay_mirror is True                 # own take → webcam setting
+    assert made[0].replay_track is True                  # no stored track → re-track
+    assert ("face", True) in made[0].calls
     assert "start" in made[0].calls and ("preview", True) in made[0].calls
     assert type(p._view.currentWidget()).__name__ == "WebcamPreview"
+    assert "neu berechnet" in p._last_status
 
     p._overlay_cb.setChecked(False)
     assert not p.overlay_active and "disconnect" in made[0].calls
@@ -164,6 +168,59 @@ def test_overlay_toggle_replays_the_take_through_a_sidecar(pane, monkeypatch):
     p._overlay_cb.setChecked(True)
     p.show_step("head_turn")                              # pending → idle
     assert not p.overlay_active
+
+
+def test_overlay_uses_the_stored_track_and_keeps_sources_apart(pane, monkeypatch, tmp_path):
+    """With a track file the sidecar only streams frames and the pane draws
+    the stored landmarks per frame; live-camera previews never bleed in."""
+    import json
+    import capture.mediapipe_capture as mc
+
+    class FakeSrc:
+        def __init__(self, camera_index=0, flip_handedness=False, replay_path=""):
+            self.replay_path = replay_path; self.replay_track = True; self.cb = None
+            self.calls = []
+        def connect(self): pass
+        def configure(self, **k): pass
+        def set_preview_callback(self, cb): self.cb = cb
+        def enable_preview(self, on): pass
+        def enable_face(self, on, *a): self.calls.append(("face", on))
+        def start_tracking(self, cb): pass
+        def stop_tracking(self): pass
+        def disconnect(self): pass
+    monkeypatch.setattr(mc, "WebcamSource", FakeSrc)
+
+    p, v = pane
+    take = v.begin_take("rest"); take.parent.mkdir(parents=True, exist_ok=True)
+    take.write_bytes(b"x"); v.mark_recorded("rest", str(take))
+    seg = v.confirm_step("rest")
+    track = tmp_path / "seg.track.json"
+    hand = [[0.1 * i, 0.2] for i in range(21)]
+    track.write_text(json.dumps({"frames": {"7": {"hands": [["left", hand]],
+                                                   "iris": [[0.4, 0.3], [0.6, 0.3]]}}}))
+    seg.track_path = str(track)
+    p.show_step("rest")
+
+    p._overlay_cb.setChecked(True)
+    src = p._overlay_src
+    assert src.replay_track is False and ("face", False) in src.calls
+    assert "gespeicherte" in p._last_status
+
+    drawn = []
+    monkeypatch.setattr(p._preview, "set_frame",
+                        lambda jpeg, lms, face=None, iris=None: drawn.append((lms, face, iris)))
+    # a live-camera preview arrives too — it must not be shown
+    p._on_preview({"jpeg": "", "landmarks": [[[0, 0]]], "face": [[1, 1]], "hand_handedness": ["Right"]}, "live")
+    src.cb({"jpeg": "", "frame": 7, "landmarks": [], "face": []})
+    p._tick()
+
+    assert drawn[-1][0] == [hand] and drawn[-1][1] == []
+    assert drawn[-1][2] == [[0.4, 0.3], [0.6, 0.3]]
+    assert "1 Hand (links)" in p._detect_lbl.text()
+
+    src.cb({"jpeg": "", "frame": 99, "landmarks": [], "face": []})   # no entry → bare frame
+    p._tick()
+    assert drawn[-1][0] == [] and "keine Hand" in p._detect_lbl.text()
 
 
 def test_switching_steps_is_refused_mid_take(pane):

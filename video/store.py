@@ -39,6 +39,10 @@ class Segment:
     # video.yaml archive:) beside the compact clip in ``clip_path``. Analysis
     # prefers this while it exists: full quality, no deface blur.
     source_path: str = ""
+    # Per-frame landmark track written by the analysis (JSON beside the clip),
+    # so a review overlay shows what was measured, not a fresh re-tracking —
+    # on a defaced archive the face could not be re-tracked anyway.
+    track_path: str = ""
     # analysis results keyed by paradigm key → {features, recorded_at, raw_path}
     results: dict = field(default_factory=dict)
 

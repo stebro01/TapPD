@@ -80,5 +80,12 @@ def test_confirmed_take_is_analysed_archived_and_cleaned_up(qapp, isolated_data,
     if real:
         assert "finger_tapping" in seg.results
         assert exported == ["finger_tapping"]
+        # the analysis leaves its per-frame track beside the clip
+        import json
+        assert seg.track_path and os.path.isfile(seg.track_path)
+        frames = json.load(open(seg.track_path, encoding="utf-8"))["frames"]
+        assert len(frames) > 30
+        any_hand = next(v for v in frames.values() if v["hands"])
+        assert len(any_hand["hands"][0][1]) == 21               # 21 normalized points
     back = VideoSession.load(str(v.save()))
     assert back.segments[0].recorded and back.segments[0].clip_path == seg.clip_path

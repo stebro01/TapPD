@@ -216,6 +216,15 @@ def frames_from_message(msg: dict, flip_handedness: bool = False,
         )
         if frame is not None:
             frame.eye_ref_mm = eye_ref_position_mm(hand.get("palm_px"), iris_px, iris_age)
+            # Overlay bookkeeping: which source frame, and where the hand was
+            # in the image (normalized). Lets an analysis keep a per-frame track
+            # that can be drawn over the archived clip later.
+            frame.frame_index = msg.get("frame")
+            frame.image_landmarks = hand.get("image")
+            w, h = msg.get("w"), msg.get("h")
+            frame.iris_norm = ([[iris_px[0][0] / w, iris_px[0][1] / h],
+                                [iris_px[1][0] / w, iris_px[1][1] / h]]
+                               if iris_px and w and h else None)
             out.append(frame)
             if prev_by_hand is not None:
                 prev_by_hand[frame.hand_type] = frame

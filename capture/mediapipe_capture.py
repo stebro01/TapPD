@@ -57,6 +57,9 @@ class WebcamSource(BaseCaptureDevice):
         # front-camera phone clip is usually already mirrored, a clip filmed by
         # an examiner is not. Set at import; live capture uses sidecar.mirror.
         self.replay_mirror = False
+        # False = the sidecar only decodes and streams frames (no MediaPipe):
+        # for replaying an archived take under its stored analysis overlay.
+        self.replay_track = True
         self._range: tuple[float, float] | None = None  # play-once [start_s, end_s]
         self._loop = True               # False = play the range once, then "done"
         self._recorded_callback = None  # called(path) when a record finishes
@@ -258,7 +261,8 @@ class WebcamSource(BaseCaptureDevice):
                     "video": self.replay_path or None,
                     "start_s": s, "end_s": e, "loop": self._loop,
                     "mirror": bool(self.replay_mirror),
-                    "realtime": bool(getattr(self, "_realtime", True))})
+                    "realtime": bool(getattr(self, "_realtime", True)),
+                    "track": bool(self.replay_track)})
         log.debug("MediaPipe-Aufnahme gestartet (Kamera %d, replay=%s, range=%s)",
                   self.camera_index, self.replay_path or "-", self._range)
 

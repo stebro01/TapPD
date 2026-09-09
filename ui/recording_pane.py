@@ -79,7 +79,6 @@ class RecordingPane(QWidget):
         self._phase = IDLE
         self._current_id = ""
         self._t_left = 0.0
-        self._latest_preview = None
         self._recorded_path: str | None = None   # set from the reader thread
 
         self._runner = AnalysisRunner(self)
@@ -87,8 +86,13 @@ class RecordingPane(QWidget):
         self._runner.failed.connect(self._on_analysis_failed)
         # The analysis replays through its own sidecar; its preview (frame +
         # landmarks) is what the clinician sees while it runs.
-        self._runner.previewReady.connect(self._on_preview)
+        self._runner.previewReady.connect(lambda m: self._on_preview(m, "analysis"))
         self._analysis_t0 = 0.0
+        # One slot per preview source. They used to share one field, and the
+        # picture flipped between the live camera and the replayed take,
+        # whichever had written last.
+        self._previews: dict = {"live": None, "overlay": None, "analysis": None}
+        self._overlay_track: dict | None = None    # stored track being replayed
         # After a take is confirmed it goes through a small pipeline, one step
         # at a time: analyse (on the raw take, full quality) → compact it into
         # the archive clip → drop the raw file if so configured. Queued, so the
@@ -192,7 +196,7 @@ class RecordingPane(QWidget):
         """Use this live camera. The session screen owns its lifecycle."""
         self._device = device
         if device is not None:
-            device.set_preview_callback(self._on_preview)
+            device.set_preview_callback(lambda m: self._on_preview(m, "live"))
             device.set_recorded_callback(lambda p: setattr(self, "_recorded_path", p))
             self._preview.set_placeholder("Kamera wird gestartet …")
         else:
@@ -299,28 +303,51 @@ class RecordingPane(QWidget):
             return
         step = self._step
         if on and step is not None and step.clip_path:
-            self._start_overlay(step.clip_path)
+            self._set_phase(self._phase)          # switch the view first …
+            self._start_overlay(step.clip_path)   # … so the overlay's status note survives
         else:
             self._stop_overlay()
-        self._set_phase(self._phase)
+            self._set_phase(self._phase)
+
+    def _load_track(self):
+        """The stored analysis track of the current step's segment, or None."""
+        step = self._step
+        if step is None or self.session is None or not step.segment_id:
+            return None
+        seg = next((x for x in self.session.segments if x.id == step.segment_id), None)
+        if seg is None or not seg.track_path or not os.path.isfile(seg.track_path):
+            return None
+        try:
+            import json
+            with open(seg.track_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            return {int(k): v for k, v in (data.get("frames") or {}).items()}
+        except Exception:
+            log.warning("Overlay-Track nicht lesbar: %s", seg.track_path, exc_info=True)
+            return None
 
     def _start_overlay(self, clip_path: str) -> None:
-        """Loop the take through a sidecar of its own, showing the landmarks.
+        """Play the take with its landmarks — the stored ones where they exist.
 
-        The plain player cannot draw them; the sidecar's preview stream can.
-        Our own take is stored raw, so it replays under the webcam mirror
-        setting — same picture, same left/right as during the recording."""
+        With a stored track the sidecar only decodes and streams frames
+        (``track=False``) and the pane draws what the analysis measured; the
+        clinician sees exactly the tracking behind the numbers, and a defaced
+        archive works because nothing is re-detected. Without a track (takes
+        from before this existed) the sidecar re-tracks live, and the label
+        says so. Our own take replays under the webcam mirror setting."""
         from capture.mediapipe_capture import WebcamSource
         from capture.config import source_mirrored
         self._stop_overlay()
+        track = self._load_track()
         try:
             src = WebcamSource(replay_path=str(clip_path))
             src.replay_mirror = source_mirrored("webcam")
+            src.replay_track = track is None
             src.connect()
             src.configure(num_hands=2, preview_fps=15)
-            src.set_preview_callback(self._on_preview)
+            src.set_preview_callback(lambda m: self._on_preview(m, "overlay"))
             src.enable_preview(True)
-            src.enable_face(True)
+            src.enable_face(track is None)
             src.start_tracking(lambda _f: None)
         except Exception as e:
             log.warning("Overlay-Wiedergabe nicht möglich: %s", e)
@@ -330,13 +357,18 @@ class RecordingPane(QWidget):
             self._status(f"Overlay nicht möglich: {e}", error=True)
             return
         self._overlay_src = src
+        self._overlay_track = track
         self._player.pause()
-        self._latest_preview = None
+        self._previews["overlay"] = None
         self._preview.set_placeholder("Wiedergabe mit Tracking wird gestartet …")
         self._preview.clear()
+        self._status("Overlay: gespeicherte Analyse" if track is not None else
+                     "Overlay: neu berechnet — für diesen Take liegt keine gespeicherte "
+                     "Analyse vor")
 
     def _stop_overlay(self) -> None:
         src, self._overlay_src = self._overlay_src, None
+        self._overlay_track = None
         if src is None:
             return
         try:
@@ -352,6 +384,7 @@ class RecordingPane(QWidget):
         return self._overlay_src is not None
 
     def _status(self, text: str, error: bool = False) -> None:
+        self._last_status = text
         self.statusChanged.emit(text, error)
 
     # ── actions ──────────────────────────────────────────────────
@@ -472,7 +505,7 @@ class RecordingPane(QWidget):
             # says how far the replay has come — otherwise this looked like a
             # video playing with nothing happening and no end in sight.
             self._player.pause()
-            self._latest_preview = None
+            self._previews["analysis"] = None
             self._preview.set_placeholder("Auswertung wird gestartet …")
             self._preview.clear()
             self._view.setCurrentWidget(self._preview)
@@ -576,6 +609,7 @@ class RecordingPane(QWidget):
             if previous.get("measurement_id"):
                 result["measurement_id"] = previous["measurement_id"]
             seg.results[key] = result
+            self._save_track(session, seg)
             session.save()
             # Into the record straight away — a confirmed, analysed take is a
             # measurement; a re-analysis updates the same one, never a copy.
@@ -594,6 +628,21 @@ class RecordingPane(QWidget):
         # view logic (rightly) keeps the analysis preview on screen.
         self._run_stage("compact")
         self._end_analysis_view()
+
+    def _save_track(self, session, seg) -> None:
+        """Write the analysis' per-frame landmarks next to the segment's clip."""
+        track = self._runner.track_data()
+        if not track:
+            return
+        try:
+            import json
+            dest = str(session.segment_clip_path(seg.id)).rsplit(".", 1)[0] + ".track.json"
+            with open(dest, "w", encoding="utf-8") as f:
+                json.dump({"frames": {str(k): v for k, v in sorted(track.items())}},
+                          f, separators=(",", ":"))
+            seg.track_path = dest
+        except Exception:
+            log.warning("Overlay-Track konnte nicht gespeichert werden", exc_info=True)
 
     def _on_analysis_failed(self, msg: str) -> None:
         if self._job is None or self._job["stage"] != "analyse":
@@ -616,8 +665,18 @@ class RecordingPane(QWidget):
             self._plot.update_plot(self._runner.live, self._runner.metric_label())
 
     # ── frame loop ───────────────────────────────────────────────
-    def _on_preview(self, msg: dict) -> None:
-        self._latest_preview = msg      # reader thread: only store, never draw
+    def _on_preview(self, msg: dict, source: str = "live") -> None:
+        self._previews[source] = msg    # reader thread: only store, never draw
+
+    def _current_preview(self):
+        """(message, source) of whatever the pane is showing right now."""
+        if self._analysing:
+            return self._previews["analysis"], "analysis"
+        if self._overlay_src is not None:
+            return self._previews["overlay"], "overlay"
+        if self._phase != REVIEW:
+            return self._previews["live"], "live"
+        return None, ""
 
     def _update_detection(self, msg: dict) -> None:
         names = {"left": "links", "right": "rechts"}
@@ -648,11 +707,19 @@ class RecordingPane(QWidget):
                 elapsed = _t.time() - self._analysis_t0
                 self._bar.setValue(min(95, int(100 * elapsed / total)))
                 self._status(f"Auswertung läuft … {min(elapsed, total):.0f} / {total:.0f} s")
-            if (self._phase != REVIEW or self._analysing or self._overlay_src is not None) \
-                    and self._latest_preview is not None:
-                msg = self._latest_preview
-                self._preview.set_frame(msg.get("jpeg", ""), msg.get("landmarks", []),
-                                        msg.get("face", []))
+            msg, source = self._current_preview()
+            if msg is not None:
+                if source == "overlay" and self._overlay_track is not None:
+                    # Frames come bare; the landmarks are the stored analysis.
+                    entry = self._overlay_track.get(int(msg.get("frame", -1)), {})
+                    hands = entry.get("hands") or []
+                    msg = dict(msg, landmarks=[lms for _t, lms in hands],
+                               hand_handedness=[t for t, _l in hands], face=[])
+                    self._preview.set_frame(msg["jpeg"], msg["landmarks"], [],
+                                            iris=entry.get("iris"))
+                else:
+                    self._preview.set_frame(msg.get("jpeg", ""), msg.get("landmarks", []),
+                                            msg.get("face", []))
                 self._update_detection(msg)
             if self._phase == COUNTDOWN:
                 self._t_left -= self._tick_timer.interval() / 1000.0
