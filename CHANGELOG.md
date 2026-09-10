@@ -116,6 +116,10 @@ Versionierung: SemVer-artig (0.x = Forschungsprototyp).
   verweist darauf statt auf den Clip. Der Dialog stürzt bei älteren
   Video-Messungen (Clip als `raw_data_path`) nicht mehr ab, sondern sagt, dass
   Kurven erst nach „Neu auswerten" da sind.
+- **Aufnahme-Info während der Verarbeitung**: solange ein Take noch in der
+  Pipeline ist (Auswertung ≈ Clip-Länge, dann Archivierung), zeigt das Panel
+  die laufende Stufe statt „Take ist nicht archiviert" als Hinweis; es
+  aktualisiert sich mit jedem Stufenwechsel.
 - **Fortschrittsbalken der Aufnahme** läuft nach der Wanduhr statt nach
   Timer-Ticks (die unter Last zu spät kommen — der Balken blieb hinter den
   20 s zurück); Statuszeile zählt die Restsekunden; die Live-Kurve wird mit

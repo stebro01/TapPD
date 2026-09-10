@@ -594,3 +594,29 @@ def test_take_progress_follows_the_wall_clock_not_the_tick_count(pane):
     p._t_end = time.monotonic() - 1.0
     p._tick()
     assert p._bar.value() == 100 and p._t_left == 0.0
+
+
+def test_info_panel_shows_the_stage_while_the_take_is_processed(pane, monkeypatch):
+    """While analyse/archive/cleanup run, "not archived" is not a finding
+    yet — the panel says what is happening and updates afterwards."""
+    import ui.segment_pipeline as sp
+
+    class FakeWorker:                       # archiving that never finishes
+        def __init__(self, session, seg, deface=None, parent=None):
+            self.done = type("S", (), {"connect": lambda self, cb: None})()
+        def start(self): pass
+    monkeypatch.setattr(sp, "_ArchiveWorker", FakeWorker)
+    monkeypatch.setattr("video.archive.compact_enabled", lambda: True)
+    p, v = pane
+    take = v.begin_take("tap_right"); take.parent.mkdir(parents=True, exist_ok=True)
+    take.write_bytes(b"x"); v.mark_recorded("tap_right", str(take)); p.show_step("tap_right")
+    p._auto_cb.setChecked(False)
+    p._on_keep()                                       # → compact stage, stuck in the fake
+    p.show_step("tap_right")
+    lines = p._meta.texts()
+    assert lines[0].startswith("Status: ⏳ Clip wird archiviert")
+    assert not any(l.startswith("⚠") for l in lines)
+
+    p._job = None                                      # pipeline done (nothing archived here)
+    p.show_step("tap_right")
+    assert "⚠ Take ist nicht archiviert (nur der Roh-Take liegt vor)." in p._meta.texts()

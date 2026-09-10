@@ -297,7 +297,17 @@ class RecordingPane(QWidget):
                 rows = list(self.extra_rows(step)) + rows
             except Exception:
                 log.debug("extra_rows fehlgeschlagen", exc_info=True)
-        self._meta.set_content(rows, segment_issues(self.session, seg, step))
+        issues = segment_issues(self.session, seg, step)
+        job = self._pipeline.job
+        if job is not None and job.get("segment") is seg:
+            # Still in the pipeline: "not archived" / "no track" are not
+            # findings yet, just the stage it has not reached.
+            stage = {"analyse": "Auswertung läuft", "compact": "Clip wird archiviert",
+                     "cleanup": "Roh-Take wird aufgeräumt"}.get(job.get("stage"), "in Bearbeitung")
+            rows = [("Status", f"⏳ {stage} … die Angaben aktualisieren sich, sobald der "
+                               "Schritt fertig ist.")] + rows
+            issues = []
+        self._meta.set_content(rows, issues)
         self._meta.setVisible(True)
 
     def _segment_of(self, step):
@@ -633,6 +643,7 @@ class RecordingPane(QWidget):
 
     def _on_stage_text(self, text: str) -> None:
         self._analysis_lbl.setText(text)
+        self._refresh_meta()                     # stage changed → panel follows
 
     def _on_analysis_started(self, session, seg) -> None:
         # Show the analysis, not the review player: the sidecar's preview
