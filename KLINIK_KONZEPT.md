@@ -7,7 +7,12 @@ gebaut würden.
 **Umsetzungsstand:** Punkt 1 ist als eine Maske „Parkinson-Anamnese"
 umgesetzt (`clinical/`, `ui/form_dialog.py`, Abbildung wie unten
 beschrieben; Abweichung: statt mehrerer Masken eine gemeinsame je Sitzung,
-mit Fortschreiben der letzten Antworten). Punkte 2 und 3 sind offen.
+mit Fortschreiben der letzten Antworten). Punkt 2 ist als Export-Paket
+(ZIP mit HTML/PDF/JSON-Bericht, Videos, Spuren, Rohdaten, Anhängen,
+Manifest) umgesetzt, FHIR bleibt offen. Punkt 3 ist als Forschungsexport
+(Langtabellen + Codebuch + Pseudonymisierung) umgesetzt; offen sind
+Studien-Kohorten, `analysis_version` mit Batch-Neuauswertung und das
+pandas-Lademodul.
 
 1. YAML-gesteuerte Eingabemasken für klinische Daten (inkl. Medikation)
 2. Export strukturierter Reports und der Videos

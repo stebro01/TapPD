@@ -213,7 +213,8 @@ class PatientWorkbench(QWidget):
         pm = QMenu(self._patient_btn)
         for label, cb in (("Bearbeiten…", self._on_edit_patient),
                           ("📈 Verlauf", self._on_trend),
-                          ("CSV-Export…", self._on_csv_export)):
+                          ("CSV-Export…", self._on_csv_export),
+                          ("📦 Export-Paket (Bericht, Videos)…", self._on_bundle_export)):
             a = QAction(label, self)
             a.triggered.connect(lambda _c=False, f=cb: f())
             pm.addAction(a)
@@ -1225,6 +1226,15 @@ class PatientWorkbench(QWidget):
             return
         from ui.trend_dialog import TrendDialog
         TrendDialog(self._patient, ms, parent=self).exec()
+
+    def _on_bundle_export(self) -> None:
+        if not self._patient or not self._patient.id:
+            return
+        from ui.export_dialog import BundleExportDialog
+        dlg = BundleExportDialog(self, self._patient, get_db)
+        if dlg.exec() == QDialog.DialogCode.Accepted and dlg.result_info is not None:
+            r = dlg.result_info
+            self._set_status(f"Export-Paket geschrieben: {r.path} ({len(r.files)} Dateien)")
 
     def _on_csv_export(self) -> None:
         all_ms = [m for ms in self._measurements.values() for m in ms] + list(self._orphans)

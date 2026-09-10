@@ -228,7 +228,20 @@ pip install -r requirements.txt
    842 mg · OFF"); Rechtsklick: Bearbeiten, Notiz, Loeschen. Jede Antwort
    liegt als eigene kodierte Beobachtung in der Datenbank (siehe
    DB_KONZEPT.md), Messungs-Abfragen lassen diese Zeilen aus
-8. Menue **„Patient ▾"**: Bearbeiten, 📈 Verlauf, CSV-Export, Patient loeschen
+8. Menue **„Patient ▾"**: Bearbeiten, 📈 Verlauf, CSV-Export, **📦 Export-Paket**,
+   Patient loeschen. Das Export-Paket ist ein ZIP zur Uebergabe: Bericht als
+   HTML, PDF und JSON (Stammdaten, Anamnese, Medikation mit LEDD, alle
+   Messungen mit Kennwerten, Kurven und Herkunft, Notizen), die Archiv-Clips
+   (wahlweise nur anonymisierte), Tracking-Spuren, Rohdaten-JSON, Anhaenge und
+   ein Manifest mit SHA-256 je Datei (`export/bundle.py`, `verify_bundle`).
+   Optional pseudonymisiert (kein Name, kein Geburtsdatum)
+9. **🔬 Forschungsexport** (Startbildschirm, unten): pseudonymisierte
+   Langtabellen aller Patienten als CSV — `patients`, `visits` (mit H&Y,
+   UPDRS III, LEDD, ON/OFF), `measurements` (Herkunft, Qualitaetsflags),
+   `features_long`, `clinical_long`, `medication`, optional `notes` und
+   `signals/` (Rohdaten, Spuren) — plus automatisch erzeugtes `codebook.md`
+   und `manifest.json`. Die Zuordnung Pseudonym ↔ Patient liegt nur lokal in
+   `data/pseudonyms.json` (`export/research.py`, `export/pseudonyms.py`)
 
 ## Projektstruktur
 

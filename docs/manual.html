@@ -287,6 +287,19 @@ als Spitzen) und Lidspalte mit Blink-Schwelle (rechts).</figcaption></figure>
 <figcaption>📈 Verlauf: beliebiges Merkmal über die Zeit, getrennt nach Hand.
 Hohle Punkte = Kamera-Quelle (≈mm-Modellskala), gefüllte = Leap.</figcaption></figure>
 
+<h3>Exporte</h3>
+<ul>
+<li><b>📦 Export-Paket</b> („Patient ▾"): ein ZIP zur Übergabe — Bericht als HTML, PDF und
+    JSON (Stammdaten, Anamnese, Medikation mit LEDD, Messungen mit Kennwerten, Kurven und
+    Herkunft, Notizen), die Archiv-Clips (wahlweise nur anonymisierte), Tracking-Spuren,
+    Rohdaten und Anhänge, dazu ein Manifest mit Prüfsummen. Optional pseudonymisiert.</li>
+<li><b>🔬 Forschungsexport</b> (Startbildschirm): pseudonymisierte Langtabellen aller
+    Patienten als CSV — Patienten, Sitzungen mit klinischen Werten, Messungen mit Herkunft,
+    Kennwerte, klinische Items, Medikation — mit Codebuch. Die Zuordnung Pseudonym ↔ Patient
+    bleibt lokal auf dem Rechner. Optional Notizen und die Rohdaten/Spuren je Messung.</li>
+<li><b>CSV-Export</b> („Patient ▾"): alle Kennwerte eines Patienten breit, eine Zeile je Messung.</li>
+</ul>
+
 <h2 id="videolab">8&nbsp;· Aufnahme, Import und Auswertung</h2>
 <figure><img src="img/11_sitzung.png" alt="Neue Sitzung">
 <figcaption>Eine neue Sitzung: sie erscheint als Gruppe in der Liste, rechts die drei

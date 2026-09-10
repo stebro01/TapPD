@@ -233,6 +233,15 @@ class PatientScreen(QWidget):
         lab_btn.clicked.connect(lambda: self.main_window.show_gesture_lab("patients"))
         bottom_bar.addWidget(lab_btn)
 
+        research_btn = QPushButton("🔬 Forschungsexport")
+        research_btn.setProperty("cssClass", "flat")
+        research_btn.setFixedWidth(190)
+        research_btn.setFixedHeight(SZ.BTN_H)
+        research_btn.setToolTip("Pseudonymisierte Langtabellen aller Patienten mit Codebuch "
+                                "(CSV) für die statistische Auswertung")
+        research_btn.clicked.connect(self._on_research_export)
+        bottom_bar.addWidget(research_btn)
+
         bottom_bar.addStretch()
 
         copy_label = QLabel("\u00a9 Stefan Brodoehl 2026")
@@ -302,6 +311,11 @@ class PatientScreen(QWidget):
             conn.close()
             self.refresh_list()
             self.main_window.select_patient(dialog.patient)
+
+    def _on_research_export(self) -> None:
+        from storage.database import get_db
+        from ui.export_dialog import ResearchExportDialog
+        ResearchExportDialog(self, get_db).exec()
 
     def _on_manual(self) -> None:
         """Nutzerhandbuch (docs/manual.html) im Standard-Browser öffnen."""

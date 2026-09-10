@@ -116,6 +116,19 @@ Versionierung: SemVer-artig (0.x = Forschungsprototyp).
   verweist darauf statt auf den Clip. Der Dialog stürzt bei älteren
   Video-Messungen (Clip als `raw_data_path`) nicht mehr ab, sondern sagt, dass
   Kurven erst nach „Neu auswerten" da sind.
+- **Exporte** (`export/`): ein Serializer (`export/record.py`) liefert die
+  Akte eines Patienten als Dict; darauf bauen der **Forschungsexport**
+  (`export/research.py`: pseudonymisierte Langtabellen patients / visits /
+  measurements / features_long / clinical_long / medication, optional notes
+  und signals, Codebuch aus FEATURE_META und Masken-YAML, Manifest) und das
+  **Export-Paket** (`export/bundle.py`: ZIP mit report.html/.pdf/.json,
+  Archiv-Clips wahlweise nur anonymisiert, Spuren, Rohdaten, Anhängen,
+  Manifest mit SHA-256; `verify_bundle`). Bericht (`export/report.py`) mit
+  Übersicht, Anamnese, Messungen samt Kennwerten und Kurvenbild
+  (`export/curves.py`, Matplotlib Agg), PDF über Qt. Pseudonyme stabil in
+  `data/pseudonyms.json` (`export/pseudonyms.py`). UI: „Patient ▾ → 📦
+  Export-Paket…" und „🔬 Forschungsexport" auf dem Startbildschirm
+  (`ui/export_dialog.py`).
 - **Klinische Daten per YAML-Maske** (`clinical/`): `clinical/forms/*.yaml`
   beschreibt eine Maske (Abschnitte, Items nach Typ, Bereiche, Auswahlen,
   Kataloge, Wiederholgruppen, berechnete Felder); `clinical/schema.py` lädt,
