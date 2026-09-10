@@ -82,10 +82,12 @@ def test_debug_mode_records_video_and_log_and_can_be_replayed(qapp, tmp_path, mo
 
     # a full calibration: 2 s per point, distinct gaze offsets per point
     targets = {"LO": (-0.1, -0.08), "RO": (0.1, -0.08), "MI": (0.0, 0.0),
-               "LU": (-0.1, 0.08), "RU": (0.1, 0.08)}
+               "LU": (-0.1, 0.08), "RU": (0.1, 0.08),
+               "L": (-0.1, 0.0), "M": (0.0, 0.0), "R": (0.1, 0.0)}      # any layout
+    order = list(test.task.calib_order)
     t = 0.0
     for i in range(303):                    # 10 s of calibration + a little
-        key = test.task.calib_point or "RU"   # look where the task shows the point
+        key = test.task.calib_point or order[0]   # look where the task shows the point
         ox, oy = targets[key]
         test._on_tracking(TrackingFrame(timestamp_us=int(t * 1e6),
                                         face=_face(t, ox + 0.002 * (i % 2), oy)))
@@ -105,14 +107,14 @@ def test_debug_mode_records_video_and_log_and_can_be_replayed(qapp, tmp_path, mo
     assert len(files) == 1
     data = json.loads(files[0].read_text(encoding="utf-8"))
     assert data["format"] == "tappd-saccade-debug" and data["video"].endswith(".mp4")
-    assert data["result"]["phase"] == "TESTING" and set(data["result"]["references"]) == set(POINT_ORDER)
-    assert len(data["samples"]) == 303 and data["samples"][0]["point"] == "LO"
+    assert data["result"]["phase"] == "TESTING" and set(data["result"]["references"]) == set(order)
+    assert len(data["samples"]) == 303 and data["samples"][0]["point"] == order[0]
     assert "Gespeichert" in scr.debug_panel.files.text()
 
     # replaying the log takes the same decisions — and shows what a stricter
     # threshold would have done
     task = replay_log(str(files[0]))
-    assert task.phase is Phase.TESTING and set(task.references) == set(POINT_ORDER)
+    assert task.phase is Phase.TESTING and set(task.references) == set(order)
     strict = replay_log(str(files[0]), min_separation=0.5)
     assert strict.phase is Phase.FAILED and "trennbar" in strict.fail_reason.lower() or strict.phase is Phase.FAILED
 

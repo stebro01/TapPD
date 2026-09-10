@@ -488,6 +488,12 @@ saccade_test:
     Danach: Schauen Sie so schnell wie möglich auf den jeweils
     aufleuchtenden Punkt. Kopf dabei möglichst still halten.
 
+  # Ziel-Layout: horizontal (L / M / R) ist der klinische Standard und das,
+  # was die Webcam sicher auflöst (Iris-Versatz 3–5 px links/rechts bei 60 cm,
+  # vertikal nur ~1 px). five_point = 4 Ecken + Mitte; vertical (O / M / U)
+  # ist für ein lidbasiertes Vertikal-Merkmal vorbereitet.
+  layout: horizontal
+
   calibration:
     per_point_s: 2.0            # Fixationsdauer pro Eichpunkt
     settle_s: 0.6               # verworfene Zeit nach Punktwechsel (Blicksprung)
@@ -499,6 +505,8 @@ saccade_test:
     dwell_s: 0.2                # Zone muss so lange stabil sein → Treffer
     confidence_margin: 1.3      # nächster Referenzpunkt muss um Faktor näher sein
     min_separation_ipd: 0.04    # Referenzpunkte näher beieinander → Eichung ungültig
+    sequence: alternate         # alternate: äußere Punkte im festen Wechsel (L, R, L, R …)
+                                # random: Zufallsfolge (mit prefer_far_targets)
     prefer_far_targets: true    # Zufallsfolge bevorzugt große Sprünge
 
   head_guard:

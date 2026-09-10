@@ -177,7 +177,8 @@ class SaccadeDebugLog:
             "config": {k: getattr(task, k) for k in (
                 "calib_per_point_s", "calib_settle_s", "calib_min_samples", "calib_max_spread",
                 "duration_s", "dwell_s", "confidence_margin", "min_separation", "blink_ear",
-                "guard_max_roll_deg", "guard_max_ipd_change", "guard_max_nose_shift")
+                "guard_max_roll_deg", "guard_max_ipd_change", "guard_max_nose_shift",
+                "layout", "sequence")
                 if hasattr(task, k)},
             "result": {"phase": task.phase.name, "fail_reason": getattr(task, "fail_reason", ""),
                        "references": {k: list(v) for k, v in getattr(task, "references", {}).items()},

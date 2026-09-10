@@ -116,6 +116,15 @@ Versionierung: SemVer-artig (0.x = Forschungsprototyp).
   verweist darauf statt auf den Clip. Der Dialog stürzt bei älteren
   Video-Messungen (Clip als `raw_data_path`) nicht mehr ab, sondern sagt, dass
   Kurven erst nach „Neu auswerten" da sind.
+- **Sakkaden-Test horizontal** (`paradigms/test_config.yaml → saccade_test.layout`,
+  `test.sequence`): Eichung mit drei Punkten L / R / M, Ziele im festen Wechsel
+  L, R, L, R … (jeder Sprung volle Breite). Grund aus den Debug-Logs: die
+  Webcam löst den Blick horizontal mit 3–5 px Iris-Versatz auf, vertikal nur
+  ~1 px (kleine Bewegung, Lidabdeckung) — die 5-Punkt-Eichung scheiterte
+  immer an einem oben/unten-Paar, nicht am Kamerabild (IPD 115–150 px).
+  Layouts `five_point` und `vertical` bleiben wählbar; `vertical` ist für ein
+  lidbasiertes Vertikal-Merkmal vorbereitet. Replay-Logs tragen Layout und
+  Folge, damit `replay_log` dasselbe rechnet.
 - **Sakkaden-Debug-Modus** (`ui/saccade_debug.py`, Checkbox „🔧 Debug" auf dem
   Sakkaden-Bildschirm): neben dem Stimulus das Kamerabild mit Augenpunkten und
   die Tracking-Qualität (Gesichts-Rate, IPD in Pixeln, Blick-Streuung gegen

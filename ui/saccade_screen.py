@@ -34,6 +34,7 @@ class _StimulusCanvas(QWidget):
         self.status_text = ""
         self.sub_text = ""
         self.face_ok = True
+        self.points = dict(POINTS)     # replaced by the task's layout on start
         self.setMinimumHeight(420)
         self.setStyleSheet("background-color: #202124;")
 
@@ -59,7 +60,7 @@ class _StimulusCanvas(QWidget):
 
         if self.point_key is None:
             return
-        nx, ny = POINTS[self.point_key]
+        nx, ny = self.points.get(self.point_key, (0.5, 0.5))
         # margin so corner dots stay fully visible
         x = int(30 + nx * (w - 60))
         y = int(70 + ny * (h - 110))
@@ -143,6 +144,7 @@ class SaccadeScreen(QWidget):
         self._finished = False
         self._test_wall_start = None
         self.instructions.setText(test.get_instructions())
+        self.canvas.points = dict(test.task.points)
         self.instructions.setVisible(True)
         self.start_btn.setVisible(True)
         self.canvas.point_key = None
@@ -251,8 +253,9 @@ class SaccadeScreen(QWidget):
         if task.phase is Phase.CALIBRATING:
             self.canvas.is_calibration = True
             self.canvas.point_key = task.calib_point
-            idx = min(task.calib_index + 1, 5)
-            self.canvas.status_text = f"Eichung — Punkt {idx}/5 fixieren"
+            n = len(task.calib_order)
+            idx = min(task.calib_index + 1, n)
+            self.canvas.status_text = f"Eichung — Punkt {idx}/{n} fixieren"
             self.canvas.sub_text = "Kopf still halten, nur die Augen bewegen"
         elif task.phase is Phase.TESTING:
             if self._test_wall_start is None:

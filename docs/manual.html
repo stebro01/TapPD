@@ -253,14 +253,16 @@ sakkadische Intrusionen, mittlere Lidspalte.</p>
 <figure><img src="img/08_sakkaden_start.png" alt="Sakkaden Start">
 <figcaption>Sakkaden-Test: Startansicht mit Anweisung. „▶ Eichung starten" beginnt Phase 1.</figcaption></figure>
 <ol class="steps">
-<li><b>Phase 1 – Eichung (~13&nbsp;s):</b> Ein Punkt erscheint nacheinander an
-    5 Positionen (Ecken + Mitte). Jeden Punkt ruhig fixieren, <b>nur die Augen bewegen</b>.</li>
-<li><b>Phase 2 – Test (30&nbsp;s):</b> Punkte erscheinen in zufälliger Folge
-    (bevorzugt weite Sprünge). So schnell wie möglich hinschauen — sobald der Blick
-    das Ziel kurz hält, springt der Punkt weiter.</li>
+<li><b>Phase 1 – Eichung (~6&nbsp;s):</b> Ein Punkt erscheint nacheinander links,
+    rechts und in der Mitte. Jeden Punkt ruhig fixieren, <b>nur die Augen bewegen</b>.
+    (Das frühere 5-Punkt-Layout mit Ecken bleibt in <code>test_config.yaml</code> wählbar;
+    vertikale Blicksprünge löst die Webcam mit dem aktuellen Merkmal aber kaum auf.)</li>
+<li><b>Phase 2 – Test (30&nbsp;s):</b> Der Punkt springt im festen Wechsel links,
+    rechts, links, rechts — jeder Sprung über die volle Bildschirmbreite. So schnell wie
+    möglich hinschauen — sobald der Blick das Ziel kurz hält, springt der Punkt weiter.</li>
 </ol>
 <figure><img src="img/09_sakkaden_eichung.png" alt="Sakkaden Eichung">
-<figcaption>Phase 1: Eichpunkt 2/5 (rechts oben). Kopf ruhig — ein Kopfpose-Wächter
+<figcaption>Phase 1: Eichpunkt. Kopf ruhig — ein Kopfpose-Wächter
 erkennt Drehungen und wertet betroffene Abschnitte nicht.</figcaption></figure>
 <p><b>Ergebnis:</b> erreichte Ziele &amp; Ziele/min, Sakkaden-Latenz (Median/Mittel),
 Richtungsfehler-Rate, Anteil ungültiger Abschnitte (Kopfbewegung, Blinzeln).</p>
