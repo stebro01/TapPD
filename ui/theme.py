@@ -48,7 +48,7 @@ _PROFILES = {
 
 # Shared mutable sizing — import SZ once, always up-to-date
 SZ = SimpleNamespace()
-_ui_mode = "touch"
+_ui_mode = "dense"
 APP_STYLESHEET = ""
 
 
@@ -327,4 +327,4 @@ QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {{
 
 
 # ── Initialize default mode ─────────────────────────────────────
-set_ui_mode("touch")
+set_ui_mode("dense")

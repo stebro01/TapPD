@@ -116,6 +116,8 @@ Versionierung: SemVer-artig (0.x = Forschungsprototyp).
   verweist darauf statt auf den Clip. Der Dialog stürzt bei älteren
   Video-Messungen (Clip als `raw_data_path`) nicht mehr ab, sondern sagt, dass
   Kurven erst nach „Neu auswerten" da sind.
+- **Kompakte Darstellung ist Standard** (`ui_mode` = dense); Touch bleibt über
+  „⇄ Touch“ auf dem Startbildschirm erreichbar und wird wie bisher gespeichert.
 - **Anderer Sitzung zuweisen** (Rechtsklick auf Messung oder Anamnese):
   `move_measurement` / `move_form_entry` setzen `ENCOUNTER_NUM` der Messung
   bzw. aller Zeilen der Maske und der zugehörigen Notiz um. Messungen aus
