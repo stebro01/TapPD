@@ -65,7 +65,7 @@ def test_record_runs_countdown_then_asks_the_device_for_a_clip(pane, qapp):
     p._on_record()
     assert p._phase == "countdown" and p.busy
 
-    p._t_left = 0.0
+    p._t_left = 0.0; p._t_end = 0.0
     p._tick()                                         # countdown elapsed → capture
     assert p._phase == "recording"
     assert len(dev.recorded) == 1
@@ -86,7 +86,7 @@ def test_record_runs_countdown_then_asks_the_device_for_a_clip(pane, qapp):
 
 def test_cancel_leaves_the_step_open_and_the_take_number_used(pane):
     p, v = pane
-    p._on_record(); p._t_left = 0.0; p._tick()
+    p._on_record(); p._t_left = 0.0; p._t_end = 0.0; p._tick()
     p._on_cancel()
     assert p._phase == "idle" and not p.busy
     assert v.step("rest").state == "pending"
@@ -407,7 +407,7 @@ def test_take_provenance_is_captured_and_shown_in_the_info_panel(pane, monkeypat
     dev.sidecar_info = {"mediapipe": "1.0.1", "opencv": "4.12.0"}
     p.show_step("tap_right")
     p._on_record()
-    p._t_left = 0.0
+    p._t_left = 0.0; p._t_end = 0.0
     p._tick()                                          # countdown over → capture
     path, _seconds = dev.recorded[-1]
     from pathlib import Path
@@ -550,7 +550,7 @@ def test_live_curve_draws_while_filming_and_lets_go_afterwards(pane, qapp):
     p, v = pane
     dev = p._device
     p.show_step("tap_right")
-    p._on_record(); p._t_left = 0.0; p._tick()          # countdown over → recording
+    p._on_record(); p._t_left = 0.0; p._t_end = 0.0; p._tick()          # countdown over → recording
     assert p._phase == "recording" and p._live_pr is not None
     assert dev.frame_cb == p._live_pr.feed and p._plot.isVisibleTo(p)
     assert "Live-Kurve" in p._analysis_lbl.text()
@@ -573,7 +573,24 @@ def test_live_curve_draws_while_filming_and_lets_go_afterwards(pane, qapp):
     assert dev.frame_cb != None and dev.frame_cb.__name__ == "<lambda>"   # back to no-op
 
     # cancelling lets go as well
-    p.show_step("tap_left"); p._on_record(); p._t_left = 0.0; p._tick()
+    p.show_step("tap_left"); p._on_record(); p._t_left = 0.0; p._t_end = 0.0; p._tick()
     assert p._live_pr is not None
     p._on_cancel()
     assert p._live_pr is None and dev.frame_cb.__name__ == "<lambda>"
+
+
+def test_take_progress_follows_the_wall_clock_not_the_tick_count(pane):
+    """A 20 s take must show ~half the bar after 10 s of real time even when
+    ticks arrive late (preview decoding, live curve)."""
+    import time
+    p, v = pane
+    p.show_step("tap_right")
+    p._on_record(); p._t_left = 0.0; p._t_end = 0.0; p._tick()
+    assert p._phase == "recording"
+    p._t_end = time.monotonic() + 10.0                 # 10 s of the 20 s take left
+    p._tick()                                          # one tick, however late
+    assert 45 <= p._bar.value() <= 52
+    assert "noch 10 s" in p._last_status or "noch 11 s" in p._last_status
+    p._t_end = time.monotonic() - 1.0
+    p._tick()
+    assert p._bar.value() == 100 and p._t_left == 0.0

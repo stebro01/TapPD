@@ -116,6 +116,10 @@ Versionierung: SemVer-artig (0.x = Forschungsprototyp).
   verweist darauf statt auf den Clip. Der Dialog stürzt bei älteren
   Video-Messungen (Clip als `raw_data_path`) nicht mehr ab, sondern sagt, dass
   Kurven erst nach „Neu auswerten" da sind.
+- **Fortschrittsbalken der Aufnahme** läuft nach der Wanduhr statt nach
+  Timer-Ticks (die unter Last zu spät kommen — der Balken blieb hinter den
+  20 s zurück); Statuszeile zählt die Restsekunden; die Live-Kurve wird mit
+  ~8 Hz statt bei jedem Tick neu gezeichnet.
 - **Live-Kurve bei der Aufnahme**: während ein Take läuft, füttert das
   Aufnahme-Panel die Hand-Frames der Kamera in das Paradigma des Schritts
   (`ParadigmRunner`) und zeichnet die Messkurve live — wie früher bei den

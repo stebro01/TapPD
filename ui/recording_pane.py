@@ -67,6 +67,8 @@ class RecordingPane(QWidget):
         self._phase = IDLE
         self._current_id = ""
         self._t_left = 0.0
+        self._t_end = 0.0                  # wall-clock end of countdown / take
+        self._live_drawn = 0.0             # last live-curve redraw (wall clock)
         self._recorded_path: str | None = None   # set from the reader thread
 
         # The analyse → archive → cleanup pipeline is shared with the cut
@@ -483,7 +485,9 @@ class RecordingPane(QWidget):
         if step is None or self._device is None:
             return
         self._player.stop()
+        import time as _t
         self._t_left = max(0.0, step.countdown_s)
+        self._t_end = _t.monotonic() + self._t_left
         self._set_phase(COUNTDOWN if self._t_left > 0 else RECORDING)
         if self._t_left <= 0:
             self._begin_capture()
@@ -496,7 +500,9 @@ class RecordingPane(QWidget):
         from video.meta import capture_meta
         self._take_meta = capture_meta(self._device, take=step.takes, take_file=str(path))
         self._recorded_path = None
+        import time as _t
         self._t_left = step.duration_s
+        self._t_end = _t.monotonic() + step.duration_s
         self._device.record_clip(str(path), step.duration_s)
         self._set_phase(RECORDING)
         self._start_live_metric(step)
@@ -710,6 +716,7 @@ class RecordingPane(QWidget):
         self._detect_lbl.setText("   ·   ".join(parts))
 
     def _tick(self) -> None:
+        import time as _t
         try:
             if self._analysing:
                 self._refresh_plot()
@@ -735,8 +742,11 @@ class RecordingPane(QWidget):
                     self._preview.set_frame(msg.get("jpeg", ""), msg.get("landmarks", []),
                                             msg.get("face", []))
                 self._update_detection(msg)
+            # Wall clock, not tick counting: under load (preview decoding, live
+            # curve) ticks come late and a counted-down bar lags the real take.
+            if self._phase in (COUNTDOWN, RECORDING) and self._t_left > 0:
+                self._t_left = max(0.0, self._t_end - _t.monotonic())
             if self._phase == COUNTDOWN:
-                self._t_left -= self._tick_timer.interval() / 1000.0
                 step = self._step
                 total = max(0.01, step.countdown_s if step else 1.0)
                 self._bar.setValue(int(100 * (1 - self._t_left / total)))
@@ -744,11 +754,13 @@ class RecordingPane(QWidget):
                 if self._t_left <= 0:
                     self._begin_capture()
             elif self._phase == RECORDING:
-                self._t_left -= self._tick_timer.interval() / 1000.0
                 step = self._step
                 total = max(0.01, step.duration_s if step else 1.0)
                 self._bar.setValue(int(100 * (1 - max(0.0, self._t_left) / total)))
-                if self._live_pr is not None:
+                self._status(f"Aufnahme läuft — noch {max(0, int(self._t_left) + 1)} s")
+                # Redrawing the curve costs more than a tick; ~8 Hz is plenty.
+                if self._live_pr is not None and _t.monotonic() - self._live_drawn > 0.12:
+                    self._live_drawn = _t.monotonic()
                     self._plot.update_plot(self._live_pr.live_snapshot(),
                                            self._live_pr.metric_label)
                 # The sidecar's "recorded" message ends a take, not our countdown.
