@@ -240,7 +240,7 @@ def validate(protocol: Protocol) -> list[Issue]:
         # A screen task (Hanoi, SRT, TMT, saccades) cannot be filmed as a step:
         # the patient responds to stimuli, the measurement lives in the
         # interaction. Those run live, outside any protocol.
-        if spec.screen != registry.SCREEN_METRIC:
+        if registry.is_live_only(step.paradigm):
             issues.append(Issue(
                 f"'{step.paradigm}' ist eine interaktive Bildschirm-Aufgabe und "
                 "kann nicht als Video-Schritt aufgenommen werden.", step_id=step.id))

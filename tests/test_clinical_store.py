@@ -102,3 +102,16 @@ def test_prefill_carries_the_last_entry_forward(conn):
     assert prefill(conn, pid, form)["hoehn_yahr"] == "2.5"
     form.carry_forward = False
     assert prefill(conn, pid, form) == {}
+
+
+def test_move_form_entry_moves_all_of_its_rows(conn):
+    from clinical.store import move_form_entry
+    pid = make_patient_row(conn, code="C005")
+    s1, s2 = make_session_row(conn, pid), make_session_row(conn, pid)
+    e = save_form_entry(conn, pid, s1, load_form("pd_anamnese"), ANSWERS)
+    move_form_entry(conn, e.id, s2)
+    (back,) = get_form_entries(conn, pid)
+    assert back.session_id == s2
+    rows = conn.execute("SELECT DISTINCT ENCOUNTER_NUM FROM OBSERVATION_FACT WHERE PATIENT_NUM=?",
+                        (pid,)).fetchall()
+    assert [r[0] for r in rows] == [s2]                     # Q row and every item row

@@ -427,7 +427,7 @@ def test_anamnesis_form_is_added_listed_shown_edited_and_deleted(protocol_sessio
     lines = wb._f_meta.texts()
     assert "Hoehn & Yahr: 2 – beidseitig, keine Gleichgewichtsstörung" in lines
     assert "LEDD (mg/Tag): 300 mg" in lines
-    assert [a[0] for a in wb._actions_for(("form", e.id))] == ["Bearbeiten…", "📝 Notiz…", "Löschen…"]
+    assert [a[0] for a in wb._actions_for(("form", e.id))] == ["Bearbeiten…", "📝 Notiz…", "Anderer Sitzung zuweisen…", "Löschen…"]
 
     class EditDialog(fd.FormDialog):
         def exec(self):
@@ -525,3 +525,60 @@ def test_camera_is_handed_back_to_the_pane_after_leaving_and_returning(protocol_
     wb.refresh(); app.pump()
     wb._select(("step", s.id, "rest")); app.pump()
     assert wb._rec._device is wb._device and wb._rec._record_btn.isEnabled()
+
+
+def test_measurement_and_form_can_be_assigned_to_another_session(protocol_session, app,
+                                                                 monkeypatch):
+    """Right-click → „Anderer Sitzung zuweisen…": an unassigned live measurement
+    and an anamnesis move; a measurement that belongs to a take stays put."""
+    from clinical.schema import load_form
+    from clinical.store import get_form_entries, save_form_entry
+    from storage.database import Measurement, get_db, get_measurements, save_measurement
+    from ui import patient_workbench as pw
+    wb, s, v = protocol_session
+    conn = get_db()
+    orphan = save_measurement(conn, Measurement(patient_id=app.patient.id, session_id=None,
+                                                test_type="finger_tapping", hand="left"))
+    bound = Measurement(patient_id=app.patient.id, session_id=s.id, test_type="finger_tapping",
+                        hand="right")
+    bound.provenance = {"segment_id": "seg_001", "clip_path": ""}
+    bound = save_measurement(conn, bound)
+    e = save_form_entry(conn, app.patient.id, s.id, load_form("pd_anamnese"), {"hoehn_yahr": "2"})
+    conn.close()
+    s2 = wb.new_session(); app.pump()
+
+    labels = [a[0] for a in wb._actions_for(("measurement", orphan.id))]
+    assert "Anderer Sitzung zuweisen…" in labels
+    assert "Anderer Sitzung zuweisen…" in [a[0] for a in wb._actions_for(("form", e.id))]
+
+    # the picker is replaced by "choose s2"
+    monkeypatch.setattr(wb, "_pick_session", lambda title, cur: wb._session_by_id(s2.id))
+    wb._move_measurement(orphan); app.pump()
+    conn = get_db()
+    assert next(m for m in get_measurements(conn, app.patient.id) if m.id == orphan.id).session_id == s2.id
+    conn.close()
+    assert wb._orphans == []
+
+    wb._move_form(e); app.pump()
+    conn = get_db(); (moved,) = get_form_entries(conn, app.patient.id); conn.close()
+    assert moved.session_id == s2.id
+    assert any("Parkinson-Anamnese" in r[1] for r in _rows(wb))
+
+    # bound to a take → refused with an explanation, nothing moves
+    told = []
+    monkeypatch.setattr(pw.QMessageBox, "information",
+                        staticmethod(lambda *a, **k: told.append(a[2])))
+    wb._move_measurement(bound); app.pump()
+    assert told and "bleibt bei ihrem Video" in told[0]
+    conn = get_db()
+    assert next(m for m in get_measurements(conn, app.patient.id) if m.id == bound.id).session_id == s.id
+    conn.close()
+
+
+def test_ocular_paradigms_run_live_not_as_video_steps(qapp):
+    from paradigms import registry
+    from video.protocol import protocol_for_paradigm, validate
+    assert registry.is_live_only("ocular_fixation") and registry.is_live_only("saccade_test")
+    assert registry.is_live_only("tower_of_hanoi") and not registry.is_live_only("finger_tapping")
+    errors = [i for i in validate(protocol_for_paradigm("ocular_fixation")) if i.is_error]
+    assert errors and "interaktive Bildschirm-Aufgabe" in errors[0].message

@@ -1097,6 +1097,7 @@ class PatientWorkbench(QWidget):
                 return []
             out.append(("Bearbeiten…", lambda: self._edit_form(e)))
             out.append(self._note_action("form", str(e.id), e.session_id, "Klinische Daten"))
+            out.append(("Anderer Sitzung zuweisen…", lambda: self._move_form(e)))
             out.append(("Löschen…", lambda: self._delete_form(e)))
         elif kind == "import":
             v = self._videos.get(key[1])
@@ -1110,6 +1111,7 @@ class PatientWorkbench(QWidget):
             if m is not None:
                 out.append(self._note_action("measurement", str(m.id), m.session_id,
                                              f"{_paradigm_label(m.test_type)} ({m.hand})"))
+                out.append(("Anderer Sitzung zuweisen…", lambda: self._move_measurement(m)))
             out.append(("Messung löschen…", lambda: self._delete_measurement(m)))
         return out
 
@@ -1250,6 +1252,77 @@ class PatientWorkbench(QWidget):
         if self._bound is v:
             self._cut.load_session(self._patient, v)
         self.refresh()
+
+    # ── reassigning to another session ───────────────────────────
+    def _pick_session(self, title: str, current_id) -> "Session | None | bool":
+        """Ask for a target session; False = cancelled, None never (a session is
+        required), else the chosen Session."""
+        choices = [s for s in self._sessions if s.id != current_id]
+        if not choices:
+            QMessageBox.information(self, title, "Es gibt keine andere Sitzung. Erst mit "
+                                    "„＋ Neue Sitzung“ eine anlegen.")
+            return False
+        dlg = QDialog(self)
+        dlg.setWindowTitle(title)
+        dlg.setMinimumWidth(420)
+        lay = QVBoxLayout(dlg)
+        lay.setContentsMargins(20, 16, 20, 16)
+        head = QLabel(title)
+        head.setStyleSheet("font-size: 14px; font-weight: 600;")
+        lay.addWidget(head)
+        combo = QComboBox()
+        numbers = {s.id: n for n, s in zip(range(len(self._sessions), 0, -1), self._sessions)}
+        for s in choices:
+            combo.addItem(f"Sitzung {numbers[s.id]}  ·  {_fmt_dt(s.started_at)}", s.id)
+        lay.addWidget(combo)
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok
+                                   | QDialogButtonBox.StandardButton.Cancel)
+        buttons.button(QDialogButtonBox.StandardButton.Ok).setText("Zuweisen")
+        buttons.button(QDialogButtonBox.StandardButton.Cancel).setText("Abbrechen")
+        buttons.accepted.connect(dlg.accept)
+        buttons.rejected.connect(dlg.reject)
+        lay.addWidget(buttons)
+        dlg._combo = combo
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return False
+        return self._session_by_id(combo.currentData())
+
+    def _move_measurement(self, m: Measurement | None) -> None:
+        if m is None:
+            return
+        prov = m.provenance or {}
+        if prov.get("segment_id"):
+            # The measurement is what a take/segment produced; it belongs where
+            # the video is. Moving it alone would strand it from its footage.
+            QMessageBox.information(
+                self, "Anderer Sitzung zuweisen",
+                "Diese Messung gehört zu einer Aufnahme (Take/Segment) und bleibt bei ihrem "
+                "Video. Verschiebbar sind Live-Messungen und Messungen ohne Sitzung.")
+            return
+        target = self._pick_session("Messung einer anderen Sitzung zuweisen", m.session_id)
+        if not target:
+            return
+        from storage.database import move_measurement
+        conn = get_db()
+        move_measurement(conn, m.id, target.id)
+        conn.close()
+        self._set_status(f"Messung #{m.id} → Sitzung vom {_fmt_dt(target.started_at)}.")
+        self.refresh()
+        self._select(("measurement", m.id))
+
+    def _move_form(self, e) -> None:
+        if e is None:
+            return
+        target = self._pick_session("Anamnese einer anderen Sitzung zuweisen", e.session_id)
+        if not target:
+            return
+        from clinical.store import move_form_entry
+        conn = get_db()
+        move_form_entry(conn, e.id, target.id)
+        conn.close()
+        self._set_status(f"Anamnese → Sitzung vom {_fmt_dt(target.started_at)}.")
+        self.refresh()
+        self._select(("form", e.id))
 
     def _show_measurement(self, m: Measurement | None) -> None:
         if m is None or self._patient is None:

@@ -153,7 +153,7 @@ def test_workbench_measurement_pane_and_detail_action(app, workbench):
     assert type(workbench._work.currentWidget()).__name__ == "QWidget"
     assert "Finger Tapping" in workbench._m_title.text()
     assert [a[0] for a in workbench._actions_for(("measurement", m.id))] == \
-        ["Details…", "📝 Notiz…", "Messung löschen…"]
+        ["Details…", "📝 Notiz…", "Anderer Sitzung zuweisen…", "Messung löschen…"]
 
 
 def test_workbench_csv_export_writes_every_measurement(app, workbench, tmp_path, monkeypatch):

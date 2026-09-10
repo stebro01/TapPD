@@ -31,6 +31,16 @@ SCREEN_TMT = "tmt"
 SCREEN_SACCADE = "saccade"  # ui/saccade_screen.py (gaze-contingent targets)
 
 
+def is_live_only(key: str) -> bool:
+    """True for paradigms that cannot be filmed as a protocol step: screen
+    tasks (the measurement lives in the interaction) and the ocular tests
+    (face gate + fixation stimulus on screen). They run live."""
+    spec = BY_KEY.get(key)
+    if spec is None:
+        return False
+    return spec.screen != SCREEN_METRIC or spec.category is Category.OCULAR
+
+
 @dataclass(frozen=True)
 class ParadigmSpec:
     key: str                       # canonical test_type (e.g. "finger_tapping")

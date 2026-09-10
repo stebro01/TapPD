@@ -380,6 +380,7 @@ nach.
 | Neu auswerten nach dem Aufräumen des Roh-Takes | **erledigt** — läuft auf dem archivierten Clip, `analysed_on` am Ergebnis, Hinweis im Label (Tremor: Augenreferenz fehlt) |
 | Metadaten je Aufnahme + Info-Panel + Konsistenzprüfung (§9) | **erledigt** (`video/meta.py`, `ui/widgets/meta_panel.py`, `Measurement.provenance`) |
 | Notiz mit Anhängen je Eintrag (Sitzung, Schritt, Import, Messung) | **erledigt** (`NOTE_FACT`, `storage/attachments.py`, `ui/note_dialog.py`) |
+| Messung / Anamnese einer anderen Sitzung zuweisen | **erledigt** (`move_measurement`, `move_form_entry`; Take-gebundene Messungen bleiben beim Video) |
 
 ## 8. Video-Archiv
 

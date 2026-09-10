@@ -186,6 +186,20 @@ def latest_entry(conn: sqlite3.Connection, patient_id: int, form_id: str) -> For
     return entries[-1] if entries else None
 
 
+def move_form_entry(conn: sqlite3.Connection, entry_id: int, session_id: int | None) -> None:
+    """Put a filled form (Q row + its item rows + note) into another session."""
+    now = datetime.now().isoformat()
+    conn.execute("UPDATE OBSERVATION_FACT SET ENCOUNTER_NUM=?, UPDATE_DATE=? WHERE OBSERVATION_ID=?",
+                 (session_id, now, entry_id))
+    conn.execute("UPDATE OBSERVATION_FACT SET ENCOUNTER_NUM=? WHERE CATEGORY_CHAR=? AND "
+                 "json_extract(OBSERVATION_BLOB, '$.form_entry') = ?",
+                 (session_id, CATEGORY, entry_id))
+    conn.execute("UPDATE NOTE_FACT SET ENCOUNTER_NUM=? WHERE CATEGORY_CHAR='FORM' AND NAME_CHAR=?",
+                 (session_id, str(entry_id)))
+    conn.commit()
+    log.info("Klinische Maske %d → Sitzung %s", entry_id, session_id)
+
+
 def delete_form_entry(conn: sqlite3.Connection, entry_id: int) -> None:
     conn.execute("DELETE FROM OBSERVATION_FACT WHERE CATEGORY_CHAR=? AND "
                  "json_extract(OBSERVATION_BLOB, '$.form_entry') = ?", (CATEGORY, entry_id))

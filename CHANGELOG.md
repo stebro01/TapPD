@@ -116,6 +116,14 @@ Versionierung: SemVer-artig (0.x = Forschungsprototyp).
   verweist darauf statt auf den Clip. Der Dialog stürzt bei älteren
   Video-Messungen (Clip als `raw_data_path`) nicht mehr ab, sondern sagt, dass
   Kurven erst nach „Neu auswerten" da sind.
+- **Anderer Sitzung zuweisen** (Rechtsklick auf Messung oder Anamnese):
+  `move_measurement` / `move_form_entry` setzen `ENCOUNTER_NUM` der Messung
+  bzw. aller Zeilen der Maske und der zugehörigen Notiz um. Messungen aus
+  einem Take/Segment bleiben bei ihrem Video (Hinweis statt Verschieben).
+- Augen-Tests (`ocular_fixation`, `saccade_test`) gelten wie Hanoi/SRT/TMT
+  als live-only (`registry.is_live_only`): in der Paradigmen-Wahl so
+  markiert, in Protokollen abgewiesen — vorher wären sie als Video-Schritt
+  ohne Gesichts-Tracking gefilmt worden.
 - **Doku-Abgleich (Schichten und UI)**: ARCHITECTURE.md (Layer-Vertrag inkl.
   Video-Lab-Pipeline, `clinical/`, `export/`), BLUEPRINT.md (Gesamtbild,
   Video-Lab-Fluss Aufnahme + Import → eine Pipeline, Speicher-Topologie mit

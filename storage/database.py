@@ -728,6 +728,18 @@ def get_measurements(conn: sqlite3.Connection, patient_id: int) -> list[Measurem
     return [_row_to_measurement(r) for r in rows]
 
 
+def move_measurement(conn: sqlite3.Connection, measurement_id: int,
+                     session_id: int | None) -> None:
+    """Put a measurement into another session (or none); its note follows."""
+    conn.execute("UPDATE OBSERVATION_FACT SET ENCOUNTER_NUM=?, UPDATE_DATE=? "
+                 "WHERE OBSERVATION_ID=?",
+                 (session_id, datetime.now().isoformat(), measurement_id))
+    conn.execute("UPDATE NOTE_FACT SET ENCOUNTER_NUM=? WHERE CATEGORY_CHAR='MEASUREMENT' "
+                 "AND NAME_CHAR=?", (session_id, str(measurement_id)))
+    conn.commit()
+    log.info("Messung %d → Sitzung %s", measurement_id, session_id)
+
+
 def delete_measurement(conn: sqlite3.Connection, measurement_id: int) -> None:
     conn.execute("DELETE FROM OBSERVATION_FACT WHERE OBSERVATION_ID=?", (measurement_id,))
     # A note about the measurement has nothing left to be about.

@@ -40,7 +40,8 @@ class ProtocolChooser(QDialog):
         head.setStyleSheet("font-size: 15px; font-weight: 600;")
         layout.addWidget(head)
         sub = QLabel("Motorische Aufgaben werden als Video-Schritt gefilmt; interaktive "
-                     "Aufgaben (Hanoi, SRT, TMT, Sakkaden) laufen live am Bildschirm.")
+                     "Aufgaben (Hanoi, SRT, TMT) und die Augen-Tests (Fixation, Sakkaden) "
+                     "laufen live am Bildschirm.")
         sub.setWordWrap(True)
         sub.setStyleSheet(f"color: {theme.TEXT_SECONDARY}; font-size: 12px;")
         layout.addWidget(sub)
@@ -74,7 +75,7 @@ class ProtocolChooser(QDialog):
             label = (spec.label or key).replace("\n", " ")
             # Interactive paradigms are tasks on screen, not something to film:
             # they run live. Say so in the list rather than in a later error.
-            if spec.screen != registry.SCREEN_METRIC:
+            if registry.is_live_only(key):
                 label += "   (live am Bildschirm)"
             self._para_combo.addItem(label, key)
         form.addRow("Paradigma", self._para_combo)
@@ -144,7 +145,7 @@ class ProtocolChooser(QDialog):
         if self.uses_protocol:
             return False
         key = self._para_combo.currentData()
-        return bool(key) and registry.get(key).screen != registry.SCREEN_METRIC
+        return bool(key) and registry.is_live_only(key)
 
     def single_choice(self) -> tuple[str, str, float]:
         """(paradigm key, hand, duration_s) of the single-paradigm section."""
