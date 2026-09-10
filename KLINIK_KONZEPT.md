@@ -2,8 +2,12 @@
 
 Stand: 2026-09-10. Prüfung dreier Erweiterungen auf Machbarkeit im heutigen
 Stand (Video-Lab, i2b2-Sternschema, YAML-Protokolle) und Vorschlag, wie sie
-gebaut würden. Nichts davon ist implementiert; das Dokument ist die
-Entscheidungsgrundlage.
+gebaut würden.
+
+**Umsetzungsstand:** Punkt 1 ist als eine Maske „Parkinson-Anamnese"
+umgesetzt (`clinical/`, `ui/form_dialog.py`, Abbildung wie unten
+beschrieben; Abweichung: statt mehrerer Masken eine gemeinsame je Sitzung,
+mit Fortschreiben der letzten Antworten). Punkte 2 und 3 sind offen.
 
 1. YAML-gesteuerte Eingabemasken für klinische Daten (inkl. Medikation)
 2. Export strukturierter Reports und der Videos

@@ -116,6 +116,20 @@ Versionierung: SemVer-artig (0.x = Forschungsprototyp).
   verweist darauf statt auf den Clip. Der Dialog stürzt bei älteren
   Video-Messungen (Clip als `raw_data_path`) nicht mehr ab, sondern sagt, dass
   Kurven erst nach „Neu auswerten" da sind.
+- **Klinische Daten per YAML-Maske** (`clinical/`): `clinical/forms/*.yaml`
+  beschreibt eine Maske (Abschnitte, Items nach Typ, Bereiche, Auswahlen,
+  Kataloge, Wiederholgruppen, berechnete Felder); `clinical/schema.py` lädt,
+  validiert und rechnet (`years_since`, `sum`, `ledd` nach Tomlinson 2010),
+  `clinical/store.py` schreibt jede Antwort als kodierte Zeile in
+  `OBSERVATION_FACT` (Konzept aus der YAML, N/T/D, Wiederholzeilen als B mit
+  `INSTANCE_NUM`, berechnete Werte als N) plus eine Q-Zeile mit der ganzen
+  Maske; Konzepte werden in `CONCEPT_DIMENSION` registriert. Erste Maske:
+  **Parkinson-Anamnese** (Diagnose/Verlauf, H&Y, UPDRS III, Familie, Stürze,
+  nicht-motorische Symptome, MoCA, Medikation mit LEDD, ON/OFF, THS).
+  Generischer Dialog `ui/form_dialog.py`; im Arbeitsplatz „＋ Hinzufügen →
+  Anamnese / klinische Daten…", 📋-Knoten mit Kurzzeile, Ansicht, Bearbeiten,
+  Notiz, Löschen; neue Maske startet mit den letzten Antworten.
+  Messungs-Abfragen lassen `CATEGORY_CHAR='CLINICAL'` aus.
 - **UI-Abstimmung**: Menü-Buttons im Kopf des Arbeitsplatzes sehen aus wie
   die übrigen Buttons (gleiche Höhe, Rahmen, Radius); Sitzungszeilen zeigen
   Art und Stand in der Ergebnis-Spalte („Protokoll 1/4", „Live · 3 Messungen")

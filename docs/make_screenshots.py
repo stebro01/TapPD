@@ -276,6 +276,31 @@ def main() -> None:
     grab(dlg, "11d_notiz")
     dlg.reject()
 
+    # 11d2) Anamnese-Maske
+    from clinical.schema import load_form
+    from ui.form_dialog import FormDialog
+    fdlg = FormDialog(w, load_form("pd_anamnese"), patient=p,
+                      session_label=f"Sitzung vom {_s.started_at[:10]}",
+                      answers={"diagnosis_year": 2019, "onset_year": 2017, "onset_side": "right",
+                               "dominant_hand": "right", "subtype": "tremor_dominant",
+                               "hoehn_yahr": "2", "updrs3_total": 28, "updrs3_state": "off",
+                               "family_pd": "no", "falls_12m": 1, "freezing": "no",
+                               "walking_aid": "none", "nms": ["hyposmia", "rbd", "constipation"],
+                               "moca": 27, "med_state": "off", "last_dose_minutes": 780,
+                               "medication": [
+                                   {"substance": "levodopa", "dose_mg": 100, "per_day": 4,
+                                    "times": "7, 11, 15, 19"},
+                                   {"substance": "pramipexole", "dose_mg": 0.7, "per_day": 3},
+                                   {"substance": "rasagiline", "dose_mg": 1, "per_day": 1}]})
+    fdlg.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, True)
+    fdlg.resize(900, 1000); fdlg.show(); app.processEvents()
+    from PyQt6.QtWidgets import QScrollArea as _QSA
+    _sa = fdlg.findChild(_QSA)
+    _sa.verticalScrollBar().setValue(_sa.verticalScrollBar().maximum() // 2)
+    app.processEvents()
+    grab(fdlg, "11h_anamnese")
+    fdlg.reject()
+
     # 11e) Details einer Video-Messung (Kennwerte, Kurven, Herkunft)
     from storage.database import get_measurements
     _c = get_db(); ms = get_measurements(_c, p.id); _c.close()

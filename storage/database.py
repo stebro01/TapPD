@@ -655,10 +655,16 @@ def delete_session(conn: sqlite3.Connection, session_id: int) -> None:
 
 def get_session_measurements(conn: sqlite3.Connection, session_id: int) -> list[Measurement]:
     rows = conn.execute(
-        "SELECT * FROM OBSERVATION_FACT WHERE ENCOUNTER_NUM=? ORDER BY START_DATE",
+        "SELECT * FROM OBSERVATION_FACT WHERE ENCOUNTER_NUM=? AND " + NOT_CLINICAL
+        + " ORDER BY START_DATE",
         (session_id,),
     ).fetchall()
     return [_row_to_measurement(r) for r in rows]
+
+
+# Clinical form rows (clinical/store.py) share the fact table but are not
+# measurements: every measurement query leaves that category out.
+NOT_CLINICAL = "COALESCE(CATEGORY_CHAR, '') != 'CLINICAL'"
 
 
 # ── Measurement CRUD ────────────────────────────────────────────────
@@ -715,7 +721,8 @@ def update_measurement(conn: sqlite3.Connection, m: Measurement) -> Measurement:
 
 def get_measurements(conn: sqlite3.Connection, patient_id: int) -> list[Measurement]:
     rows = conn.execute(
-        "SELECT * FROM OBSERVATION_FACT WHERE PATIENT_NUM=? ORDER BY START_DATE DESC",
+        "SELECT * FROM OBSERVATION_FACT WHERE PATIENT_NUM=? AND " + NOT_CLINICAL
+        + " ORDER BY START_DATE DESC",
         (patient_id,),
     ).fetchall()
     return [_row_to_measurement(r) for r in rows]
@@ -745,7 +752,7 @@ def delete_measurement(conn: sqlite3.Connection, measurement_id: int) -> None:
 # {"attachments": [{name, path, size, added_at}]} — the files themselves live
 # in data/attachments (storage.attachments).
 
-NOTE_KINDS = ("session", "step", "import", "measurement")
+NOTE_KINDS = ("session", "step", "import", "measurement", "form")
 
 
 @dataclass
@@ -844,7 +851,7 @@ def get_last_measurement_dates(conn: sqlite3.Connection) -> dict[int, str]:
     """Return {patient_id: last_recorded_at} for all patients with measurements."""
     rows = conn.execute(
         "SELECT PATIENT_NUM, MAX(START_DATE) as last_date "
-        "FROM OBSERVATION_FACT GROUP BY PATIENT_NUM"
+        "FROM OBSERVATION_FACT WHERE " + NOT_CLINICAL + " GROUP BY PATIENT_NUM"
     ).fetchall()
     return {r["PATIENT_NUM"]: r["last_date"] for r in rows}
 
@@ -857,6 +864,7 @@ def get_all_measurements(conn: sqlite3.Connection) -> list[tuple[Patient, Measur
         "  p.PATIENT_CD, p.BIRTH_DATE, p.SEX_CD, p.PATIENT_BLOB, "
         "  p.CREATED_AT AS P_CREATED_AT "
         "FROM OBSERVATION_FACT o JOIN PATIENT_DIMENSION p ON o.PATIENT_NUM = p.PATIENT_NUM "
+        "WHERE COALESCE(o.CATEGORY_CHAR, '') != 'CLINICAL' "
         "ORDER BY o.START_DATE DESC"
     ).fetchall()
     results = []

@@ -34,6 +34,7 @@ from PyQt6.QtWidgets import (
     QMenu,
     QMessageBox,
     QPushButton,
+    QScrollArea,
     QSplitter,
     QStackedWidget,
     QToolButton,
@@ -171,6 +172,7 @@ class PatientWorkbench(QWidget):
         self._measurements: dict[int, list[Measurement]] = {}
         self._orphans: list[Measurement] = []
         self._notes: dict[tuple, Note] = {}
+        self._forms: dict = {}                 # session id (or None) → [FormEntry]
         self._videos: dict[int, VideoSession] = {}
         self._bound: VideoSession | None = None      # video the panes show
         self._binding = False                        # re-entrancy guard, see _bind
@@ -237,7 +239,8 @@ class PatientWorkbench(QWidget):
         # live on screen. The paradigm decides, not the menu.
         for label, cb in (("Protokoll aufnehmen…", self._add_protocol),
                           ("Einzelnes Paradigma…", self._add_single),
-                          ("Video importieren…", self._add_import)):
+                          ("Video importieren…", self._add_import),
+                          ("Anamnese / klinische Daten…", self._add_anamnesis)):
             a = QAction(label, self)
             a.triggered.connect(lambda _c=False, f=cb: f())
             am.addAction(a)
@@ -291,7 +294,8 @@ class PatientWorkbench(QWidget):
         self._cut = VideoLabScreen(self.main_window, embedded=True)
         self._cut.contentChanged.connect(self._refresh)
         self._detail = self._build_measurement_pane()
-        for w in (self._empty, self._rec, self._cut, self._detail):
+        self._form_view = self._build_form_view()
+        for w in (self._empty, self._rec, self._cut, self._detail, self._form_view):
             self._work.addWidget(w)
         split.addWidget(self._work)
         split.setStretchFactor(0, 0)
@@ -317,6 +321,35 @@ class PatientWorkbench(QWidget):
         self._status.setStyleSheet(f"color: {theme.TEXT_SECONDARY};")
         foot.addWidget(self._status)
         root.addLayout(foot)
+
+    def _build_form_view(self) -> QWidget:
+        """Read-only view of a filled clinical form (edit via the button)."""
+        from ui.widgets.meta_panel import MetaPanel
+        w = QWidget()
+        lay = QVBoxLayout(w)
+        lay.setContentsMargins(0, 0, 0, 0)
+        self._f_title = QLabel()
+        self._f_title.setStyleSheet("font-size: 16px; font-weight: 600;")
+        lay.addWidget(self._f_title)
+        self._f_text = QLabel()
+        self._f_text.setStyleSheet(f"color: {theme.TEXT_SECONDARY};")
+        lay.addWidget(self._f_text)
+        row = QHBoxLayout()
+        self._f_edit_btn = QPushButton("Bearbeiten…")
+        self._f_edit_btn.setProperty("cssClass", "primary")
+        self._f_edit_btn.clicked.connect(lambda: self._edit_form(self._f_current))
+        row.addWidget(self._f_edit_btn)
+        row.addStretch()
+        lay.addLayout(row)
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        self._f_meta = MetaPanel("Antworten")
+        self._f_meta.set_expanded(True)
+        scroll.setWidget(self._f_meta)
+        lay.addWidget(scroll, 1)
+        self._f_current = None
+        return w
 
     def _build_empty(self) -> QWidget:
         w = QWidget()
@@ -424,6 +457,10 @@ class PatientWorkbench(QWidget):
         self._measurements = {s.id: get_session_measurements(conn, s.id) for s in self._sessions}
         self._orphans = [m for m in get_measurements(conn, self._patient.id) if m.session_id is None]
         self._notes = {(n.kind, n.ref): n for n in get_notes(conn, self._patient.id)}
+        from clinical.store import get_form_entries
+        self._forms = {}
+        for e in get_form_entries(conn, self._patient.id):
+            self._forms.setdefault(e.session_id, []).append(e)
         conn.close()
         newest = self._sessions[0].id if self._sessions else None
         videos = {}
@@ -516,6 +553,8 @@ class PatientWorkbench(QWidget):
                 self._note_tip(it, "import", str(s.id))
                 self._tag(it, ("import", s.id))
                 node.addChild(it)
+        for e in self._forms.get(s.id, []):
+            node.addChild(self._form_node(e))
         for m in ms:
             if m.id not in used:
                 node.addChild(self._measurement_node(m))
@@ -547,6 +586,20 @@ class PatientWorkbench(QWidget):
         if st.state == STEP_CONFIRMED:
             it.setForeground(0, QColor(theme.ACCENT_DARK))
         self._tag(it, ("step", sid, st.id))
+        return it
+
+    def _form_node(self, e) -> QTreeWidgetItem:
+        from clinical.schema import summary_line
+        from clinical.store import form_for_entry
+        try:
+            form = form_for_entry(e)
+            name, summary = form.name, summary_line(form, e.answers, e.computed)
+        except Exception:
+            name, summary = e.form_id, ""
+        it = QTreeWidgetItem([f"📋  {name}", self._mark(summary, "form", str(e.id))])
+        it.setToolTip(0, f"Klinische Daten, erfasst {_fmt_dt(e.recorded_at)}")
+        self._note_tip(it, "form", str(e.id))
+        self._tag(it, ("form", e.id))
         return it
 
     def _measurement_node(self, m: Measurement) -> QTreeWidgetItem:
@@ -739,6 +792,11 @@ class PatientWorkbench(QWidget):
             self._bind(v)
             self._work.setCurrentWidget(self._cut)
             self._set_status("Video: Bereich auf der Zeitleiste markieren → „Bereich übernehmen“.")
+        elif kind == "form":
+            e = self._form_by_id(key[1])
+            if e is None:
+                return
+            self._show_form(e)
         elif kind == "measurement":
             m = self._measurement_by_id(key[1])
             if m is None:
@@ -829,6 +887,97 @@ class PatientWorkbench(QWidget):
             self._select(("step", s.id, added[0].id))
         self._set_status(f"{len(added)} Schritt{'' if len(added) == 1 else 'e'} hinzugefügt.")
 
+    # ── clinical forms ───────────────────────────────────────────
+    def _form_by_id(self, entry_id: int):
+        for entries in self._forms.values():
+            for e in entries:
+                if e.id == entry_id:
+                    return e
+        return None
+
+    def _add_anamnesis(self) -> None:
+        self._add_form("pd_anamnese")
+
+    def _add_form(self, form_id: str) -> None:
+        """Fill the form for the selected (or a new) session."""
+        from clinical.schema import load_form
+        from clinical.store import prefill, save_form_entry
+        from ui.form_dialog import FormDialog
+        s = self._target_session() or self.new_session()
+        if s is None or self._patient is None:
+            return
+        form = load_form(form_id)
+        conn = get_db()
+        try:
+            start = prefill(conn, self._patient.id, form)
+        finally:
+            conn.close()
+        dlg = FormDialog(self, form, patient=self._patient,
+                         session_label=f"Sitzung vom {_fmt_dt(s.started_at)}", answers=start)
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return
+        conn = get_db()
+        try:
+            e = save_form_entry(conn, self._patient.id, s.id, form, dlg.answers())
+        finally:
+            conn.close()
+        self._set_status(f"{form.name} gespeichert.")
+        self.refresh()
+        self._select(("form", e.id))
+
+    def _edit_form(self, e) -> None:
+        if e is None or self._patient is None:
+            return
+        from clinical.store import form_for_entry, save_form_entry
+        from ui.form_dialog import FormDialog
+        form = form_for_entry(e)
+        s = self._session_by_id(e.session_id) if e.session_id else None
+        dlg = FormDialog(self, form, patient=self._patient,
+                         session_label=f"Sitzung vom {_fmt_dt(s.started_at)}" if s else "",
+                         answers=e.answers)
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return
+        conn = get_db()
+        try:
+            save_form_entry(conn, self._patient.id, e.session_id, form, dlg.answers(),
+                            entry_id=e.id)
+        finally:
+            conn.close()
+        self._set_status(f"{form.name} aktualisiert.")
+        self.refresh()
+        self._select(("form", e.id))
+
+    def _delete_form(self, e) -> None:
+        if e is None or QMessageBox.question(
+                self, "Klinische Daten löschen",
+                f"Eintrag vom {_fmt_dt(e.recorded_at)} mit allen Antworten löschen?") \
+                != QMessageBox.StandardButton.Yes:
+            return
+        from clinical.store import delete_form_entry
+        conn = get_db()
+        delete_form_entry(conn, e.id)
+        conn.close()
+        self.refresh()
+
+    def _show_form(self, e) -> None:
+        from clinical.schema import describe
+        from clinical.store import form_for_entry
+        self._f_current = e
+        try:
+            form = form_for_entry(e)
+        except Exception as ex:
+            self._f_title.setText(e.form_id)
+            self._f_text.setText(f"Maske nicht ladbar: {ex}")
+            self._f_meta.set_content([], [])
+            self._work.setCurrentWidget(self._form_view)
+            return
+        self._f_title.setText(form.name)
+        self._f_text.setText(f"erfasst {_fmt_dt(e.recorded_at)}  ·  Version {e.version}")
+        rows = self._note_rows("form", str(e.id)) + describe(form, e.answers, e.computed)
+        self._f_meta.set_content(rows, [])
+        self._f_meta.set_expanded(True)
+        self._work.setCurrentWidget(self._form_view)
+
     def _add_import(self) -> None:
         s = self._target_session() or self.new_session()
         if s is None:
@@ -876,6 +1025,13 @@ class PatientWorkbench(QWidget):
                 out.append(("● Aufnehmen", lambda: self._select(key)))
             out.append(self._note_action("step", f"{key[1]}:{st.id}", key[1], st.title))
             out.append(("Schritt entfernen…", lambda: self._remove_step(v, st)))
+        elif kind == "form":
+            e = self._form_by_id(key[1])
+            if e is None:
+                return []
+            out.append(("Bearbeiten…", lambda: self._edit_form(e)))
+            out.append(self._note_action("form", str(e.id), e.session_id, "Klinische Daten"))
+            out.append(("Löschen…", lambda: self._delete_form(e)))
         elif kind == "import":
             v = self._videos.get(key[1])
             out.append(("Im Schnitt-Bereich öffnen", lambda: self._select(key)))

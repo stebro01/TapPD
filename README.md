@@ -214,7 +214,21 @@ pip install -r requirements.txt
    Laptop-CPU der Engpass)
 6. Ein importiertes Video erscheint als Eintrag der Sitzung; angeklickt
    oeffnet es den Schnitt-Bereich (Bereich markieren → Segment → auswerten)
-7. Menue **„Patient ▾"**: Bearbeiten, 📈 Verlauf, CSV-Export, Patient loeschen
+7. **Anamnese / klinische Daten** (Menue „＋ Hinzufuegen"): eine Maske je
+   Sitzung mit Diagnose und Verlauf (Diagnosejahr, Seite, Subtyp, Hoehn &
+   Yahr, MDS-UPDRS III), Familienanamnese, Stuerzen und Gang, nicht-motorischen
+   Symptomen, MoCA und der Medikation (eine Zeile je Praeparat, Zustand
+   ON/OFF, Minuten seit letzter Einnahme, THS). Erkrankungsdauer und
+   **LEDD** (Levodopa-Aequivalenzdosis, Faktoren nach Tomlinson 2010) werden
+   live berechnet. Die Maske ist in `clinical/forms/pd_anamnese.yaml`
+   beschrieben und laesst sich dort erweitern (Item-Typen integer, decimal,
+   scale, choice, multichoice, bool, text, date; Wiederholgruppen; berechnete
+   Felder). Eine neue Maske beginnt mit den Antworten der letzten. Im Baum
+   erscheint sie als 📋-Eintrag mit Kurzzeile („H&Y 2 · UPDRS III 28 · LEDD
+   842 mg · OFF"); Rechtsklick: Bearbeiten, Notiz, Loeschen. Jede Antwort
+   liegt als eigene kodierte Beobachtung in der Datenbank (siehe
+   DB_KONZEPT.md), Messungs-Abfragen lassen diese Zeilen aus
+8. Menue **„Patient ▾"**: Bearbeiten, 📈 Verlauf, CSV-Export, Patient loeschen
 
 ## Projektstruktur
 

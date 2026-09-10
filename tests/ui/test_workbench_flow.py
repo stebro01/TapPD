@@ -392,3 +392,65 @@ def test_note_actions_exist_for_session_import_and_measurement(protocol_session,
     wb.refresh(); app.pump()
     assert "📝 Notiz…" in [a[0] for a in wb._actions_for(("session", s.id))]
     assert "📝 Notiz…" in [a[0] for a in wb._actions_for(("measurement", m.id))]
+
+
+def test_anamnesis_form_is_added_listed_shown_edited_and_deleted(protocol_session, app,
+                                                                 monkeypatch, yes_to_everything):
+    """„＋ Hinzufügen → Anamnese": the form dialog fills, the session shows a
+    📋 node with the summary, selecting it opens the read-only view, editing
+    updates in place, deleting removes all rows."""
+    from clinical.store import get_form_entries
+    from storage.database import get_db, get_measurements
+    from ui import form_dialog as fd
+    wb, s, v = protocol_session
+
+    class AutoDialog(fd.FormDialog):
+        def exec(self):
+            self.set_answers({"diagnosis_year": 2018, "hoehn_yahr": "2", "updrs3_total": 31,
+                              "med_state": "on",
+                              "medication": [{"substance": "levodopa", "dose_mg": 100, "per_day": 3}]})
+            self.accept()
+            return 1
+    monkeypatch.setattr(fd, "FormDialog", AutoDialog)
+
+    wb._add_anamnesis(); app.pump()
+    conn = get_db(); (e,) = get_form_entries(conn, app.patient.id)
+    assert get_measurements(conn, app.patient.id) == []          # not a measurement
+    conn.close()
+    assert e.session_id == s.id and e.computed["ledd_mg"] == 300.0
+
+    rows = _rows(wb)
+    node = next(r for r in rows if "Parkinson-Anamnese" in r[1])
+    assert node[2] == "H&Y 2  ·  UPDRS III 31  ·  LEDD 300 mg  ·  ON"
+    assert wb._current_key() == ("form", e.id)
+    assert wb._work.currentWidget() is wb._form_view
+    lines = wb._f_meta.texts()
+    assert "Hoehn & Yahr: 2 – beidseitig, keine Gleichgewichtsstörung" in lines
+    assert "LEDD (mg/Tag): 300 mg" in lines
+    assert [a[0] for a in wb._actions_for(("form", e.id))] == ["Bearbeiten…", "📝 Notiz…", "Löschen…"]
+
+    class EditDialog(fd.FormDialog):
+        def exec(self):
+            a = self.answers(); a["hoehn_yahr"] = "3"
+            self.set_answers(a); self.accept(); return 1
+    monkeypatch.setattr(fd, "FormDialog", EditDialog)
+    wb._edit_form(e); app.pump()
+    conn = get_db(); (e2,) = get_form_entries(conn, app.patient.id); conn.close()
+    assert e2.id == e.id and e2.answers["hoehn_yahr"] == "3"
+    assert any(r[2].startswith("H&Y 3") for r in _rows(wb))
+
+    # a second form on a new session starts with the last answers (carry forward)
+    seen = []
+
+    class PeekDialog(fd.FormDialog):
+        def exec(self):
+            seen.append(self.answers()); return 0
+    monkeypatch.setattr(fd, "FormDialog", PeekDialog)
+    s2 = wb.new_session(); app.pump()
+    wb._select(("session", s2.id)); app.pump()
+    wb._add_anamnesis(); app.pump()
+    assert seen and seen[0]["hoehn_yahr"] == "3" and seen[0]["diagnosis_year"] == 2018
+
+    wb._delete_form(e2); app.pump()
+    conn = get_db(); assert get_form_entries(conn, app.patient.id) == []; conn.close()
+    assert not any("Parkinson-Anamnese" in r[1] for r in _rows(wb))
