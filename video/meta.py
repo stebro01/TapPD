@@ -278,6 +278,10 @@ def describe_measurement(m) -> list[tuple[str, str]]:
     if not prov:
         rows.append(("Herkunft", f"Quelle: {m.source_kind or '–'}  ·  keine Video-Metadaten"
                      + ("" if m.source_kind in ("webcam", "leap", "mock") else " (älterer Stand)")))
+        if str(getattr(m, "test_type", "")) in ("saccade_test", "ocular_fixation"):
+            rows.append(("Video", "Live-Okulomotorik-Test: es wird kein Video gespeichert, nur "
+                                  "die Gesichts-Samples (Rohdaten). Ein Kamerabild zeichnet "
+                                  "der Debug-Modus des Sakkaden-Tests auf (data/debug/saccade)."))
         rows.append(("Rohdaten", _file(m.raw_data_path)))
         return rows
     rows += describe_capture(prov.get("capture") or {})

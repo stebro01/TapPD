@@ -107,6 +107,25 @@ class SaccadeTest(BaseParadigm):
     def get_live_metric_label(self) -> str:
         return "Blickversatz (%IPD)"
 
+    # ── raw data ───────────────────────────────────────────────────
+    def raw_extra(self) -> dict:
+        """Events for the raw JSON (next to ``face_frames``): the calibration
+        result and every target with its show/acquire times — what the
+        detail plot needs to draw targets over the gaze trace. Times are
+        seconds since the first face sample, like ``SaccadeTask``."""
+        task = self.task
+        return {"saccade": {
+            "layout": task.layout, "calib_visits": list(task.calib_visits),
+            "points": {k: list(v) for k, v in task.points.items()},
+            "references": {k: list(v) for k, v in task.references.items()},
+            "noise": dict(getattr(task, "noise", {})),
+            "test_started_s": getattr(task, "_test_started", None),
+            "phase": task.phase.name, "fail_reason": task.fail_reason,
+            "hits": [{"target": h.target, "shown_at_s": h.shown_at_s,
+                      "acquired_at_s": h.acquired_at_s,
+                      "first_move_correct": h.first_move_correct} for h in task.hits],
+        }}
+
     # ── features ───────────────────────────────────────────────────
     def compute_features(self) -> dict[str, float]:
         feats = self.task.features()

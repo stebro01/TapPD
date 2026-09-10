@@ -116,6 +116,15 @@ Versionierung: SemVer-artig (0.x = Forschungsprototyp).
   verweist darauf statt auf den Clip. Der Dialog stürzt bei älteren
   Video-Messungen (Clip als `raw_data_path`) nicht mehr ab, sondern sagt, dass
   Kurven erst nach „Neu auswerten" da sind.
+- **Details für Okulomotorik-Messungen** (`ui/detail_dialog.py`): Sakkaden zeigen
+  den Blickverlauf (%IPD, Achse der Ziel-Anordnung) mit Eichphase, Ziel-Spur
+  (Referenzposition des gezeigten Ziels von Anzeige bis Erreichen, Punkt beim
+  Erreichen, rot = erste Bewegung falsch) und Latenz je Ziel mit Median;
+  Fixation zeigt Blickversatz und Lidspalte. Dafür schreibt `SaccadeTest.raw_extra()`
+  Eichung, Referenzen, Rauschen und alle Treffer in die Rohdaten-JSON
+  (`saccade`-Block; `save_raw_data` ruft `raw_extra()` generisch). Ältere
+  Sakkaden-Rohdaten ohne den Block zeigen Blick und Blinzeln. Die Herkunft
+  einer Live-Okulomotorik-Messung sagt jetzt, dass kein Video gespeichert wird.
 - **Sakkaden-Eichung mit Wiederholung** (`saccade_test.calibration.visits`,
   Standard `[M, L, R, L, R, L, R]`): Start in der Mitte, dann links/rechts je
   dreimal. Referenz eines Punkts = Median der Besuchs-Mediane, Unruhe wird
