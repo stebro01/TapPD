@@ -56,6 +56,7 @@ class RecordingPane(QWidget):
     _overlayDone = pyqtSignal()            # the overlay replay reached the end of the clip
 
     _overlay_src = None                    # sidecar replaying the take with landmarks
+    _live_pr = None                        # ParadigmRunner drawing the live curve while filming
     extra_rows = None                      # host hook: step → [(label, value)] for the info panel
     _take_meta: dict = {}                  # provenance of the take being filmed
 
@@ -498,6 +499,7 @@ class RecordingPane(QWidget):
         self._t_left = step.duration_s
         self._device.record_clip(str(path), step.duration_s)
         self._set_phase(RECORDING)
+        self._start_live_metric(step)
         self._status(f"Aufnahme läuft — {step.duration_s:g}s")
         log.info("Protokollschritt '%s' wird aufgenommen: %s", step.id, path)
 
@@ -507,8 +509,45 @@ class RecordingPane(QWidget):
         aborted file cannot be mistaken for the good one."""
         self._t_left = 0.0
         self._recorded_path = None
+        self._stop_live_metric()
         self._set_phase(IDLE)
         self._status("Aufnahme abgebrochen.")
+
+    # ── live curve while filming ─────────────────────────────────
+    def _start_live_metric(self, step) -> None:
+        """Feed the camera's hand frames into the step's paradigm while the
+        take runs, so the metric curve draws live — feedback only, the numbers
+        come from the analysis of the recorded file afterwards."""
+        self._stop_live_metric()
+        if step is None or step.is_documentation or self._device is None:
+            return
+        try:
+            from paradigms import registry
+            from paradigms.runner import ParadigmRunner
+            spec = registry.get(step.paradigm)
+            test = spec.load_class()(capture=self._device, duration=step.duration_s,
+                                     hand=step.hand, **(spec.cls_kwargs or {}))
+            pr = ParadigmRunner(test, sidecar_bounded=True)
+            pr.begin()
+            self._device.start_tracking(pr.feed)
+        except Exception:
+            log.debug("Live-Kurve während der Aufnahme nicht möglich", exc_info=True)
+            return
+        self._live_pr = pr
+        self._plot.clear_plot()
+        self._plot.setVisible(True)
+        self._analysis_lbl.setText("Live-Kurve zur Kontrolle — die Kennwerte kommen aus der "
+                                   "Auswertung nach dem Übernehmen.")
+
+    def _stop_live_metric(self) -> None:
+        if self._live_pr is None:
+            return
+        self._live_pr = None
+        if self._device is not None:
+            try:
+                self._device.start_tracking(lambda _f: None)   # frames back to no-op
+            except Exception:
+                log.debug("Frame-Callback konnte nicht zurückgesetzt werden", exc_info=True)
 
     def _on_keep(self) -> None:
         step = self._step
@@ -709,6 +748,9 @@ class RecordingPane(QWidget):
                 step = self._step
                 total = max(0.01, step.duration_s if step else 1.0)
                 self._bar.setValue(int(100 * (1 - max(0.0, self._t_left) / total)))
+                if self._live_pr is not None:
+                    self._plot.update_plot(self._live_pr.live_snapshot(),
+                                           self._live_pr.metric_label)
                 # The sidecar's "recorded" message ends a take, not our countdown.
                 if self._recorded_path:
                     self._finish_capture(self._recorded_path)
@@ -724,6 +766,7 @@ class RecordingPane(QWidget):
             self._set_phase(IDLE)
             self._status("Aufnahme fehlgeschlagen — keine Datei entstanden.", error=True)
             return
+        self._stop_live_metric()                 # the curve stays until the analysis
         self.session.mark_recorded(step.id, path)
         from video.meta import note_recorded
         step.meta = note_recorded(dict(self._take_meta),

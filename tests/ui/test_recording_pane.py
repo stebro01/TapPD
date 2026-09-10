@@ -28,7 +28,7 @@ class FakeDevice:
     def enable_preview(self, on): pass
     def enable_face(self, on, *a): self.face_calls.append(bool(on))
     def configure(self, **k): pass
-    def start_tracking(self, cb): self._recording = True
+    def start_tracking(self, cb): self._recording = True; self.frame_cb = cb
     def stop_tracking(self): self._recording = False
     def record_clip(self, path, seconds): self.recorded.append((path, seconds))
 
@@ -540,3 +540,40 @@ def test_open_step_shows_no_leftover_summary(pane, monkeypatch):
     p.show_step("tap_left")                         # still open
     assert p._analysis_lbl.text() == "" and not p._plot.isVisibleTo(p)
     assert p._record_btn.isVisibleTo(p) and p._record_btn.isEnabled()
+
+
+def test_live_curve_draws_while_filming_and_lets_go_afterwards(pane, qapp):
+    """During a take the camera's hand frames feed the step's paradigm, so the
+    metric curve shows live; the callback goes back to no-op when the take
+    ends. Feedback only — the analysis runs on the file afterwards."""
+    from capture.base_capture import FingerData, HandPose, TrackingFrame
+    p, v = pane
+    dev = p._device
+    p.show_step("tap_right")
+    p._on_record(); p._t_left = 0.0; p._tick()          # countdown over → recording
+    assert p._phase == "recording" and p._live_pr is not None
+    assert dev.frame_cb == p._live_pr.feed and p._plot.isVisibleTo(p)
+    assert "Live-Kurve" in p._analysis_lbl.text()
+
+    for i, gap in enumerate((10.0, 60.0, 10.0, 60.0)):
+        hand = HandPose(timestamp_us=i * 33333, hand_type="right", palm_position=(0, 0, 0),
+                        palm_velocity=(0, 0, 0),
+                        fingers=[FingerData(0, (0.0, 0.0, 0.0), True),
+                                 FingerData(1, (gap, 0.0, 0.0), True)])
+        dev.frame_cb(TrackingFrame(timestamp_us=i * 33333, hands=[hand]))
+    live = p._live_pr.live_snapshot()
+    assert [round(m) for _t, m in live["right"]] == [10, 60, 10, 60]
+    p._tick()                                          # draws without complaint
+
+    path, _ = dev.recorded[-1]
+    import pathlib as _pl
+    _pl.Path(path).parent.mkdir(parents=True, exist_ok=True); _pl.Path(path).write_bytes(b"x")
+    p._recorded_path = path; p._tick()
+    assert p._phase == "review" and p._live_pr is None
+    assert dev.frame_cb != None and dev.frame_cb.__name__ == "<lambda>"   # back to no-op
+
+    # cancelling lets go as well
+    p.show_step("tap_left"); p._on_record(); p._t_left = 0.0; p._tick()
+    assert p._live_pr is not None
+    p._on_cancel()
+    assert p._live_pr is None and dev.frame_cb.__name__ == "<lambda>"

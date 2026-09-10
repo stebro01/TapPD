@@ -151,7 +151,9 @@ pip install -r requirements.txt
    *Video importieren*. Das Paradigma entscheidet selbst: motorische Aufgaben
    werden als Video-Schritt gefilmt, interaktive (Hanoi, SRT, TMT, Sakkaden)
    laufen live am Bildschirm — in der Auswahl entsprechend markiert
-3. **Aufnehmen** je Schritt: Anweisung lesen → Countdown → Aufnahme →
+3. **Aufnehmen** je Schritt: Anweisung lesen → Countdown → Aufnahme (mit
+   Live-Kurve des Paradigmas zur Kontrolle, z. B. Daumen-Zeigefinger-Distanz —
+   die Kennwerte kommen aus der Auswertung der Datei danach) →
    Take ansehen → **Uebernehmen** oder **Wiederholen**. Die Checkbox
    **„Gesicht unkenntlich machen"** steht schon vor der Aufnahme unter dem Bild
    (Vorgabe aus `video.yaml`, `privacy.deface`) und bleibt bis zum Uebernehmen

@@ -116,6 +116,11 @@ Versionierung: SemVer-artig (0.x = Forschungsprototyp).
   verweist darauf statt auf den Clip. Der Dialog stürzt bei älteren
   Video-Messungen (Clip als `raw_data_path`) nicht mehr ab, sondern sagt, dass
   Kurven erst nach „Neu auswerten" da sind.
+- **Live-Kurve bei der Aufnahme**: während ein Take läuft, füttert das
+  Aufnahme-Panel die Hand-Frames der Kamera in das Paradigma des Schritts
+  (`ParadigmRunner`) und zeichnet die Messkurve live — wie früher bei den
+  Live-Messungen. Nur Kontrolle; die Kennwerte kommen weiterhin aus der
+  Auswertung der aufgenommenen Datei.
 - **Wording**: in der Oberfläche, im Bericht und in der Doku heißt es jetzt
   durchgängig **Proband/Probandin** statt Patient; Code, Datenbank-Namen
   (`PATIENT_DIMENSION`, `patient_id`) und Dateinamen (`patients.csv`) bleiben.
