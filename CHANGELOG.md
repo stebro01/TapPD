@@ -116,6 +116,14 @@ Versionierung: SemVer-artig (0.x = Forschungsprototyp).
   verweist darauf statt auf den Clip. Der Dialog stürzt bei älteren
   Video-Messungen (Clip als `raw_data_path`) nicht mehr ab, sondern sagt, dass
   Kurven erst nach „Neu auswerten" da sind.
+- **Sakkaden-Debug-Modus** (`ui/saccade_debug.py`, Checkbox „🔧 Debug" auf dem
+  Sakkaden-Bildschirm): neben dem Stimulus das Kamerabild mit Augenpunkten und
+  die Tracking-Qualität (Gesichts-Rate, IPD in Pixeln, Blick-Streuung gegen
+  `max_spread_ipd`, EAR, Roll, Nase) mit Klartext-Warnungen (zu kleine IPD →
+  näher/höhere Auflösung, unruhiger Blick, kleine Lidspalte). Der Lauf wird
+  als Video (Sidecar `record`) und alle Blick-Samples mit Phase/Eichpunkt als
+  JSON nach `data/debug/saccade/` geschrieben; `replay_log()` spielt ein Log
+  headless durch die Task-Logik, auch mit geänderten Schwellen.
 - **Live-Tests aus der Sitzung** (Hanoi, SRT, TMT, Fixation, Sakkaden über
   „＋ Hinzufügen → Einzelnes Paradigma"): der Arbeitsplatz gibt die Kamera vor
   dem Start frei und macht die Webcam zur Hauptquelle, falls nötig (vorher

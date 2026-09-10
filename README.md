@@ -198,7 +198,17 @@ pip install -r requirements.txt
    Segment stammt, bleibt bei ihrem Video. Augen-Tests (Fixation, Sakkaden)
    laufen wie Hanoi/SRT/TMT live am Bildschirm, nicht als Video-Schritt: der
    Arbeitsplatz gibt dafuer die Kamera frei, das Ergebnis landet in der
-   Sitzung, Abbrechen und „Fortfahren" fuehren dorthin zurueck
+   Sitzung, Abbrechen und „Fortfahren" fuehren dorthin zurueck. Scheitert die
+   Sakkaden-Eichung, die Checkbox **„🔧 Debug"** auf dem Sakkaden-Bildschirm
+   einschalten: Kamerabild mit Augenpunkten, Tracking-Qualitaet (Gesichts-Rate,
+   IPD in Pixeln, Blick-Streuung, Lidspalte, Kopfhaltung) mit Warnungen, und der
+   Lauf wird als Video + Sample-Log nach `data/debug/saccade/` aufgezeichnet —
+   `ui/saccade_debug.replay_log(pfad)` spielt ihn offline durch die
+   Eich-Logik, auch mit anderen Schwellen (`paradigms/test_config.yaml →
+   saccade_test`). Faustregel aus den Messungen: bei 640×480 liegt die IPD
+   bei ~55 px, ein Pixel Iris-Versatz sind ~2 % IPD bei 4 % Trennschwelle —
+   `capture.yaml camera_width: 1280` und ~50 cm Abstand machen die Eichung
+   deutlich robuster
 5. **Rechtsklick** auf einen Schritt: **Details…**, erneut aufnehmen, **neu
    auswerten** (aktualisiert dieselbe Messung), **Paradigma/Seite aendern**
    (loescht das alte Ergebnis, wertet neu aus), entfernen. Auf eine Sitzung:

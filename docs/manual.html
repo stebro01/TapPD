@@ -266,8 +266,15 @@ erkennt Drehungen und wertet betroffene Abschnitte nicht.</figcaption></figure>
 Richtungsfehler-Rate, Anteil ungültiger Abschnitte (Kopfbewegung, Blinzeln).</p>
 <div class="warn"><b>Eichung schlägt fehl?</b> Meldung „Blick zu unruhig" oder
 „Punkte nicht trennbar" → näher an den Bildschirm (größere Blickwinkel), Beleuchtung
-verbessern, Brillenreflexe vermeiden. Feineinstellungen:
-<code>paradigms/test_config.yaml → saccade_test</code>.</div>
+verbessern, Brillenreflexe vermeiden. Die Checkbox <b>„🔧 Debug"</b> auf dem
+Sakkaden-Bildschirm zeigt neben dem Stimulus das Kamerabild mit den Augenpunkten und die
+Qualität des Eye-Trackings (Gesichts-Rate, Augenabstand in Pixeln, Blick-Streuung,
+Lidspalte, Kopfhaltung) mit Hinweisen — z.&nbsp;B. „IPD nur 40 px: näher an die Kamera
+oder höhere Auflösung". Gleichzeitig wird der Lauf als Video und Sample-Log unter
+<code>data/debug/saccade/</code> aufgezeichnet, damit sich die Eichung nachträglich
+nachvollziehen lässt. Feineinstellungen:
+<code>paradigms/test_config.yaml → saccade_test</code>; Kameraauflösung:
+<code>capture/capture.yaml → camera_width</code>.</div>
 
 <h2 id="ergebnisse">7&nbsp;· Ergebnisse &amp; Verlauf</h2>
 <figure><img src="img/07_ergebnis_tapping.png" alt="Ergebnis Finger Tapping">
