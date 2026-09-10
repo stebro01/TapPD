@@ -116,6 +116,13 @@ Versionierung: SemVer-artig (0.x = Forschungsprototyp).
   verweist darauf statt auf den Clip. Der Dialog stürzt bei älteren
   Video-Messungen (Clip als `raw_data_path`) nicht mehr ab, sondern sagt, dass
   Kurven erst nach „Neu auswerten" da sind.
+- **Live-Tests aus der Sitzung** (Hanoi, SRT, TMT, Fixation, Sakkaden über
+  „＋ Hinzufügen → Einzelnes Paradigma"): der Arbeitsplatz gibt die Kamera vor
+  dem Start frei und macht die Webcam zur Hauptquelle, falls nötig (vorher
+  konkurrierten zwei Sidecars um eine Kamera — die Sakkaden-Eichung fand kein
+  Gesicht); Abbrechen und „Fortfahren" führen zurück in die Sitzung statt auf
+  das alte Paradigmen-Dashboard (`start_test_from_session`). Augen-Tests
+  fragen keine Seite mehr ab, die Dauer aus dem Dialog gilt als Testdauer.
 - **Kompakte Darstellung ist Standard** (`ui_mode` = dense); Touch bleibt über
   „⇄ Touch“ auf dem Startbildschirm erreichbar und wird wie bisher gespeichert.
 - **Anderer Sitzung zuweisen** (Rechtsklick auf Messung oder Anamnese):

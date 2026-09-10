@@ -620,3 +620,21 @@ def test_info_panel_shows_the_stage_while_the_take_is_processed(pane, monkeypatc
     p._job = None                                      # pipeline done (nothing archived here)
     p.show_step("tap_right")
     assert "⚠ Take ist nicht archiviert (nur der Roh-Take liegt vor)." in p._meta.texts()
+
+
+def test_chooser_eye_tests_have_no_side_but_a_duration(qapp):
+    from ui.protocol_chooser import ProtocolChooser
+    dlg = ProtocolChooser(None, single_only=True)
+    dlg._para_combo.setCurrentIndex(dlg._para_combo.findData("saccade_test"))
+    assert dlg.is_interactive and dlg.is_ocular
+    assert not dlg._hand_combo.isEnabled() and dlg._dur.isEnabled()
+    assert "Augen-Test" in dlg._hint.text()
+    key, hand, dur = dlg.single_choice()
+    assert (key, hand) == ("saccade_test", "both") and dur == 20.0
+
+    dlg._para_combo.setCurrentIndex(dlg._para_combo.findData("tower_of_hanoi"))
+    assert dlg.is_interactive and not dlg.is_ocular
+    assert dlg._hand_combo.isEnabled() and not dlg._dur.isEnabled()
+
+    dlg._para_combo.setCurrentIndex(dlg._para_combo.findData("finger_tapping"))
+    assert not dlg.is_interactive and dlg._hand_combo.isEnabled() and dlg._dur.isEnabled()

@@ -209,6 +209,7 @@ def test_single_interactive_paradigm_runs_live_not_as_a_step(workbench, app, mon
     monkeypatch.setattr("ui.protocol_chooser.ProtocolChooser", _Chooser)
     started = []
     monkeypatch.setattr(app.win, "start_test", lambda k, h, d: started.append((k, h)))
+    monkeypatch.setattr(app.win, "switch_capture_device", lambda *a, **k: True)
 
     workbench._add_single()
 
@@ -582,3 +583,31 @@ def test_ocular_paradigms_run_live_not_as_video_steps(qapp):
     assert registry.is_live_only("tower_of_hanoi") and not registry.is_live_only("finger_tapping")
     errors = [i for i in validate(protocol_for_paradigm("ocular_fixation")) if i.is_error]
     assert errors and "interaktive Bildschirm-Aufgabe" in errors[0].message
+
+
+def test_live_test_from_the_workbench_returns_to_the_session(protocol_session, app, monkeypatch):
+    """A live paradigm started out of a session lets go of the workbench's
+    camera, runs on the main source, and cancel / Fortfahren come back to
+    the session instead of the old dashboard."""
+    from tests.ui.test_recording_pane import FakeDevice
+    wb, s, v = protocol_session
+    wb._device, wb._owns_device = FakeDevice(), False
+    switched = []
+    monkeypatch.setattr(app.win, "switch_capture_device",
+                        lambda mode, idx=0, **k: switched.append((mode, idx)) or True)
+
+    wb._start_live(s, "tower_of_hanoi", "right", None); app.pump()
+    assert wb._device is None                              # handed over
+    assert switched == [("webcam", 0)]                     # main source was the simulation
+    assert app.win.stack.currentWidget() is app.win.hanoi_screen
+    assert app.win.current_session is s and app.win._return_session is s
+
+    app.win.hanoi_screen._on_cancel(); app.pump(0.2)
+    assert app.win.stack.currentWidget() is app.win.patient_detail
+    assert app.win._return_session is None
+    assert wb._current_key()[1] == s.id                   # the session (its first open step)
+
+    # from the dashboard the old behaviour stays
+    app.win.stack.setCurrentWidget(app.win.dashboard)
+    app.win.show_start()
+    assert app.win.stack.currentWidget() is app.win.dashboard

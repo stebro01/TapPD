@@ -66,6 +66,7 @@ class MotryxMainWindow(QMainWindow):
     def __init__(self, capture_device: BaseCaptureDevice) -> None:
         super().__init__()
         self.capture_device = capture_device
+        self._return_session = None        # set when a live test starts from the workbench
         self.current_patient: Patient | None = None
         self.current_session: Session | None = None
         from app_settings import APP_TITLE
@@ -689,8 +690,21 @@ class MotryxMainWindow(QMainWindow):
         self.stack.setCurrentWidget(self.results_screen)
 
     def show_start(self) -> None:
-        """Back to dashboard (called after test recording)."""
+        """Back to where the test was started: the session in the workbench
+        when it came from there, else the dashboard."""
+        s, self._return_session = self._return_session, None
+        if s is not None and self.current_patient is not None:
+            self.show_session(s)
+            return
         self.stack.setCurrentWidget(self.dashboard)
+
+    def start_test_from_session(self, session: Session, test_key: str, hand: str,
+                                duration: int) -> None:
+        """Live test out of the workbench: result lands in ``session``, cancel
+        and „Fortfahren“ lead back to it."""
+        self.resume_session(session)
+        self._return_session = session
+        self.start_test(test_key, hand, duration)
 
     def show_patient_detail(self) -> None:
         """End session and return to patient detail."""

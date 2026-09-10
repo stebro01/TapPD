@@ -925,8 +925,8 @@ class PatientWorkbench(QWidget):
         if dlg.exec() != QDialog.DialogCode.Accepted:
             return
         if dlg.is_interactive:
-            key, hand, _dur = dlg.single_choice()
-            self._start_live(s, key, hand)
+            key, hand, dur = dlg.single_choice()
+            self._start_live(s, key, hand, dur if getattr(dlg, "is_ocular", False) else None)
             return
         try:
             protocol = dlg.protocol()
@@ -1041,11 +1041,25 @@ class PatientWorkbench(QWidget):
         self._work.setCurrentWidget(self._cut)
         self._cut.import_video()
 
-    def _start_live(self, s: Session, key: str, hand: str) -> None:
-        """Run an interactive paradigm on screen, into this session."""
-        self.main_window.resume_session(s)
-        self.main_window.dashboard.set_patient(self._patient)
-        self.main_window.start_test(key, hand, self.main_window.dashboard.duration_spin.value())
+    def _start_live(self, s: Session, key: str, hand: str, duration=None) -> None:
+        """Run an interactive paradigm on screen, into this session.
+
+        The live screens drive the camera themselves: let go of it here (or
+        two sidecars fight over one webcam and the face gate never opens),
+        and make the main source a webcam if it is not one yet."""
+        from capture.mediapipe_capture import WebcamSource
+        mw = self.main_window
+        cam_idx = getattr(self._device, "camera_index", 0) or 0
+        self._release_device()
+        dev = getattr(mw, "capture_device", None)
+        if not (isinstance(dev, WebcamSource) and dev.is_connected() and not dev.replay_path):
+            try:
+                mw.switch_capture_device("webcam", cam_idx)
+            except Exception:
+                log.warning("Webcam als Quelle für den Live-Test nicht verfügbar", exc_info=True)
+        mw.dashboard.set_patient(self._patient)
+        dur = int(duration) if duration else mw.dashboard.duration_spin.value()
+        mw.start_test_from_session(s, key, hand, dur)
 
     # ── context actions ──────────────────────────────────────────
     def _actions_for(self, key) -> list:

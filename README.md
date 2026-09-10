@@ -196,7 +196,9 @@ pip install -r requirements.txt
    Anamnese) verschiebt Live-Messungen, Messungen „ohne Sitzung" und Masken
    samt Notiz in eine andere Sitzung; eine Messung, die aus einem Take oder
    Segment stammt, bleibt bei ihrem Video. Augen-Tests (Fixation, Sakkaden)
-   laufen wie Hanoi/SRT/TMT live am Bildschirm, nicht als Video-Schritt
+   laufen wie Hanoi/SRT/TMT live am Bildschirm, nicht als Video-Schritt: der
+   Arbeitsplatz gibt dafuer die Kamera frei, das Ergebnis landet in der
+   Sitzung, Abbrechen und „Fortfahren" fuehren dorthin zurueck
 5. **Rechtsklick** auf einen Schritt: **Details…**, erneut aufnehmen, **neu
    auswerten** (aktualisiert dieselbe Messung), **Paradigma/Seite aendern**
    (loescht das alte Ergebnis, wertet neu aus), entfernen. Auf eine Sitzung:

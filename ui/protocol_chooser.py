@@ -122,10 +122,20 @@ class ProtocolChooser(QDialog):
         for w in (self._para_combo, self._hand_combo, self._dur):
             w.setEnabled(not use_protocol)
         if not use_protocol and self.is_interactive:
-            self._dur.setEnabled(False)          # the task decides its own duration
-            self._hint.setText("Hinweis: läuft live am Bildschirm — wird nicht als "
-                               "Video-Schritt aufgenommen.")
+            if self.is_ocular:
+                # Eye tests: no side to choose, the duration is the test length.
+                self._hand_combo.setCurrentIndex(self._hand_combo.findData("both"))
+                self._hand_combo.setEnabled(False)
+                self._dur.setEnabled(True)
+                self._hint.setText("Hinweis: Augen-Test — läuft live an der Webcam mit "
+                                   "Gesichts-Gate; keine Seite, die Dauer ist die Testdauer.")
+            else:
+                self._hand_combo.setEnabled(True)
+                self._dur.setEnabled(False)          # the task decides its own duration
+                self._hint.setText("Hinweis: läuft live am Bildschirm — wird nicht als "
+                                   "Video-Schritt aufgenommen.")
             return
+        self._hand_combo.setEnabled(not use_protocol)
         # Surface the loader's notes here rather than mid-session: "needs face
         # tracking" is something to know before the patient is sitting down.
         try:
@@ -147,10 +157,16 @@ class ProtocolChooser(QDialog):
         key = self._para_combo.currentData()
         return bool(key) and registry.is_live_only(key)
 
+    @property
+    def is_ocular(self) -> bool:
+        from paradigms import registry
+        key = self._para_combo.currentData()
+        return bool(key) and registry.get(key).category is registry.Category.OCULAR
+
     def single_choice(self) -> tuple[str, str, float]:
         """(paradigm key, hand, duration_s) of the single-paradigm section."""
-        return (self._para_combo.currentData(), self._hand_combo.currentData(),
-                float(self._dur.value()))
+        hand = "both" if self.is_ocular else self._hand_combo.currentData()
+        return (self._para_combo.currentData(), hand, float(self._dur.value()))
 
     def protocol(self):
         """The chosen protocol (raises if it cannot be built)."""
