@@ -454,3 +454,49 @@ def test_anamnesis_form_is_added_listed_shown_edited_and_deleted(protocol_sessio
     wb._delete_form(e2); app.pump()
     conn = get_db(); assert get_form_entries(conn, app.patient.id) == []; conn.close()
     assert not any("Parkinson-Anamnese" in r[1] for r in _rows(wb))
+
+
+def test_import_segments_are_listed_and_analysed_like_steps(protocol_session, app, monkeypatch,
+                                                            yes_to_everything):
+    """A cut of an imported video shows up under the import node with its
+    result, can be re-analysed through the shared pipeline and deleted
+    together with its measurement."""
+    from storage.database import Measurement, get_db, get_measurements, save_measurement
+    wb, s, v = protocol_session
+    video = app.tmp / "handy.mp4"; video.write_bytes(b"v")
+    v.set_video(str(video), "handy.mp4")
+    seg = v.add_segment("Tapping links", 1.0, 5.0, paradigm="finger_tapping", hand="left")
+    from video.meta import import_meta
+    seg.meta = import_meta(v, seg)                           # what _on_add_segment does
+    conn = get_db()
+    m = Measurement(patient_id=app.patient.id, session_id=s.id, test_type="finger_tapping",
+                    hand="left", duration_s=4.0)
+    m.features = {"mpi": 0.55}
+    m = save_measurement(conn, m); conn.close()
+    seg.results["finger_tapping"] = {"features": {"mpi": 0.55}, "measurement_id": m.id,
+                                     "recorded_at": "2026-09-10T10:00:00", "analysed_on": "import"}
+    v.save(); wb.refresh(); app.pump()
+
+    rows = _rows(wb)
+    node = next(r for r in rows if r[1].startswith("✂ Tapping links"))
+    assert node[2] == "MPI 0.55 ·📋" and node[0] == 2                  # child of the import node
+    assert not any("Finger Tapping  (left)" in r[1] and r[0] == 1 for r in rows)  # not listed twice
+    assert [a[0] for a in wb._actions_for(("segment", s.id, seg.id))] == \
+        ["Details…", "⟳ Neu auswerten", "📝 Notiz…", "Segment löschen…"]
+
+    wb._select(("segment", s.id, seg.id)); app.pump()
+    assert wb._work.currentWidget() is wb._cut and wb._cut.current_segment is seg
+    assert "MPI 0.55" in wb._cut._result_lbl.text() and wb._cut._details_btn.isEnabled()
+    assert "Art: Import" in wb._cut._meta.texts()
+
+    started = []
+    monkeypatch.setattr(wb._pipeline.runner, "start", lambda *a, **k: started.append(a))
+    wb._reanalyse_segment(v, seg); app.pump()
+    assert started and started[0][0] == str(video) and started[0][1:3] == (1.0, 5.0)
+    assert wb._cut._running and not wb._cut._run_btn.isEnabled()
+    wb._pipeline.job = None; wb._cut._running = False
+
+    wb._delete_segment(v, seg); app.pump()
+    assert v.segments == []
+    conn = get_db(); assert get_measurements(conn, app.patient.id) == []; conn.close()
+    assert not any(r[1].startswith("✂") for r in _rows(wb))    # the step "Tapping links" stays

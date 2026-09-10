@@ -752,7 +752,7 @@ def delete_measurement(conn: sqlite3.Connection, measurement_id: int) -> None:
 # {"attachments": [{name, path, size, added_at}]} — the files themselves live
 # in data/attachments (storage.attachments).
 
-NOTE_KINDS = ("session", "step", "import", "measurement", "form")
+NOTE_KINDS = ("session", "step", "import", "measurement", "form", "segment")
 
 
 @dataclass

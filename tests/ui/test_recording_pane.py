@@ -112,7 +112,8 @@ def test_deface_choice_reaches_the_archive_step(pane, monkeypatch):
             seen.append(deface)
             self.done = type("S", (), {"connect": lambda self, cb: None})()
         def start(self): pass
-    monkeypatch.setattr(rp, "_ArchiveWorker", FakeWorker)
+    import ui.segment_pipeline as sp
+    monkeypatch.setattr(sp, "_ArchiveWorker", FakeWorker)
     monkeypatch.setattr("video.archive.compact_enabled", lambda: True)
 
     p, v = pane

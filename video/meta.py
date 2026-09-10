@@ -250,7 +250,8 @@ def describe_segment(session, seg, step=None) -> list[tuple[str, str]]:
     if seg.results:
         for key, res in seg.results.items():
             res = res or {}
-            on = {"raw": "Roh-Take", "clip": "archivierter Clip"}.get(res.get("analysed_on"), "–")
+            on = {"raw": "Roh-Take", "clip": "archivierter Clip",
+                  "import": "importiertes Original"}.get(res.get("analysed_on"), "–")
             line = f"{_dt(res.get('recorded_at', ''))}  ·  auf: {on}"
             if res.get("measurement_id"):
                 line += f"  ·  Messung #{res['measurement_id']}"
@@ -283,7 +284,8 @@ def describe_measurement(m) -> list[tuple[str, str]]:
     if prov.get("clip_path"):
         rows.append(("Archiv-Clip", _file(prov["clip_path"])
                      + ("  ·  anonymisiert" if prov.get("deidentified") else "")))
-    on = {"raw": "Roh-Take", "clip": "archivierter Clip"}.get(prov.get("analysed_on"), "–")
+    on = {"raw": "Roh-Take", "clip": "archivierter Clip",
+          "import": "importiertes Original"}.get(prov.get("analysed_on"), "–")
     rows.append(("Ausgewertet", f"{_dt(prov.get('analysed_at', ''))}  ·  auf: {on}"))
     n = _track_frames(prov.get("track_path", ""))
     rows.append(("Tracking-Spur", f"{n} Frames" if n is not None else "fehlt"))
@@ -295,6 +297,34 @@ def describe_measurement(m) -> list[tuple[str, str]]:
         rows.append(("Video-Session", f"{os.path.basename(os.path.dirname(prov['video_session']))}"
                      f"  ·  Segment {prov.get('segment_id', '–')}"))
     return rows
+
+
+def result_summary(seg) -> str:
+    """One line per stored analysis: when, in the record?, on what, MPI and
+    the first feature values — the same text under a take and a cut segment."""
+    from ui.feature_meta import FEATURE_META
+    parts = []
+    for key, res in (seg.results or {}).items():
+        feats = (res or {}).get("features") or {}
+        if not feats:
+            continue
+        shown = []
+        mpi = feats.get("mpi")
+        if isinstance(mpi, (int, float)):
+            shown.append(f"MPI {mpi:.2f}")
+        for k, v in feats.items():
+            if k == "mpi" or k.startswith("_") or not isinstance(v, (int, float)):
+                continue
+            label, unit = FEATURE_META.get(k, (k, ""))
+            shown.append(f"{label} {v:.2f}{(' ' + unit) if unit else ''}")
+            if len(shown) >= 4:
+                break
+        when = (res.get("recorded_at") or "")[:16].replace("T", " ")
+        src = {"clip": " · auf dem archivierten Clip" + (" (Gesicht unkenntlich)" if seg.deidentified else ""),
+               "import": " · auf dem importierten Original"}.get(res.get("analysed_on"), "")
+        where = " · in der Akte" if res.get("measurement_id") else ""
+        parts.append(f"✔ Ausgewertet {when}{where}{src}  —  " + "  ·  ".join(shown))
+    return "\n".join(parts)
 
 
 # ── consistency ────────────────────────────────────────────────────

@@ -334,6 +334,30 @@ def main() -> None:
         wb._select(("import", _s2.id))
         for _ in range(30):
             app.processEvents(); time.sleep(0.05)
+        # a cut segment, extracted and (with the sidecar) analysed through the
+        # same pipeline as a take — shows summary, Details and info panel
+        from video.meta import import_meta
+        seg2 = v2.add_segment("Finger Tapping", 0.5, 4.5, paradigm="finger_tapping", hand="right")
+        seg2.meta = import_meta(v2, seg2)
+        v2.save()
+        wb._cut._refresh_segment_list()
+        if sidecar_available():
+            wb._cut._extract_segment(seg2)
+            deadline = time.monotonic() + 300
+            while time.monotonic() < deadline:
+                app.processEvents(); time.sleep(0.05)
+                if wb._cut._seg_worker is not None and wb._cut._seg_worker.isRunning():
+                    continue
+                if wb._pipeline.busy or not seg2.results:
+                    if time.monotonic() > deadline - 240 and not seg2.clip_path:
+                        break
+                    continue
+                break
+        wb.refresh(); app.processEvents()
+        wb._select(("segment", _s2.id, seg2.id))
+        wb._cut._meta.set_expanded(True)
+        for _ in range(20):
+            app.processEvents(); time.sleep(0.05)
         grab(w, "11g_schnitt")
     w.close_session()
 

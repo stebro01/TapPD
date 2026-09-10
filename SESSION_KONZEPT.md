@@ -427,6 +427,14 @@ in der Akte und die Messung existiert noch; Seite/Paradigma von Schritt und
 Segment gleich; Take archiviert; Tremor nicht auf anonymisiertem Clip;
 Takes aus älteren Ständen ohne Metadaten.
 
+Seit dem Video-Lab-Stand 09/2026 läuft diese Pipeline in
+`ui/segment_pipeline.py` und wird vom Aufnahme-Panel **und** vom
+Schnitt-Bereich benutzt: ein Import-Segment ist für sie nur eine andere
+Quelle (`analysis_source`: das importierte Original mit dem Bereich des
+Segments, Spiegelung vom Video-Flag); Archivieren passiert beim Zuschnitt,
+Aufräumen entfällt. Ergebnis, Rohdaten, Spur, Herkunft und Übernahme in die
+Akte sind für beide identisch.
+
 Damit ist eine Eigenaufnahme am Ende **dasselbe Artefakt wie ein
 Import-Segment** — gleicher Extraktor, gleiche Caps, gleiche Datenschutz-
 einstellung — und die Messung verweist auf den Archiv-Clip.

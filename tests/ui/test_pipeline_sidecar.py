@@ -94,3 +94,33 @@ def test_confirmed_take_is_analysed_archived_and_cleaned_up(qapp, isolated_data,
         assert res["raw_path"].endswith(".json") and os.path.isfile(res["raw_path"])
     back = VideoSession.load(str(v.save()))
     assert back.segments[0].recorded and back.segments[0].clip_path == seg.clip_path
+
+
+@pytest.mark.skipif(not sidecar_available(), reason="MediaPipe-Sidecar nicht eingerichtet")
+def test_import_cut_is_analysed_on_the_original_and_exported(qapp, isolated_data, monkeypatch):
+    """Same pipeline, other source: the cut's range of the imported file."""
+    from video.store import VideoSession
+    from ui.segment_pipeline import SegmentPipeline
+    if not REAL_CLIP.is_file():
+        pytest.skip("kein Demo-Clip")
+    v = VideoSession.create(1, "T001")
+    v.db_session_id = 1
+    dest = v._dir() / "import.mp4"
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy(REAL_CLIP, dest)
+    v.set_video(str(dest), "demo.mp4"); v.mirrored = True
+    seg = v.add_segment("Tapping", 0.5, 4.5, paradigm="finger_tapping", hand="right")
+    exported = []
+    monkeypatch.setattr("video.export.export_or_update", lambda s, sg, key: exported.append(key))
+
+    pl = SegmentPipeline()
+    pl.enqueue(v, seg, analyse=True)
+    t0 = time.time()
+    while pl.busy and time.time() - t0 < 180:
+        qapp.processEvents(); time.sleep(0.05)
+    pl.teardown()
+    res = seg.results["finger_tapping"]
+    assert res["analysed_on"] == "import" and "mpi" in res["features"]
+    assert os.path.isfile(res["raw_path"]) and seg.track_path and os.path.isfile(seg.track_path)
+    assert exported == ["finger_tapping"]
+    assert dest.is_file()                                   # the import is never cleaned up

@@ -212,8 +212,22 @@ pip install -r requirements.txt
    den Take mit Hand-Overlay, einen Fortschrittsbalken und die Messkurve;
    die Dauer entspricht etwa der Clip-Laenge (MediaPipe ist auf einer
    Laptop-CPU der Engpass)
-6. Ein importiertes Video erscheint als Eintrag der Sitzung; angeklickt
-   oeffnet es den Schnitt-Bereich (Bereich markieren → Segment → auswerten)
+6. Ein importiertes Video erscheint als Eintrag der Sitzung, seine Segmente
+   darunter wie die Schritte eines Protokolls (✂ Name, Bereich, Seite,
+   Ergebnis, 📋). Angeklickt oeffnet es den Schnitt-Bereich: Bereich auf der
+   Zeitleiste markieren → **„Bereich uebernehmen"** → Paradigma und Seite
+   waehlen. Das Segment wird zugeschnitten (Groesse, Codec, „Gesicht
+   unkenntlich machen") und — mit **„Nach Anlegen automatisch auswerten"** —
+   sofort auf dem importierten Original analysiert und als Messung in die
+   Akte uebernommen. Ab hier gibt es keinen Unterschied mehr zu einem
+   eigenen Take: dieselbe Pipeline (`ui/segment_pipeline.py`) schreibt
+   Ergebnis, Rohdaten-JSON, Tracking-Spur und Herkunft, unter dem Segment
+   stehen Zusammenfassung, **„Details…"** und die Aufnahme-Info, Rechtsklick
+   im Baum bietet Details, Neu auswerten, Notiz und Loeschen (nimmt die
+   Messung mit). Einzige Unterschiede: Quelle der Analyse ist das Original
+   mit dem Bereich des Segments (Herkunft: „importiertes Original"), die
+   Spiegelung kommt vom Flag „Gespiegelt" des Videos, und aufgeraeumt wird
+   nichts — das importierte Video bleibt
 7. **Anamnese / klinische Daten** (Menue „＋ Hinzufuegen"): eine Maske je
    Sitzung mit Diagnose und Verlauf (Diagnosejahr, Seite, Subtyp, Hoehn &
    Yahr, MDS-UPDRS III), Familienanamnese, Stuerzen und Gang, nicht-motorischen

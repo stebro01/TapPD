@@ -285,15 +285,21 @@ class PatientWorkbench(QWidget):
 
         self._work = QStackedWidget()
         self._empty = self._build_empty()
-        self._rec = RecordingPane()
+        # One pipeline for own takes and import cuts alike: what is filmed or
+        # cut here is analysed, archived and put into the record the same way.
+        from ui.segment_pipeline import SegmentPipeline
+        self._pipeline = SegmentPipeline(self)
+        self._rec = RecordingPane(pipeline=self._pipeline)
         self._rec.contentChanged.connect(self._refresh)
         self._rec.detailsRequested.connect(self._on_step_details)
         self._rec.extra_rows = self._step_note_rows
         self._rec.statusChanged.connect(self._set_status)
         self._rec.busyChanged.connect(self._on_busy)
         from ui.video_lab_screen import VideoLabScreen
-        self._cut = VideoLabScreen(self.main_window, embedded=True)
+        self._cut = VideoLabScreen(self.main_window, embedded=True, pipeline=self._pipeline)
         self._cut.contentChanged.connect(self._refresh)
+        self._cut.detailsRequested.connect(
+            lambda mid: self._show_measurement(self._measurement_by_id(mid)))
         self._detail = self._build_measurement_pane()
         self._form_view = self._build_form_view()
         for w in (self._empty, self._rec, self._cut, self._detail, self._form_view):
@@ -554,6 +560,10 @@ class PatientWorkbench(QWidget):
                 self._note_tip(it, "import", str(s.id))
                 self._tag(it, ("import", s.id))
                 node.addChild(it)
+                for sg in v.segments:
+                    if not sg.recorded:
+                        it.addChild(self._segment_node(s.id, sg, used))
+                it.setExpanded(True)
         for e in self._forms.get(s.id, []):
             node.addChild(self._form_node(e))
         for m in ms:
@@ -601,6 +611,29 @@ class PatientWorkbench(QWidget):
         it.setToolTip(0, f"Klinische Daten, erfasst {_fmt_dt(e.recorded_at)}")
         self._note_tip(it, "form", str(e.id))
         self._tag(it, ("form", e.id))
+        return it
+
+    def _segment_node(self, sid: int, sg, used: set) -> QTreeWidgetItem:
+        """A cut of an imported video — shown like a step, with its result."""
+        if not sg.results:
+            result = "nicht ausgewertet" if sg.paradigm else ""
+        else:
+            parts = []
+            for res in sg.results.values():
+                mpi = ((res or {}).get("features") or {}).get("mpi")
+                txt = f"MPI {mpi:.2f}" if isinstance(mpi, (int, float)) else "✔"
+                if (res or {}).get("measurement_id"):
+                    used.add(res["measurement_id"])
+                    txt += " ·📋"
+                parts.append(txt)
+            result = ", ".join(parts)
+        label = f"✂ {sg.name}  {sg.start_s:.0f}–{sg.end_s:.0f} s"
+        if sg.paradigm:
+            label += f"  ({sg.hand})"
+        it = QTreeWidgetItem([label, self._mark(result, "segment", f"{sid}:{sg.id}")])
+        it.setToolTip(1, "📋 = in der Akte" if "📋" in result else "")
+        self._note_tip(it, "segment", f"{sid}:{sg.id}")
+        self._tag(it, ("segment", sid, sg.id))
         return it
 
     def _measurement_node(self, m: Measurement) -> QTreeWidgetItem:
@@ -793,6 +826,14 @@ class PatientWorkbench(QWidget):
             self._bind(v)
             self._work.setCurrentWidget(self._cut)
             self._set_status("Video: Bereich auf der Zeitleiste markieren → „Bereich übernehmen“.")
+        elif kind == "segment":
+            v = self._videos.get(key[1])
+            if v is None:
+                return
+            self._bind(v)
+            self._work.setCurrentWidget(self._cut)
+            self._cut.select_segment(key[2])
+            self._set_status("Segment: neu auswerten, Details ansehen oder umbenennen.")
         elif kind == "form":
             e = self._form_by_id(key[1])
             if e is None:
@@ -1026,6 +1067,18 @@ class PatientWorkbench(QWidget):
                 out.append(("● Aufnehmen", lambda: self._select(key)))
             out.append(self._note_action("step", f"{key[1]}:{st.id}", key[1], st.title))
             out.append(("Schritt entfernen…", lambda: self._remove_step(v, st)))
+        elif kind == "segment":
+            v = self._videos.get(key[1])
+            sg = next((x for x in v.segments if x.id == key[2]), None) if v else None
+            if sg is None:
+                return []
+            m = self._segment_measurement(sg)
+            if m is not None:
+                out.append(("Details…", lambda: self._show_measurement(m)))
+            if sg.paradigm:
+                out.append(("⟳ Neu auswerten", lambda: self._reanalyse_segment(v, sg)))
+            out.append(self._note_action("segment", f"{key[1]}:{sg.id}", key[1], sg.name))
+            out.append(("Segment löschen…", lambda: self._delete_segment(v, sg)))
         elif kind == "form":
             e = self._form_by_id(key[1])
             if e is None:
@@ -1100,6 +1153,37 @@ class PatientWorkbench(QWidget):
         st = v.step(step_id) if v is not None else None
         if st is not None:
             self._show_step_details(v, st)
+
+    def _segment_measurement(self, sg) -> Measurement | None:
+        for res in (sg.results.values() if sg else []):
+            mid = (res or {}).get("measurement_id")
+            if mid:
+                return self._measurement_by_id(int(mid))
+        return None
+
+    def _reanalyse_segment(self, v: VideoSession, sg) -> None:
+        self._bind(v)
+        self._work.setCurrentWidget(self._cut)
+        self._cut.select_segment(sg.id)
+        self._pipeline.enqueue(v, sg, analyse=True)
+        self._set_status(f"Neu auswerten: {sg.name} …")
+
+    def _delete_segment(self, v: VideoSession, sg) -> None:
+        m = self._segment_measurement(sg)
+        extra = f"\nDie Messung #{m.id} wird aus der Akte entfernt." if m else ""
+        if QMessageBox.question(self, "Segment löschen",
+                                f"„{sg.name}“ aus dem Import entfernen?{extra}") \
+                != QMessageBox.StandardButton.Yes:
+            return
+        if m is not None:
+            conn = get_db()
+            delete_measurement(conn, m.id)
+            conn.close()
+        v.remove_segment(sg.id)
+        v.save()
+        if self._bound is v:
+            self._cut.load_session(self._patient, v)
+        self.refresh()
 
     def _reanalyse(self, v: VideoSession, st) -> None:
         seg = next((x for x in v.segments if x.id == st.segment_id), None)

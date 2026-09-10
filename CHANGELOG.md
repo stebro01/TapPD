@@ -116,6 +116,20 @@ Versionierung: SemVer-artig (0.x = Forschungsprototyp).
   verweist darauf statt auf den Clip. Der Dialog stürzt bei älteren
   Video-Messungen (Clip als `raw_data_path`) nicht mehr ab, sondern sagt, dass
   Kurven erst nach „Neu auswerten" da sind.
+- **Eine Pipeline für Takes und Import-Segmente** (`ui/segment_pipeline.py`):
+  analysieren → archivieren → aufräumen ist aus dem Aufnahme-Panel
+  herausgelöst und wird vom Arbeitsplatz geteilt; der Schnitt-Bereich hängt
+  seine Segmente in dieselbe Warteschlange (`analysis_source`: Roh-Take /
+  Archiv-Clip / importiertes Original mit Bereich, Spiegelung je Quelle).
+  Damit bekommen Import-Segmente, was Takes schon hatten: Rohdaten-JSON,
+  Tracking-Spur, Analyse-Metadaten, `analysed_on: import`, automatische
+  Übernahme in die Akte (der Knopf „→ In Patientenakte" entfällt).
+  Schnitt-Bereich: „Nach Anlegen automatisch auswerten", „Gesicht
+  unkenntlich machen" statt „Defacing", Zusammenfassung + „Details…" +
+  Aufnahme-Info unter dem Segment, Löschen nimmt die Messung mit. Baum:
+  Segmente eines Imports als Kinder mit Ergebnis (✂), Rechtsklick Details /
+  Neu auswerten / Notiz / Löschen. Der Schritt eines Protokolls bleibt für
+  Paradigma und Seite maßgeblich; ein Import-Segment nutzt seine eigenen.
 - **Exporte** (`export/`): ein Serializer (`export/record.py`) liefert die
   Akte eines Patienten als Dict; darauf bauen der **Forschungsexport**
   (`export/research.py`: pseudonymisierte Langtabellen patients / visits /
