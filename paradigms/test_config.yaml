@@ -495,16 +495,21 @@ saccade_test:
   layout: horizontal
 
   calibration:
-    per_point_s: 2.0            # Fixationsdauer pro Eichpunkt
+    visits: [M, L, R, L, R, L, R]   # Eichfolge: Start in der Mitte, dann die äußeren
+                                # Punkte je dreimal; Referenz = Median der Besuche
+                                # (ein verspäteter erster Blick verschleppt nichts)
+    per_point_s: 2.0            # Fixationsdauer pro Besuch
     settle_s: 0.6               # verworfene Zeit nach Punktwechsel (Blicksprung)
-    min_samples: 12             # Mindest-Samples pro Punkt, sonst Eichung ungültig
-    max_spread_ipd: 0.06        # Streuung der Eich-Samples > 6% IPD → Punkt ungültig
+    min_samples: 12             # Mindest-Samples pro Punkt (über alle Besuche)
+    max_spread_ipd: 0.06        # Streuung innerhalb eines Besuchs > 6% IPD → ungültig
 
   test:
     duration_s: 30              # Messphase
     dwell_s: 0.2                # Zone muss so lange stabil sein → Treffer
     confidence_margin: 1.3      # nächster Referenzpunkt muss um Faktor näher sein
-    min_separation_ipd: 0.04    # Referenzpunkte näher beieinander → Eichung ungültig
+    min_separation_ipd: 0.012   # absolute Untergrenze für den Abstand zweier Referenzen
+    min_separation_snr: 4       # … und relativ: Abstand ≥ 4 × Rauschen (robuste sd) der
+                                # Samples — bei 0.002 Rauschen reichen 0.012, bei 0.02 nicht
     sequence: alternate         # alternate: äußere Punkte im festen Wechsel (L, R, L, R …)
                                 # random: Zufallsfolge (mit prefer_far_targets)
     prefer_far_targets: true    # Zufallsfolge bevorzugt große Sprünge

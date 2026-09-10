@@ -253,8 +253,13 @@ sakkadische Intrusionen, mittlere Lidspalte.</p>
 <figure><img src="img/08_sakkaden_start.png" alt="Sakkaden Start">
 <figcaption>Sakkaden-Test: Startansicht mit Anweisung. „▶ Eichung starten" beginnt Phase 1.</figcaption></figure>
 <ol class="steps">
-<li><b>Phase 1 – Eichung (~6&nbsp;s):</b> Ein Punkt erscheint nacheinander links,
-    rechts und in der Mitte. Jeden Punkt ruhig fixieren, <b>nur die Augen bewegen</b>.
+<li><b>Phase 1 – Eichung (~14&nbsp;s):</b> Ein Punkt erscheint zuerst in der Mitte,
+    dann abwechselnd links und rechts — jede Seite dreimal (7 Schritte). Jeden Punkt
+    ruhig fixieren, <b>nur die Augen bewegen</b>. Die Referenz je Seite ist der Median
+    über die drei Besuche; ein zu später Blick beim ersten Sprung schadet nicht.
+    Die Eichung gilt, wenn die Referenzen links / Mitte / rechts deutlich weiter
+    auseinanderliegen als das Blick-Rauschen (Faktor 4). Die Fehlermeldung nennt
+    sonst Abstand, nötigen Abstand und Rauschen — Kopf ruhig, näher an den Bildschirm.
     (Das frühere 5-Punkt-Layout mit Ecken bleibt in <code>test_config.yaml</code> wählbar;
     vertikale Blicksprünge löst die Webcam mit dem aktuellen Merkmal aber kaum auf.)</li>
 <li><b>Phase 2 – Test (30&nbsp;s):</b> Der Punkt springt im festen Wechsel links,

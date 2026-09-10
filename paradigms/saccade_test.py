@@ -52,6 +52,8 @@ class SaccadeTest(BaseParadigm):
             guard_max_nose_shift=float(guard.get("max_nose_shift_ipd", 0.15)),
             layout=str(cfg.get("layout", "horizontal")),
             sequence=str(test.get("sequence", "alternate")),
+            calib_visits=[str(v) for v in calib["visits"]] if calib.get("visits") else None,
+            min_separation_snr=float(test.get("min_separation_snr", 4.0)),
         )
         self._t0_us: int | None = None
 
@@ -62,7 +64,8 @@ class SaccadeTest(BaseParadigm):
         return (
             "Sakkaden-Test (Okulomotorik)\n\n"
             "Phase 1 – Eichung: Schauen Sie ruhig auf den jeweils "
-            f"angezeigten Punkt ({len(self.task.calib_order)} Positionen).\n\n"
+            f"angezeigten Punkt ({len(self.task.calib_visits)} Schritte, "
+            f"{len(self.task.calib_order)} Positionen).\n\n"
             "Phase 2 – Test: Schauen Sie SO SCHNELL WIE MÖGLICH auf den "
             "aufleuchtenden Punkt. Sobald Ihr Blick erkannt wird, springt "
             "der Punkt weiter.\n\n"

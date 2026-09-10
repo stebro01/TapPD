@@ -209,7 +209,9 @@ pip install -r requirements.txt
    bei ~55 px, ein Pixel Iris-Versatz sind ~2 % IPD bei 4 % Trennschwelle —
    `capture.yaml camera_width: 1280` und ~50 cm Abstand machen die Eichung
    deutlich robuster. Der Test laeuft standardmaessig **horizontal**: Eichung
-   mit drei Punkten links / rechts / Mitte, Ziele im festen Wechsel links,
+   mit drei Punkten Mitte / links / rechts, die aeusseren je dreimal besucht
+   (`calibration.visits`, Referenz = Median der Besuche, Trennschwelle
+   relativ zum Rauschen), Ziele im festen Wechsel links,
    rechts, links, rechts (jeder Sprung volle Breite); `layout: five_point`
    oder `vertical` in `test_config.yaml → saccade_test` schalten um. Grund:
    vertikal liefert das Iris-Merkmal nur ~1 px Versatz, horizontal 3–5 px

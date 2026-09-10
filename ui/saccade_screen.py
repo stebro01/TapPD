@@ -253,7 +253,7 @@ class SaccadeScreen(QWidget):
         if task.phase is Phase.CALIBRATING:
             self.canvas.is_calibration = True
             self.canvas.point_key = task.calib_point
-            n = len(task.calib_order)
+            n = len(task.calib_visits)
             idx = min(task.calib_index + 1, n)
             self.canvas.status_text = f"Eichung — Punkt {idx}/{n} fixieren"
             self.canvas.sub_text = "Kopf still halten, nur die Augen bewegen"

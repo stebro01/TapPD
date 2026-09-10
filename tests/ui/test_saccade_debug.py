@@ -85,8 +85,9 @@ def test_debug_mode_records_video_and_log_and_can_be_replayed(qapp, tmp_path, mo
                "LU": (-0.1, 0.08), "RU": (0.1, 0.08),
                "L": (-0.1, 0.0), "M": (0.0, 0.0), "R": (0.1, 0.0)}      # any layout
     order = list(test.task.calib_order)
+    visits = list(test.task.calib_visits)
     t = 0.0
-    for i in range(303):                    # 10 s of calibration + a little
+    for i in range(2 * 30 * len(visits) + 3):   # every visit 2 s, plus a little
         key = test.task.calib_point or order[0]   # look where the task shows the point
         ox, oy = targets[key]
         test._on_tracking(TrackingFrame(timestamp_us=int(t * 1e6),
@@ -108,7 +109,8 @@ def test_debug_mode_records_video_and_log_and_can_be_replayed(qapp, tmp_path, mo
     data = json.loads(files[0].read_text(encoding="utf-8"))
     assert data["format"] == "tappd-saccade-debug" and data["video"].endswith(".mp4")
     assert data["result"]["phase"] == "TESTING" and set(data["result"]["references"]) == set(order)
-    assert len(data["samples"]) == 303 and data["samples"][0]["point"] == order[0]
+    assert len(data["samples"]) == 2 * 30 * len(visits) + 3
+    assert data["samples"][0]["point"] == visits[0] and "noise" in data["result"]
     assert "Gespeichert" in scr.debug_panel.files.text()
 
     # replaying the log takes the same decisions — and shows what a stricter

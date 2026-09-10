@@ -153,10 +153,12 @@ def test_paradigm_wraps_logic_and_computes_features():
 
 
 def test_horizontal_layout_alternates_left_right():
-    """The clinical default: three points L / M / R, calibration L→R→M, test
-    targets in fixed turn L, R, L, R … (every jump full width)."""
+    """The clinical default: three points L / M / R, calibration starts in the
+    centre and visits L and R three times each, test targets in fixed turn
+    L, R, L, R … (every jump full width)."""
     task = _task(layout="horizontal", sequence="alternate")
-    assert task.calib_order == ["L", "R", "M"] and set(task.points) == {"L", "M", "R"}
+    assert task.calib_visits == ["M", "L", "R", "L", "R", "L", "R"]
+    assert task.calib_order == ["M", "L", "R"] and set(task.points) == {"L", "M", "R"}
     run = _run_proband(task, seconds=20.0)
     assert run.phase in (Phase.TESTING, Phase.DONE), run.fail_reason
     assert set(run.references) == {"L", "M", "R"}
@@ -168,3 +170,51 @@ def test_horizontal_layout_alternates_left_right():
         _task(layout="diagonal")
     with _pt.raises(ValueError):
         _task(sequence="zigzag")
+
+
+def test_repeated_visits_ignore_a_late_first_arrival():
+    """Why the points are visited three times: on the first visit of L the eyes
+    arrive late (the offset drifts through the whole window), on the later
+    visits they sit still. The reference is the median over the visits, so it
+    lands where the eyes really rest — a single visit would put it halfway."""
+    task = _task(layout="horizontal", sequence="alternate")
+    true = {k: _gaze_for(k, task.points) for k in task.points}
+    task.start(0.0)
+    visit_of = {}
+    t = 0.0
+    while task.phase is Phase.CALIBRATING and t < 20:
+        key = task.calib_point
+        idx = task.calib_index
+        visit_of.setdefault(key, []).append(idx) if idx not in visit_of.get(key, []) else None
+        gx, gy = true[key]
+        if key == "L" and visit_of["L"][0] == idx:        # first L visit: slow drift in
+            frac = min(1.0, (t - task._calib_point_started) / task.calib_per_point_s)
+            gx = true["M"][0] + (gx - true["M"][0]) * frac
+        task.update(t, (gx, gy), ear=0.30, roll_deg=0.0, ipd_px=50.0, nose_shift=0.0)
+        t += 1 / FS
+    assert task.phase is Phase.TESTING, task.fail_reason
+    rx, _ = task.references["L"]
+    assert abs(rx - true["L"][0]) < 0.005            # not dragged towards the centre
+    assert task.noise["L"] < 0.01 and task.noise["M"] < 0.002
+    # explicit visit lists are validated against the layout
+    with pytest.raises(ValueError):
+        _task(layout="horizontal", calib_visits=["M", "X"])
+
+
+def test_separation_is_judged_against_noise():
+    """A 0.03-IPD gap is fine with 0.002 noise and hopeless with 0.012 noise."""
+    def run(noise):
+        task = _task(layout="horizontal", min_separation=0.012, min_separation_snr=4.0)
+        task.start(0.0)
+        t = 0.0
+        i = 0
+        while task.phase is Phase.CALIBRATING and t < 20:
+            key = task.calib_point
+            gx = {"L": -0.03, "M": 0.0, "R": 0.03}[key] + noise * (1 if i % 2 else -1)
+            task.update(t, (gx, 0.0), ear=0.30, roll_deg=0.0, ipd_px=50.0, nose_shift=0.0)
+            t += 1 / FS
+            i += 1
+        return task
+    assert run(0.002).phase is Phase.TESTING
+    bad = run(0.012)
+    assert bad.phase is Phase.FAILED and "Rauschen" in bad.fail_reason

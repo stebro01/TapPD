@@ -178,10 +178,11 @@ class SaccadeDebugLog:
                 "calib_per_point_s", "calib_settle_s", "calib_min_samples", "calib_max_spread",
                 "duration_s", "dwell_s", "confidence_margin", "min_separation", "blink_ear",
                 "guard_max_roll_deg", "guard_max_ipd_change", "guard_max_nose_shift",
-                "layout", "sequence")
+                "layout", "sequence", "calib_visits", "min_separation_snr")
                 if hasattr(task, k)},
             "result": {"phase": task.phase.name, "fail_reason": getattr(task, "fail_reason", ""),
                        "references": {k: list(v) for k, v in getattr(task, "references", {}).items()},
+                       "noise": dict(getattr(task, "noise", {})),
                        "hits": len(getattr(task, "hits", [])),
                        "samples_total": getattr(task, "samples_total", 0),
                        "samples_blink": getattr(task, "samples_blink", 0)},

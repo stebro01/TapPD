@@ -116,6 +116,16 @@ Versionierung: SemVer-artig (0.x = Forschungsprototyp).
   verweist darauf statt auf den Clip. Der Dialog stürzt bei älteren
   Video-Messungen (Clip als `raw_data_path`) nicht mehr ab, sondern sagt, dass
   Kurven erst nach „Neu auswerten" da sind.
+- **Sakkaden-Eichung mit Wiederholung** (`saccade_test.calibration.visits`,
+  Standard `[M, L, R, L, R, L, R]`): Start in der Mitte, dann links/rechts je
+  dreimal. Referenz eines Punkts = Median der Besuchs-Mediane, Unruhe wird
+  pro Besuch geprüft — ein verspäteter erster Blick (in allen Debug-Logs war
+  der erste Eichpunkt der unruhigste, Rauschen 0.012–0.033 IPD statt 0.001)
+  verschleppt die Referenz nicht mehr. Trennbarkeit jetzt relativ zum
+  Rauschen (`min_separation_snr: 4` × robuste sd, absolute Untergrenze
+  `min_separation_ipd: 0.012` statt pauschal 0.04): 0.025 IPD Abstand bei
+  0.001 Rauschen sind sauber trennbar. Fehlermeldung nennt Abstand, nötigen
+  Abstand und Rauschen; Debug-Log speichert `noise` je Punkt.
 - **Sakkaden-Test horizontal** (`paradigms/test_config.yaml → saccade_test.layout`,
   `test.sequence`): Eichung mit drei Punkten L / R / M, Ziele im festen Wechsel
   L, R, L, R … (jeder Sprung volle Breite). Grund aus den Debug-Logs: die
