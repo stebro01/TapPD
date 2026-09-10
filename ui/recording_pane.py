@@ -272,6 +272,11 @@ class RecordingPane(QWidget):
                 self._analysis_lbl.setText(self._result_summary(step))
         else:
             self._set_phase(IDLE)
+            if not self._analysing:
+                # An open step has no result yet — nothing of the previously
+                # viewed take may linger under it.
+                self._analysis_lbl.setText("")
+                self._plot.setVisible(False)
         self._refresh_meta()
 
     def _refresh_meta(self) -> None:

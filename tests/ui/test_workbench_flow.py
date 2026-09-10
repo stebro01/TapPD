@@ -500,3 +500,22 @@ def test_import_segments_are_listed_and_analysed_like_steps(protocol_session, ap
     assert v.segments == []
     conn = get_db(); assert get_measurements(conn, app.patient.id) == []; conn.close()
     assert not any(r[1].startswith("✂") for r in _rows(wb))    # the step "Tapping links" stays
+
+
+def test_camera_is_handed_back_to_the_pane_after_leaving_and_returning(protocol_session, app):
+    """leave() stops the pane (and its camera); coming back to the same
+    session must hand the device over again, or the record button stays
+    disabled although the preview runs."""
+    from tests.ui.test_recording_pane import FakeDevice
+    wb, s, v = protocol_session
+    wb._device = FakeDevice()
+    wb._select(("step", s.id, "rest")); app.pump()
+    wb._bind(v)
+    assert wb._rec._device is wb._device and wb._rec._record_btn.isEnabled()
+
+    wb.leave(); app.pump()
+    assert wb._rec._device is None
+    wb._device = FakeDevice()                       # re-acquired on set_patient
+    wb.refresh(); app.pump()
+    wb._select(("step", s.id, "rest")); app.pump()
+    assert wb._rec._device is wb._device and wb._rec._record_btn.isEnabled()

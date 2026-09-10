@@ -426,6 +426,7 @@ class PatientWorkbench(QWidget):
     def leave(self) -> None:
         self._rec.stop()
         self._cut.on_leave()
+        self._bound = None                      # next visit binds afresh
         for v in self._videos.values():
             try:
                 v.save()
@@ -774,6 +775,10 @@ class PatientWorkbench(QWidget):
     # ── selection → workbench ────────────────────────────────────
     def _bind(self, v: VideoSession | None) -> None:
         if v is self._bound:
+            # Same session, but the pane may have lost the camera in between
+            # (leave() stops it): hand it over again — the record button
+            # depends on it.
+            self._rec.set_device(self._device)
             return
         self._binding = True
         try:

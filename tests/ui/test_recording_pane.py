@@ -523,3 +523,20 @@ def test_deface_choice_is_visible_before_recording(pane):
     take = v.begin_take("tap_right"); take.parent.mkdir(parents=True, exist_ok=True)
     take.write_bytes(b"x"); v.mark_recorded("tap_right", str(take)); p.show_step("tap_right")
     assert p._deface_cb.isVisibleTo(p)                  # still open in review
+
+
+def test_open_step_shows_no_leftover_summary(pane, monkeypatch):
+    p, v = pane
+    monkeypatch.setattr("video.archive.compact_enabled", lambda: False)
+    monkeypatch.setattr("video.archive.keep_raw_take", lambda: True)
+    take = v.begin_take("tap_right"); take.parent.mkdir(parents=True, exist_ok=True)
+    take.write_bytes(b"x"); v.mark_recorded("tap_right", str(take)); p.show_step("tap_right")
+    p._auto_cb.setChecked(False); p._on_keep()
+    seg = v.segments[-1]
+    seg.results["finger_tapping"] = {"features": {"mpi": 0.7}, "recorded_at": "2026-09-09T11:27:00"}
+    p.show_step("tap_right")
+    assert "MPI 0.70" in p._analysis_lbl.text()
+    p._plot.setVisible(True)
+    p.show_step("tap_left")                         # still open
+    assert p._analysis_lbl.text() == "" and not p._plot.isVisibleTo(p)
+    assert p._record_btn.isVisibleTo(p) and p._record_btn.isEnabled()
