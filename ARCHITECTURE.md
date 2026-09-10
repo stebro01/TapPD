@@ -24,9 +24,13 @@ toward multimodal support. The component-by-component map of the whole system
        │   │ (caps, readiness)  │ Readiness│
        │   │                    │  Gate    │
    ┌───┴───────────┐            │          │
-   │ VIDEO service │────────────┘   UI: ui/ (TestScreen, VideoLab, Eingabequelle)
-   │ video/        │   clips/playback        shared widgets: WebcamPreview,
-   └───────────────┘                          LiveMetricPlot
+   │ VIDEO service │────────────┘   UI: ui/ (PatientWorkbench with RecordingPane +
+   │ video/        │   clips/playback     VideoLabScreen over one SegmentPipeline;
+   └───────────────┘                      TestScreen, Eingabequelle; dialogs)
+   ┌───────────────┐  ┌──────────┐        shared widgets: WebcamPreview, LiveMetricPlot,
+   │ CLINICAL      │  │ EXPORT   │        VideoView, MetaPanel
+   │ clinical/     │  │ export/  │◄── reads storage + video store, writes files only
+   └───────────────┘  └──────────┘
 ```
 
 - **Source** (`capture/`) — produces motion data (HandFrames). One abstraction,
@@ -41,9 +45,22 @@ toward multimodal support. The component-by-component map of the whole system
   and computes features. Declared once in the **registry**. Driven by the shared
   **`ParadigmRunner`** (frame intake + gating + live-metric + buffers), used by
   both the live `TestScreen` and VideoLab's `AnalysisRunner`.
-- **Storage** — i2b2-style star schema (live results) + JSON `VideoSession`
-  store (VideoLab; write-isolated, per-segment export into a dedicated DB
-  Session via `video/export.py`).
+- **Storage** — i2b2-style star schema (measurements with `provenance`,
+  clinical form rows, notes) + JSON `VideoSession` store per clinical session
+  (steps, segments with `meta`, results); segments are exported into the DB
+  Session via `video/export.py` (re-analysis updates in place).
+- **Video-Lab pipeline** (`ui/segment_pipeline.py`) — the one queue a segment
+  goes through, whether filmed here or cut from an import: analyse (raw take /
+  archived clip / imported original + range) → archive (takes only) → clean
+  up. Writes raw-data JSON, the per-frame track, analysis meta and the
+  measurement. `video/meta.py` is the provenance vocabulary (capture, archive,
+  analysis) plus the consistency check the info panels show.
+- **Clinical** (`clinical/`) — YAML-described forms (schema, validation,
+  computed values such as LEDD) stored as coded observations
+  (`CATEGORY_CHAR='CLINICAL'`, never mistaken for measurements).
+- **Export** (`export/`) — one record serializer feeding the research tables
+  (pseudonymised, with codebook), the HTML/PDF report and the ZIP bundle
+  (videos, tracks, raw data, attachments, manifest).
 - **SourceProfile** — per-source capabilities, readiness policy and prompts; the
   seam where source-specific frame re-mapping plugs in (`adapt_frame`).
 
@@ -113,7 +130,11 @@ video media responsibilities live in one place:
 - `video/transcode.py` (+ `mediapipe_sidecar/transcode.py`) — normalize imports
   (H.264, square-capped resolution so portrait clips keep width, fps cap,
   rotation-aware).
-- `video/store.py` — `VideoSession` (per-patient segments + results), JSON.
+- `video/store.py` — `VideoSession` per clinical session: `RecordingStep`s of
+  a protocol (`video/protocol.py`, `video/protocols/*.yaml`), `Segment`s with
+  provenance `meta`, `track_path` and `results`; JSON.
+- `video/archive.py` — compact (defaced) archive clip of a take, raw-take
+  cleanup; `video/meta.py` — provenance + consistency (see BLUEPRINT §3.3).
 - **Playback** is `WebcamSource.play_range(video, start, end)` / `replay_path`
   loop → the sidecar (`start` with `video`/`start_s`/`end_s`/`loop`, emits `done`
   for a play-once range).
@@ -231,6 +252,14 @@ migration shim).
   resolution are all config.
 - **Aliases**: concrete `*CaptureDevice` + `create_capture_device` removed
   (`BaseCaptureDevice`/`HandFrame` remain, tied to the callback migration).
+
+**Video-Lab (09/2026, done)** — see BLUEPRINT §1 (Video-Lab-Fluss) and §3.8:
+one workbench per subject (tree + work area), YAML recording protocols with
+per-step confirm, one `SegmentPipeline` for own takes and import cuts, review
+overlay from the stored track (defaced archives included), provenance on every
+segment/measurement with an info panel + consistency check, notes with
+attachments (`NOTE_FACT`), YAML clinical form (anamnesis, medication, LEDD),
+export bundle and research export. UI wording: *Proband*.
 
 **Remaining / future**
 - ~~Migrate consumers to the TrackingFrame callback~~ — done: `start_tracking`

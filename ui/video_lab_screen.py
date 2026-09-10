@@ -189,6 +189,7 @@ class VideoLabScreen(QWidget):
 
     contentChanged = pyqtSignal()   # segments/video changed → host refreshes
     detailsRequested = pyqtSignal(int)   # measurement id: open its details
+    extra_rows = None               # host hook: segment → [(label, value)] for the info panel
 
     def __init__(self, main_window, embedded: bool = False,
                  pipeline: SegmentPipeline | None = None) -> None:
@@ -228,7 +229,9 @@ class VideoLabScreen(QWidget):
         header = QHBoxLayout()
         back = QPushButton("← Zurück")
         back.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
-        back.clicked.connect(lambda: self.main_window.close_video_lab())
+        # Standalone use only (the workbench hides this row): back to the list.
+        back.clicked.connect(lambda: getattr(self.main_window, "show_patient_screen",
+                                             lambda: None)())
         header.addWidget(back)
         self._title = QLabel("VideoLab")
         self._title.setStyleSheet("font-size: 20px; font-weight: 700; color: #263238;")
@@ -879,8 +882,20 @@ class VideoLabScreen(QWidget):
             return
         self._result_lbl.setText(result_summary(seg) if seg.results else
                                  ("Noch nicht ausgewertet." if seg.paradigm else ""))
-        self._meta.set_content(describe_segment(self.session, seg),
-                               segment_issues(self.session, seg))
+        rows = describe_segment(self.session, seg)
+        if self.extra_rows is not None:
+            try:
+                rows = list(self.extra_rows(seg)) + rows
+            except Exception:
+                log.debug("extra_rows fehlgeschlagen", exc_info=True)
+        issues = segment_issues(self.session, seg)
+        job = self._pipeline.job
+        if job is not None and job.get("segment") is seg:
+            stage = {"analyse": "Auswertung läuft", "compact": "Clip wird archiviert",
+                     "cleanup": "Aufräumen"}.get(job.get("stage"), "in Bearbeitung")
+            rows = [("Status", f"⏳ {stage} …")] + rows
+            issues = []
+        self._meta.set_content(rows, issues)
         self._meta.setVisible(True)
 
     def _measurement_id(self, seg) -> int | None:

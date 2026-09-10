@@ -300,6 +300,7 @@ class PatientWorkbench(QWidget):
         self._cut.contentChanged.connect(self._refresh)
         self._cut.detailsRequested.connect(
             lambda mid: self._show_measurement(self._measurement_by_id(mid)))
+        self._cut.extra_rows = self._segment_note_rows
         self._detail = self._build_measurement_pane()
         self._form_view = self._build_form_view()
         for w in (self._empty, self._rec, self._cut, self._detail, self._form_view):
@@ -679,6 +680,12 @@ class PatientWorkbench(QWidget):
         if n.attachments:
             rows.append(("Anhänge", ", ".join(a.get("name", "?") for a in n.attachments)))
         return rows
+
+    def _segment_note_rows(self, seg) -> list[tuple[str, str]]:
+        v = self._bound
+        if v is None or seg is None or v.db_session_id is None:
+            return []
+        return self._note_rows("segment", f"{v.db_session_id}:{seg.id}")
 
     def _step_note_rows(self, step) -> list[tuple[str, str]]:
         v = self._bound

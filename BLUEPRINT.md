@@ -12,22 +12,28 @@
 ```
                                    ┌────────────────────────────────────────────────┐
                                    │                    UI  (ui/)                   │
-                                   │  PatientScreen → PatientDetail ─┬─ 📈 Verlauf  │
-                                   │        │                        ├─ DetailDialog│
-                                   │        ▼                        └─ CSV-Export  │
+                                   │  PatientScreen ─► PatientWorkbench (1 Screen je  │
+                                   │   Proband: Baum links, Arbeitsbereich rechts)    │
+                                   │   ├ RecordingPane  (Protokoll-Schritte filmen)   │
+                                   │   ├ VideoLabScreen (Import schneiden)            │
+                                   │   ├ FormDialog / NoteDialog / DetailDialog       │
+                                   │   └ ExportDialog  ─┐ beide über SegmentPipeline  │
                                    │  TestDashboard → TestScreen / Hanoi/SRT/TMT/Sakk.│
-                                   │  VideoLab │ GestureLab │ Eingabequelle │ Results│
+                                   │  GestureLab │ Eingabequelle │ Results │ Verlauf  │
                                    └───────┬──────────┬─────────────┬───────────────┘
                                            │ frames   │ clips/play  │ save/load
                  SOURCE-LAYER              ▼          ▼             ▼
 ┌───────────────────────────────┐   ┌────────────────────┐   ┌──────────────────────┐
 │        capture/  (Source)     │   │   video/ (Service)  │   │   storage/ + video/  │
 │                               │   │                     │   │      (Persistenz)    │
-│  MotionSource (ABC/Protocol)  │   │ record / import /   │   │ tappd.db (i2b2-Stern)│
-│  ├─ LeapSource      (USB/CFFI)│◄──┤ transcode / extract │   │ VideoSession (JSON)  │
-│  ├─ WebcamSource ───┐ (Socket)│   │ (+Deface, EyeRef,   │   │ Clips (data/clips)   │
-│  ├─ SimulationSource│         │   │  Rotate) / store /  │   │ Raw-JSON (sessions/) │
-│  └─ ReplaySource    │         │   │ export → DB         │   └──────────▲───────────┘
+│  MotionSource (ABC/Protocol)  │   │ record / import /   │   │ tappd.db (i2b2-Stern:│
+│  ├─ LeapSource      (USB/CFFI)│◄──┤ transcode / extract │   │  Messungen+provenance│
+│  ├─ WebcamSource ───┐ (Socket)│   │ archive / meta /    │   │  klinische Zeilen,   │
+│  ├─ SimulationSource│         │   │ protocol / store /  │   │  Notizen) · Video-   │
+│  └─ ReplaySource    │         │   │ export → DB         │   │  Session (JSON) ·    │
+│                     │         │   │ clinical/ · export/ │   │  Clips · Spuren ·    │
+│                     │         │   │ (Masken, Berichte)  │   │  Rohdaten · Anhänge  │
+│                     │         │   │                     │   └──────────▲───────────┘
 │  SourceProfile      │         │   └─────────┬───────────┘              │
 │  (Caps/Ready/adapt) │         │             │ VideoClip / play_range   │ Measurement
 └─────────────────────┼─────────┘             ▼                          │
@@ -67,25 +73,35 @@ Ende (Dauer erreicht / done):
         └─► save_measurement → OBSERVATION_FACT  (+ Raw-JSON nach data/sessions/)
 ```
 
-### VideoLab-Fluss (Telemedizin: Handy-Video → Befund)
+### Video-Lab-Fluss (Aufnahme und Import → eine Pipeline)
 
 ```
-Video-Datei ─► VideoImporter ─► Sidecar transcode (H.264, ≤1280, 30fps, [↻90°])
-                 │                                   │
-                 ▼                                   ▼
-          VideoSession(JSON) ◄─── Segment wählen (VideoTimeline: Onset/Offset)
-                 │                        │
-                 │                        ▼
-                 │              VideoSegmentExtractor ─► Sidecar extract:
-                 │                Schnitt + DEFACE (hand-aware!) + .eyeref.json + Thumb
-                 ▼
-        AnalysisRunner.start(ORIGINAL-Video, start, end, Paradigma)
-                 │   WebcamSource.play_range → Sidecar (einmalig, "done")
-                 │   Face erzwungen bei abs_position-Paradigmen (Tremor)
-                 ▼
-        ParadigmRunner → Features → Segment.results  ──"→ In Patientenakte"──►
-                                                   video/export.py → Measurement(DB)
+EIGENE AUFNAHME                                   IMPORT
+Protokoll (video/protocols/*.yaml)                Video-Datei ─► VideoImporter
+  └► RecordingStep: Countdown → Sidecar record         └► Sidecar transcode (H.264, Caps, ↻)
+     (+ Live-Kurve: ParadigmRunner am Kamera-Stream)   └► VideoSession.video_path, Flag „Gespiegelt"
+  └► Take sichten → Übernehmen                     Bereich auf der Timeline → Segment
+  └► confirm_step → Segment (recorded=True,          └► VideoSegmentExtractor (Schnitt, DEFACE,
+     meta: Kamera, Auflösung, Spiegelung, Take)          .eyeref.json, Thumb; meta["archive"])
+            │                                                   │
+            └──────────────────► SegmentPipeline ◄──────────────┘   (ui/segment_pipeline.py)
+                                   │  analysis_source(): Roh-Take | Archiv-Clip | Original+Bereich
+                                   ▼
+                     analyse: AnalysisRunner → ParadigmRunner → features
+                              + Rohdaten-JSON (data/samples) + seg_XXX.track.json
+                              + results[paradigma] {analysed_on, analysis, eye_ref_coverage}
+                              + export_or_update → Measurement (provenance = Herkunft)
+                     compact: (nur Takes) compact_take → seg_XXX.mp4 + meta["archive"]
+                     cleanup: (nur Takes) Roh-Take löschen, sobald Archiv liegt
+                                   │
+                                   ▼
+            Baum: Schritt / ✂ Segment mit Ergebnis ·📋   Panel: Zusammenfassung,
+            Details…, Aufnahme-Info (video/meta.describe_segment + segment_issues)
 ```
+
+Der Schritt eines Protokolls bleibt für Paradigma und Seite maßgeblich; ein
+Import-Segment nutzt seine eigenen. Beide Wege enden in demselben Artefakt:
+kompakter, ggf. anonymisierter Clip + Spur + Rohdaten + Messung in der Akte.
 
 ### Speicher-Topologie
 
@@ -99,12 +115,21 @@ data/
 │       │  hand, duration, raw_path, source_kind)├ SOURCESYSTEM_CD = TAPPD:<kind>
 │       │                                        └ ENCOUNTER_NUM = Session
 │     CODE_LOOKUP, NOTE_FACT, GESTURE_TEMPLATE (GestureLab, zentral registriert)
-├── video_sessions/<code>/session.json  ─ VideoLab (Segmente, Ergebnisse,
-│         │                                db_session_id, measurement_id-Stempel)
-│         └── video_*.mp4, seg_*.mp4 (+.thumb.jpg, +.eyeref.json)
+│     OBSERVATION_BLOB einer Messung: hand, duration_s, raw_data_path, source_kind,
+│       features, provenance (Kamera/Import, Spiegel-Flags, Clip, Spur, Auswertungs-Quelle)
+│     Klinische Masken: CATEGORY_CHAR='CLINICAL' — Q-Zeile (ganze Maske) + kodierte
+│       Zeilen je Antwort (N/T/D), Medikamente als B mit INSTANCE_NUM, LEDD als N
+│     NOTE_FACT: eine Notiz je Eintrag (CATEGORY_CHAR=Art, NAME_CHAR=Bezug, NOTE_BLOB=Anhänge)
+├── video_sessions/<code>/session_<id>/session.json ─ je klinischer Sitzung: Schritte
+│         │      (RecordingStep + meta), Segmente (meta, results, measurement_id-Stempel)
+│         └── step_*_takeNN.mp4 (Roh-Take, bis archiviert), seg_*.mp4 (+.meta.json,
+│             +.thumb.jpg, +.eyeref.json), seg_*.track.json (Landmarken je Frame)
+├── samples/        ─ Rohdaten-JSON je Auswertung (Live-Paradigmen und Video)
+├── attachments/<code>/<Art_Bezug>/ ─ Dateien an Notizen
+├── pseudonyms.json ─ Patientencode → P-0001 (nur lokal; Forschungsexport)
 ├── clips/          ─ Sim-Quelle (default.mp4 + Landmark-JSON-Clips für Replay)
-├── sessions/       ─ Raw-Frame-JSON pro Messung (session_store)
-└── logs/           ─ zentrales Logging (logging_config, GUI-LogViewer)
+├── sessions/       ─ Raw-Frame-JSON älterer Live-Messungen (session_store)
+└── logs/           ─ zentrales Logging (logging_config, GUI-LogViewer, sidecar.log)
 ```
 
 ---
@@ -168,13 +193,35 @@ vorbereitete nächste Ausbauschritt.
 | `recorder.py` | Finalisiert Sidecar-Aufnahmen → `VideoClip` (Sim-Quelle „record→loop"). |
 | `importer.py` | Import mit Transcode, Copy-Fallback (`fallback_to_copy`). |
 | `transcode.py` / `extractor.py` | Subprozess-Wrapper um die Sidecar-One-Shots (JSON-Ergebniszeile, Timeout, Rotate-Param). |
-| `store.py` | `VideoSession`/`Segment` (JSON pro Patient): Segmente, Ergebnisse je Paradigma, `db_session_id`, `measurement_id`-Stempel. |
-| `export.py` | **Brücke JSON-Store → Sternschema**: ein DB-Session pro Video (lazy), `Measurement` mit `source_kind="video"`, Doppel-Export-Schutz; Re-Analyse löscht den Stempel. |
-| `video.yaml` + `config.py` | Import-/Segment-/Privacy-/Analyse-Knobs (Codec avc1, Caps 1280/1080, Deface blur, eyeref an). |
+| `store.py` | `VideoSession` (JSON je klinischer Sitzung): `RecordingStep` (Protokoll-Schritte mit Zustand, Takes, `meta`), `Segment` (Herkunft `meta`, `recorded`, `source_path`, `clip_path`, `track_path`, `results` je Paradigma mit `measurement_id`-Stempel), `db_session_id`; `load_for_session` adoptiert Altbestände. |
+| `protocol.py` + `protocols/*.yaml` | Aufnahmeprotokolle: Schema, Loader mit Validierung (`Issue`), `protocol_for_paradigm` (Einzelparadigma = Protokoll der Länge 1); interaktive Paradigmen werden abgewiesen (laufen live). |
+| `archive.py` | `compact_take` (Roh-Take → kompakter, ggf. anonymisierter Clip über den Extraktor), `discard_raw_take` (nur wenn Archiv als eigene Datei liegt). |
+| `meta.py` | **Herkunft**: `capture_meta`/`note_recorded`/`import_meta`/`note_archive`/`analysis_meta` schreiben, `build_provenance` für die Messung, `describe_segment`/`describe_measurement` + `segment_issues`/`measurement_issues` für Panel und Konsistenzprüfung, `result_summary`. |
+| `export.py` | **Brücke JSON-Store → Sternschema**: `export_or_update` (Re-Analyse aktualisiert dieselbe Messung), `Measurement` mit `source_kind="video"`, `raw_data_path` = Rohdaten-JSON, `provenance` aus `meta.build_provenance`. |
+| `video.yaml` + `config.py` | Import-/Segment-/Privacy-/Archiv-/Analyse-Knobs (Codec avc1, Caps, Deface blur, eyeref an, `archive.compact_takes`, `keep_raw_take`). |
 
-**Bewertung:** Sim-Quelle und VideoLab teilen denselben Medien-Unterbau — die Konsolidierung
-trägt. Analyse läuft grundsätzlich auf dem **Original** (voller Qualität, ungeblurrt); der
-Deface-Clip ist Archiv/Review und Fallback.
+**Bewertung:** Sim-Quelle, eigene Aufnahme und Import teilen denselben Medien-Unterbau.
+Analyse läuft auf dem **Original** (Roh-Take bzw. importierte Datei, ungeblurrt); der
+Deface-Clip ist Archiv/Review und Fallback (`analysed_on` sagt es). Die Ablaufsteuerung
+liegt bewusst nicht hier, sondern in `ui/segment_pipeline.py` (Qt-Threads, Queue).
+
+### 3.3b `clinical/` — Klinische Daten per YAML-Maske
+
+| Datei | Rolle |
+|---|---|
+| `forms/pd_anamnese.yaml` | Parkinson-Anamnese: Abschnitte, Items (integer/decimal/scale/choice/multichoice/bool/text/date), Kataloge (Wirkstoffe mit LEDD-Faktoren), Wiederholgruppe Medikation, berechnete Felder (Erkrankungsdauer, LEDD). |
+| `schema.py` | Loader mit Validierung (`FormError`), `validate` (Bereiche, Auswahlen, Typen), `compute` (`years_since`, `sum`, `ledd`), `summary_line`, `describe`. |
+| `store.py` | Eintrag = Q-Zeile (ganze Maske) + kodierte Zeilen je Antwort in `OBSERVATION_FACT` (`CATEGORY_CHAR='CLINICAL'`), Konzepte in `CONCEPT_DIMENSION`, `prefill` (Fortschreiben), `delete_form_entry`. |
+
+### 3.3c `export/` — Berichte und Forschungsexport
+
+| Datei | Rolle |
+|---|---|
+| `record.py` | Ein Serializer: die Akte eines Probanden als Dict (Patient, Sitzungen mit Masken/Messungen/Notizen), optional pseudonymisiert. |
+| `research.py` | Pseudonymisierte Langtabellen (patients, visits, measurements, features_long, clinical_long, medication, optional notes/signals) + `codebook.md` + `manifest.json`. |
+| `report.py` / `curves.py` | HTML-Bericht (Übersicht, Anamnese, Messungen mit Kennwerten und Kurvenbild), PDF über Qt; Kurven aus der Rohdaten-JSON (Matplotlib Agg). |
+| `bundle.py` | ZIP-Paket: report.html/.pdf/.json, Videos (wahlweise nur anonymisiert), Spuren, Rohdaten, Anhänge, Manifest mit SHA-256, `verify_bundle`. |
+| `pseudonyms.py` | Stabile Pseudonyme `P-0001`, Zuordnung nur lokal (`data/pseudonyms.json`). |
 
 ### 3.4 `paradigms/` — Paradigm-Layer (Motorik + Kognition + Okulomotorik)
 
@@ -231,38 +278,53 @@ dynamische Gesten (Posen 9–12) werden aufgenommen, aber noch nicht live gescor
 | Datei | Rolle |
 |---|---|
 | `database.py` | i2b2-Sternschema in SQLite (WAL, FK-Kaskaden). Fassade `Patient`/`Session`/`Measurement` entkoppelt die UI von den physischen Tabellen. Migrationen: v1→v2 (mit Backup), inkrementell `_migrate_v2` (LOOKUP_BLOB, SOURCESYSTEM_CD-Backfill). Konzept-Seeds `TAPPD:*`. MPI in `NVAL_NUM` (sortier-/filterbar). |
-| `session_store.py` | Raw-Frame-JSON pro Messung (`data/sessions/`) + CSV-Export; `raw_data_path` verknüpft zurück zur Messung. |
+| `session_store.py` | Raw-Frame-JSON älterer Live-Messungen (`data/sessions/`) + CSV-Export; heute schreiben Live- wie Video-Auswertungen `data/samples/` (`ui/results_screen.save_raw_data`). |
+| `database.py` (Notizen) | `Note` + `save_note`/`get_notes`/`delete_note` auf `NOTE_FACT` (eine Notiz je Eintrag: Sitzung, Schritt, Import, Segment, Messung, Maske; `NOTE_BLOB` = Anhänge). Löschen einer Messung/Sitzung nimmt Notizen mit. |
+| `attachments.py` | Dateien an Notizen unter `data/attachments/<code>/<Art_Bezug>/` (Kopie, Dedupe, Entfernen). |
+| `Measurement.provenance` | Herkunft einer Video-Messung im `OBSERVATION_BLOB` (Kamera/Import, Spiegel-Flags, Clip, Spur, Auswertungs-Quelle); Messungs-Abfragen lassen `CATEGORY_CHAR='CLINICAL'` aus. |
 
 **Bewertung:** Solide für den lokalen Einsatzzweck; DB_KONZEPT.md beschreibt ein größeres
 Zielbild (PROVIDER_DIMENSION, CQL, Trigger …) — bewusst Teilmenge. Keine generische
 Schema-Versionstabelle (Migrationen sind Presence-basiert).
 
-### 3.8 `ui/` — Präsentationsschicht (PyQt6, 12 Screens im Stack)
+### 3.8 `ui/` — Präsentationsschicht (PyQt6)
 
 ```
-PatientScreen ─► PatientDetailScreen ─┬─► TestDashboard ─► TestScreen ─► ResultsScreen
-   │  (Matrix Sessions × Tests,       ├─► VideoLabScreen        ▲  (ReadinessGate 1-2-3)
-   │   Klick → DetailDialog,          ├─► TrendDialog 📈        │
-   │   Long-Press/Kontext)            └─► Hanoi/SRT/TMT/Sakkaden┘
-   └─► GestureLabScreen (Gesten/Analyse/Detect)      TrackingScreen („Eingabequelle")
+PatientScreen ─► PatientWorkbench (ein Screen je Proband)
+   │   ┌ Baum: Sitzungen → Schritte ○◐✔ / 🎬 Import → ✂ Segmente / 📋 Anamnese / Messungen
+   │   │        Ergebnis-Spalte: MPI, 📋 in der Akte, 📝📎 Notiz; Rechtsklick je Knotentyp
+   │   └ Arbeitsbereich (QStackedWidget):
+   │        RecordingPane  ─ Aufnahme-Zyklus, Sichtung, Overlay, Zusammenfassung, Aufnahme-Info
+   │        VideoLabScreen ─ Import, Timeline, Segment schneiden, Auswertung, Aufnahme-Info
+   │        Messungs-Ansicht ─ Herkunft der Messung → DetailDialog
+   │        Masken-Ansicht  ─ Antworten (→ FormDialog)
+   │        beide Panes teilen SegmentPipeline; Footer: Kamera, Gesichtserkennung, Status
+   ├─► TestDashboard ─► TestScreen ─► ResultsScreen (Live-Paradigmen, ReadinessGate)
+   ├─► Hanoi / SRT / TMT / Sakkaden (interaktiv, aus „Einzelnes Paradigma")
+   ├─► TrendDialog 📈 · ExportDialog 📦 · GestureLabScreen · TrackingScreen (Eingabequelle)
+   └─► Startbildschirm: 🔬 Forschungsexport, 📖 Anleitung, Über
 ```
 
 | Baustein | Rolle |
 |---|---|
-| `main_window.py` | Router (registry-getrieben), Source-Hot-Swap, Sensor-Check-Worker, Session-Verwaltung, speichert Messungen (+Provenienz). |
-| `test_screen.py` | Live-Metrik-Tests: ReadinessGate → ParadigmRunner → Plot → Ergebnis. |
-| `analysis_runner.py` | VideoLab-Pendant ohne Gate: `play_range` + `done`; wählt die **bewegte** Hand und attribuiert auf die gewählte Seite; Eye-Ref-Coverage. |
-| `video_lab_screen.py` | Import/Timeline/Segmente/Rotate/Deface/Analyse/Export — kompletter Video-Workflow. |
-| `tracking_screen.py` | Eingabequelle: Leap/Webcam/Sim wählen, Kamera-Preview, Sim-Clip aufnehmen, Eye-Ref-Overlay. |
-| `results_screen.py` / `detail_dialog.py` / `trend_dialog.py` | Befund einer Messung / gespeicherte Messung mit Plots / Längsschnitt über alle Messungen. |
-| `feature_meta.py` | Anzeige-Namen + Einheiten aller Features; ≈mm-Logik (`unit_label`, `SCALE_NOTE`). |
-| `widgets/` | Geteilt: `WebcamPreview` (JPEG + Landmark-Overlay), `LiveMetricPlot`. |
-| `pretest_gate.py`, `hand_visualization.py`, `video_timeline.py`, `test_dashboard.py`, `log_viewer.py`, `theme.py` | Gate-Overlay, 3D-Hand, Zwei-Griff-Timeline, Kachel-Dashboard mit Gating, Log-GUI, Theme (Farben/Größen — teils noch inline dupliziert). |
-| `hanoi_screen.py`, `srt_screen.py`, `tmt_screen.py`, `saccade_screen.py`, `gesture_lab_*.py` | Task-spezifische Screens (Spiel-/Task-Logik in `paradigms/*_logic.py` gehalten; Sakkaden: dunkler Stimulus-Canvas mit Eich-/Testphase). |
+| `main_window.py` | Router (registry-getrieben), Source-Hot-Swap, Sensor-Check-Worker, speichert Live-Messungen (+Provenienz). |
+| `patient_workbench.py` | Der Arbeitsplatz: Baum, Kontextmenüs, Kamera-Footer, Notizen, Masken, Exporte; erzeugt die geteilte `SegmentPipeline`. |
+| `recording_pane.py` | Protokoll-Schritt filmen: Countdown → Sidecar `record` (+ Live-Kurve) → Sichtung (`VideoView`, Overlay aus gespeicherter Spur) → Übernehmen → Pipeline; Zusammenfassung, Details, `MetaPanel`. |
+| `segment_pipeline.py` | **Eine** Warteschlange analysieren → archivieren → aufräumen für Takes und Import-Segmente (`analysis_source`); schreibt Rohdaten, Spur, Analyse-Meta, exportiert in die Akte. |
+| `video_lab_screen.py` | Schnitt-Bereich (eingebettet): Import/Transcode/Rotate, Timeline, Segment mit Paradigma/Seite, Defacing, automatische Auswertung über die Pipeline, Zusammenfassung/Details/`MetaPanel`. |
+| `analysis_runner.py` | Sidecar-Wiedergabe ohne Gate: `play_range` + `done`; wählt die **bewegte** Hand; sammelt Spur (`track_data`) und Eye-Ref-Coverage. |
+| `protocol_chooser.py` / `form_dialog.py` / `note_dialog.py` / `export_dialog.py` | Protokoll oder Einzelparadigma wählen · generische YAML-Maske · Notiz mit Anhängen · Export-Paket / Forschungsexport. |
+| `test_screen.py`, `results_screen.py`, `detail_dialog.py`, `trend_dialog.py` | Live-Metrik-Tests, Befund, gespeicherte Messung mit Plots + Herkunft, Längsschnitt. |
+| `tracking_screen.py` | Eingabequelle: Leap/Webcam/Sim, Kamera-Preview, Sim-Clip aufnehmen. |
+| `feature_meta.py` | Anzeige-Namen + Einheiten aller Features; ≈mm-Logik. |
+| `widgets/` | `WebcamPreview` (JPEG + Landmarken + Iris), `LiveMetricPlot`, `VideoView` (Player-Frames, spiegelbar), `MetaPanel` (aufklappbare Zeilen + ⚠-Hinweise). |
+| `theme.py` | Farben/Größen/Profile (dense/touch), Stylesheet inkl. Menü-Buttons. |
+| `pretest_gate.py`, `hand_visualization.py`, `video_timeline.py`, `test_dashboard.py`, `log_viewer.py`, `hanoi_/srt_/tmt_/saccade_screen.py`, `gesture_lab_*.py` | Gate-Overlay, 3D-Hand, Zwei-Griff-Timeline, Kachel-Dashboard, Log-GUI, Task-Screens. |
 
-**Bewertung:** Die frühere TestScreen↔VideoLab-Duplikation ist über Runner + geteilte
-Widgets beseitigt. Schwächste Stelle: Inline-Stylesheets mit hartkodierten Farben an
-mehreren Orten statt konsequent `theme.py`.
+**Bewertung:** Aufnahme und Import laufen seit 09/2026 über dieselbe Pipeline und
+dieselben Panels (Zusammenfassung, Details, Aufnahme-Info); die Pipeline-Logik ist aus
+den Panes herausgelöst und testbar. Schwächste Stelle bleibt der Schnitt-Bereich
+(dichter Aufbau, Standalone-Reste wie `close_video_lab`).
 
 ### 3.9 Querschnitt: Konfiguration, Infrastruktur, Tests
 
@@ -273,7 +335,7 @@ mehreren Orten statt konsequent `theme.py`.
 | `app_settings.py` | QSettings (ui_mode, capture_mode, camera_index, flip_handedness) inkl. TapPD→Motryx-Migration. |
 | `logging_config.py` | Zentrales Logging → `data/logs/` + GUI-Viewer; Unhandled-Exception-Hook hält die App am Leben. |
 | `main.py` | Bootstrap: Settings → Source (auto/persistiert) → Logging → MainWindow. |
-| `tests/` (225) | Contract-Tests aller Paradigmen über die Sim-Quelle, DB/Migration, Mapping, Runner, SourceProfile, Replay, VideoLab-Store, DB-Export, Sidecar-Integration (echtes Video durch MediaPipe: Loop, Range+done, Extract+Deface, Transcode, Rotate). |
+| `tests/` (435) | Contract-Tests aller Paradigmen über die Sim-Quelle, DB/Migration/Blob-Vertrag, Mapping, Runner, SourceProfile, Replay, Video-Store/Protokolle/Archiv/Meta, Pipeline (Takes + Import), Masken (Schema/Store/Dialog), Notizen, Exporte, Offscreen-UI-Flüsse (Arbeitsplatz, Aufnahme-Panel, Dialoge) und Sidecar-Integration (`-m sidecar`: echte Pipeline auf Take und Import). |
 | `start.sh` / `start.ps1` (+ `start.bat`-Wrapper), `setup_sidecar.sh` / `setup_sidecar.ps1` | Start + Einrichtung der zwei venvs (App 3.12+ / Sidecar 3.12). Windows und macOS haben je ein eigenes Skriptpaar. |
 
 ---
@@ -285,9 +347,12 @@ mehreren Orten statt konsequent `theme.py`.
 (alle Hände eines Sensorframes + FacePose; bilateral konstruktionsbedingt
 symmetrisch) · Face-Stream im Sidecar (eco/full, Iris + Augenwinkel + EAR +
 Nase) · config-getriebene Auswertung + MPI · Video-Pipeline inkl. hand-aware
-Defacing und DB-Export · Provenienz durchgängig (Blob + SQL) · ≈mm-Ehrlichkeit
-in allen Anzeigen · Verlaufsansicht · Theme zentralisiert · 252 grüne Tests
-inkl. echter Sidecar-Integration.
+Defacing und DB-Export · Provenienz durchgängig (Blob + SQL, `provenance` je
+Video-Messung) · ≈mm-Ehrlichkeit in allen Anzeigen · Verlaufsansicht · Theme
+zentralisiert · **Video-Lab 09/2026**: ein Arbeitsplatz je Proband, YAML-Protokolle,
+eine Pipeline für Takes und Import, Overlay aus gespeicherter Spur, Metadaten +
+Konsistenzprüfung, Notizen mit Anhängen, YAML-Anamnese mit LEDD, Export-Paket und
+Forschungsexport · 435 grüne Tests inkl. echter Sidecar-Integration.
 
 **Offen (geplant):**
 1. Klinische **Validierung an realem Material**: Eye-Ref-Tremor-Amplituden
@@ -302,7 +367,9 @@ inkl. echter Sidecar-Integration.
 4. Optionale **Handlängen-Kalibrierung** für echte mm auf Kamera-Quellen.
 5. Analyse-Ideen aus OPTIMIZATION_PLAN Phase 2–3 (Welch-PSD, Hesitation-/
    Freezing-Erkennung, Qualitätsmetriken) — zusammen mit 1. validieren.
-6. Kleineres: `.eyeref.json` ohne Konsumenten (Archiv-Fallback);
+6. Aus KLINIK_KONZEPT offen: Studien-Kohorten, `analysis_version` mit
+   Batch-Neuauswertung, pandas-Lademodul, FHIR-Composition.
+7. Kleineres: `.eyeref.json` ohne Konsumenten (Archiv-Fallback);
    `CAP_FOREARM` ohne Anbieter; Hanoi-Magic-Numbers noch nicht in YAML;
    keine Schema-Versionstabelle; `HandFrame`/`BaseCaptureDevice`-Aliase
    bleiben als bequeme per-Hand-API.

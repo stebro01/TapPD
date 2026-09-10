@@ -484,10 +484,16 @@ def test_import_segments_are_listed_and_analysed_like_steps(protocol_session, ap
     assert [a[0] for a in wb._actions_for(("segment", s.id, seg.id))] == \
         ["Details…", "⟳ Neu auswerten", "📝 Notiz…", "Segment löschen…"]
 
+    from storage.database import Note, save_note
+    conn = get_db()
+    save_note(conn, Note(patient_id=app.patient.id, session_id=s.id, kind="segment",
+                         ref=f"{s.id}:{seg.id}", text="Handy lag schief"))
+    conn.close(); wb.refresh(); app.pump()
     wb._select(("segment", s.id, seg.id)); app.pump()
     assert wb._work.currentWidget() is wb._cut and wb._cut.current_segment is seg
     assert "MPI 0.55" in wb._cut._result_lbl.text() and wb._cut._details_btn.isEnabled()
-    assert "Art: Import" in wb._cut._meta.texts()
+    lines = wb._cut._meta.texts()
+    assert "Art: Import" in lines and "Notiz: Handy lag schief" in lines
 
     started = []
     monkeypatch.setattr(wb._pipeline.runner, "start", lambda *a, **k: started.append(a))

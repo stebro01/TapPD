@@ -116,6 +116,15 @@ Versionierung: SemVer-artig (0.x = Forschungsprototyp).
   verweist darauf statt auf den Clip. Der Dialog stürzt bei älteren
   Video-Messungen (Clip als `raw_data_path`) nicht mehr ab, sondern sagt, dass
   Kurven erst nach „Neu auswerten" da sind.
+- **Doku-Abgleich (Schichten und UI)**: ARCHITECTURE.md (Layer-Vertrag inkl.
+  Video-Lab-Pipeline, `clinical/`, `export/`), BLUEPRINT.md (Gesamtbild,
+  Video-Lab-Fluss Aufnahme + Import → eine Pipeline, Speicher-Topologie mit
+  Herkunft/klinischen Zeilen/Notizen/Anhängen, Komponenten `video/`,
+  `clinical/`, `export/`, `storage/`, `ui/`, Teststand), TECHNICAL_DETAILS.md
+  §8, README-Projektstruktur mit Verweisen, Handbuch-Schnellstart. Der
+  Schnitt-Bereich zeigt Notizen des Segments in der Aufnahme-Info und den
+  Pipeline-Zwischenstand wie das Aufnahme-Panel; toter Standalone-Rückweg
+  entschärft.
 - **Aufnahme-Info während der Verarbeitung**: solange ein Take noch in der
   Pipeline ist (Auswertung ≈ Clip-Länge, dann Archivierung), zeigt das Panel
   die laufende Stufe statt „Take ist nicht archiviert" als Hinweis; es

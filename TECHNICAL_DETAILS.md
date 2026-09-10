@@ -573,6 +573,15 @@ Uebersicht mit Spalten-Wirkungen (MPI in `NVAL_NUM`, Provenienz in
 Ein frueheres 2-Tabellen-Schema (v1: `patients`/`measurements`) wird beim
 ersten Oeffnen automatisch migriert (Backup: `tappd_v1_backup.db`).
 
+Seit dem Video-Lab-Stand (09/2026) traegt der `OBSERVATION_BLOB` einer
+Video-Messung zusaetzlich `provenance` (Kamera/Import, Spiegel-Flags,
+Archiv-Clip, Spur, Auswertungs-Quelle — `video/meta.py`), klinische Masken
+liegen als kodierte Zeilen mit `CATEGORY_CHAR='CLINICAL'` daneben
+(`clinical/store.py`; die Messungs-Abfragen lassen sie aus), und `NOTE_FACT`
+haelt eine Notiz je Eintrag mit Anhaengen (`NOTE_BLOB`). Details:
+[DB_KONZEPT.md](DB_KONZEPT.md) §2.3/§2.9, Datenfluss und Speicher-Topologie
+in [BLUEPRINT.md](BLUEPRINT.md) §1.
+
 ### Rohdaten-Speicherung
 
 JSON-Dateien in `data/samples/` mit Namenskonvention:

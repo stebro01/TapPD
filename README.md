@@ -268,13 +268,21 @@ eine Analyse jeder Komponente) steht in **[BLUEPRINT.md](BLUEPRINT.md)**. Kurzfa
 |---|---|
 | `capture/` | Source-Layer: Leap / Webcam(MediaPipe) / Simulation / Replay, Factory, Capabilities |
 | `mediapipe_sidecar/` | Python-3.12-Prozess fuer cv2/MediaPipe (Hand- + Face-Tracking, Transcode, Extract) |
-| `video/` | Video-Service: Import, Schnitt, Defacing, Clip-Store, DB-Export (VideoLab + Sim-Quelle) |
+| `video/` | Video-Service: Aufnahmeprotokolle (YAML), Import, Schnitt, Defacing, Archiv, Herkunft (`meta.py`), Video-Session-Store, DB-Export |
 | `paradigms/` | Paradigmen (Registry, Runner, config-getriebene Feature-Berechnung) |
 | `analysis/` | Signalverarbeitung (Filter, FFT, Peaks, Onset) |
+| `clinical/` | Klinische Daten per YAML-Maske (Schema, Validierung, LEDD, Speicherung als kodierte Beobachtungen) |
+| `export/` | Berichte (HTML/PDF), Export-Paket (ZIP), Forschungsexport (Langtabellen + Codebuch), Pseudonyme |
 | `gesture_lab/` | Gesten-Pipeline (Posen-Templates, Matching, Fehleranalyse) |
-| `storage/` | SQLite (i2b2-Sternschema) + Raw-JSON-Store |
-| `ui/` | PyQt6-Screens und geteilte Widgets |
-| `data/` | DB, Clips, Video-Sessions, Rohdaten, Logs (nicht im Repo) |
+| `storage/` | SQLite (i2b2-Sternschema: Messungen mit Herkunft, klinische Zeilen, Notizen), Anhaenge, Raw-JSON-Store |
+| `ui/` | PyQt6: Probanden-Arbeitsplatz (Baum + Aufnahme-/Schnitt-Bereich ueber eine `SegmentPipeline`), Live-Tests, Dialoge, geteilte Widgets |
+| `docs/` | Nutzerhandbuch (`manual.html`) mit automatisch erzeugten Screenshots |
+| `data/` | DB, Clips, Video-Sessions (Takes, Archiv-Clips, Spuren), Rohdaten, Anhaenge, Pseudonyme, Logs (nicht im Repo) |
+
+Schichten und Vertraege: [ARCHITECTURE.md](ARCHITECTURE.md) · Komponenten-Karte
+und Datenfluesse: [BLUEPRINT.md](BLUEPRINT.md) · Sitzungs-/Video-Lab-Konzept:
+[SESSION_KONZEPT.md](SESSION_KONZEPT.md) · klinische Daten und Exporte:
+[KLINIK_KONZEPT.md](KLINIK_KONZEPT.md) · Datenbank: [DB_KONZEPT.md](DB_KONZEPT.md)
 
 ## Tests & Berechnete Features
 
