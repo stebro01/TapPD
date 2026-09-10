@@ -152,10 +152,10 @@ class ResearchExportDialog(QDialog):
         lay = QVBoxLayout(self)
         lay.setContentsMargins(20, 16, 20, 16)
         lay.setSpacing(10)
-        _head(lay, "Forschungsexport (alle Patienten)",
-              "Pseudonymisierte Langtabellen für R/pandas: Patienten, Sitzungen mit klinischen "
+        _head(lay, "Forschungsexport (alle Probanden)",
+              "Pseudonymisierte Langtabellen für R/pandas: Probanden, Sitzungen mit klinischen "
               "Werten, Messungen mit Herkunft, Kennwerte, klinische Items, Medikation — "
-              "dazu ein Codebuch. Die Zuordnung Pseudonym ↔ Patient bleibt lokal "
+              "dazu ein Codebuch. Die Zuordnung Pseudonym ↔ Proband bleibt lokal "
               "(data/pseudonyms.json).")
         self.cb_notes = QCheckBox("Notizen beilegen (Freitext, kann Namen enthalten)")
         self.cb_signals = QCheckBox("Rohdaten und Tracking-Spuren beilegen (signals/)")
@@ -199,7 +199,7 @@ class ResearchExportDialog(QDialog):
             conn.close()
             QApplication.restoreOverrideCursor()
         t = self.result_info["tables"]
-        self._status.setText(f"✔ {t['patients']} Patienten, {t['visits']} Sitzungen, "
+        self._status.setText(f"✔ {t['patients']} Probanden, {t['visits']} Sitzungen, "
                              f"{t['measurements']} Messungen, {t['features_long']} Kennwerte, "
                              f"{t['clinical_long']} klinische Werte → {dest}")
         self.accept()

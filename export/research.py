@@ -216,7 +216,7 @@ def codebook(forms) -> str:
     from ui.feature_meta import FEATURE_META
     from app_settings import APP_VERSION
     lines = [f"# Codebuch — Motryx Forschungsexport (App {APP_VERSION})", "",
-             "Alle Tabellen sind pseudonymisiert: `pseudonym` ist die stabile Kennung eines Patienten "
+             "Alle Tabellen sind pseudonymisiert: `pseudonym` ist die stabile Kennung eines Probanden "
              "(Zuordnung nur lokal in `data/pseudonyms.json`). Zeiten ISO 8601, Dezimalpunkt.", "",
              "## patients.csv", "",
              "| Variable | Bedeutung |", "|---|---|",

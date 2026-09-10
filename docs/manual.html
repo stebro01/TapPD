@@ -82,7 +82,7 @@
   <a href="#ueberblick">Überblick</a>
   <a href="#schnellstart">Schnellstart</a>
   <a href="#quellen">Eingabequellen</a>
-  <a href="#patienten">Patienten</a>
+  <a href="#patienten">Probanden</a>
   <a href="#tests">Tests</a>
   <a href="#okulo">Augen-Tests</a>
   <a href="#ergebnisse">Ergebnisse &amp; Verlauf</a>
@@ -97,7 +97,7 @@
 <p>Motryx digitalisiert klinische Bewegungstests. Handbewegungen und Augenbewegungen
 werden kontaktlos erfasst und automatisch in quantitative Parameter übersetzt —
 live am Gerät oder nachträglich aus Handy-Videos. Alle Ergebnisse landen
-patientenbezogen in einer lokalen Datenbank und lassen sich als Verlauf über die
+probandenbezogen in einer lokalen Datenbank und lassen sich als Verlauf über die
 Zeit betrachten.</p>
 
 <table>
@@ -113,8 +113,8 @@ Zeit betrachten.</p>
 <li><b>Starten:</b> macOS <code>./start.sh</code> · Windows <code>start.ps1</code> /
     <code>start.bat</code> (legt beim ersten Mal die Python-Umgebung an).
     Ohne Sensor: <code>./start.sh --mock</code> (Simulationsmodus).</li>
-<li><b>Patient wählen</b> oder neu anlegen (Startbildschirm).</li>
-<li><b>Patient anklicken</b> — das ist bereits der Arbeitsplatz: links alle Sitzungen mit
+<li><b>Proband wählen</b> oder neu anlegen (Startbildschirm).</li>
+<li><b>Proband anklicken</b> — das ist bereits der Arbeitsplatz: links alle Sitzungen mit
     Inhalt, rechts der Arbeitsbereich. <b>„＋ Neue Sitzung"</b> legt eine Gruppe an, über
     <b>„＋ Hinzufügen"</b> kommt Inhalt hinein: Protokoll aufnehmen, einzelnes Paradigma
     oder Video importieren. Ein einzelnes Paradigma wird gefilmt, wenn es motorisch ist;
@@ -132,8 +132,8 @@ Zeit betrachten.</p>
     — Freitext plus angehängte Dateien (Fotos, PDFs). Ein 📝 im Baum zeigt, wo eine liegt.</li>
 </ol>
 
-<figure><img src="img/01_patienten.png" alt="Patientenliste">
-<figcaption>Startbildschirm: Patientenliste. Unten links „✋ Gesture Lab" (Gesten-Bibliothek),
+<figure><img src="img/01_patienten.png" alt="Probandenliste">
+<figcaption>Startbildschirm: Probandenliste. Unten links „✋ Gesture Lab" (Gesten-Bibliothek),
 oben „Über Motryx" mit Versionsnummer, unten „Tracking" für die Eingabequelle.</figcaption></figure>
 
 <h2 id="quellen">3&nbsp;· Eingabequellen</h2>
@@ -168,13 +168,13 @@ Winkel und Verhältnisse sind exakt. Für Verlaufsvergleiche derselben Hand sind
 gut geeignet; absolute Vergleiche zwischen Geräten nicht. Die App kennzeichnet alle
 betroffenen Werte automatisch.</div>
 
-<h2 id="patienten">4&nbsp;· Patienten &amp; Sessions</h2>
-<figure><img src="img/02_patient_detail.png" alt="Patienten-Detail">
-<figcaption>Patienten-Arbeitsplatz: links alle Sitzungen mit ihren Schritten — Zustand
+<h2 id="patienten">4&nbsp;· Probanden &amp; Sessions</h2>
+<figure><img src="img/02_patient_detail.png" alt="Probanden-Detail">
+<figcaption>Probanden-Arbeitsplatz: links alle Sitzungen mit ihren Schritten — Zustand
 (○ offen, ◐ aufgenommen, ✔ bestätigt), Ergebnis und 📋, wenn es in der Akte liegt —,
 rechts der Arbeitsbereich zum gewählten Element (Aufnahme, Take, Video-Schnitt).
 Rechtsklick auf einen Schritt: Details, erneut aufnehmen, neu auswerten, Paradigma/Seite
-ändern, Notiz, entfernen. Oben rechts: „Patient ▾" (Bearbeiten, Verlauf, CSV, Löschen),
+ändern, Notiz, entfernen. Oben rechts: „Proband ▾" (Bearbeiten, Verlauf, CSV, Löschen),
 „＋ Neue Sitzung", „＋ Hinzufügen".</figcaption></figure>
 <ul>
 <li><b>Symbole im Baum:</b> ○ offen · ◐ aufgenommen, noch nicht gesichtet · ✔ bestätigt (Video liegt vor);
@@ -185,7 +185,7 @@ Rechtsklick auf einen Schritt: Details, erneut aufnehmen, neu auswerten, Paradig
     Der Dialog nimmt Freitext und Dateien auf (Hinzufügen, Öffnen, Entfernen); die Dateien liegen unter
     <code>data/attachments/</code>, die Notiz in der Datenbank. „Erneut aufnehmen" eines ausgewerteten
     Schritts fragt nach und entfernt dessen Messung, damit keine Messung ohne Video zurückbleibt.</li>
-<li><b>CSV-Export</b> (Menü „Patient ▾") exportiert alle Messungen des Patienten für die Statistik.</li>
+<li><b>CSV-Export</b> (Menü „Proband ▾") exportiert alle Messungen des Probanden für die Statistik.</li>
 <li>Jede Messung speichert <b>Quelle</b> (Leap/Webcam/Video/Simulation), Dauer, Rohdaten-Verweis und —
     bei Video — ihre <b>Herkunft</b> (siehe Abschnitt 8).</li>
 </ul>
@@ -289,15 +289,15 @@ Hohle Punkte = Kamera-Quelle (≈mm-Modellskala), gefüllte = Leap.</figcaption>
 
 <h3>Exporte</h3>
 <ul>
-<li><b>📦 Export-Paket</b> („Patient ▾"): ein ZIP zur Übergabe — Bericht als HTML, PDF und
+<li><b>📦 Export-Paket</b> („Proband ▾"): ein ZIP zur Übergabe — Bericht als HTML, PDF und
     JSON (Stammdaten, Anamnese, Medikation mit LEDD, Messungen mit Kennwerten, Kurven und
     Herkunft, Notizen), die Archiv-Clips (wahlweise nur anonymisierte), Tracking-Spuren,
     Rohdaten und Anhänge, dazu ein Manifest mit Prüfsummen. Optional pseudonymisiert.</li>
 <li><b>🔬 Forschungsexport</b> (Startbildschirm): pseudonymisierte Langtabellen aller
-    Patienten als CSV — Patienten, Sitzungen mit klinischen Werten, Messungen mit Herkunft,
-    Kennwerte, klinische Items, Medikation — mit Codebuch. Die Zuordnung Pseudonym ↔ Patient
+    Probanden als CSV — Probanden, Sitzungen mit klinischen Werten, Messungen mit Herkunft,
+    Kennwerte, klinische Items, Medikation — mit Codebuch. Die Zuordnung Pseudonym ↔ Proband
     bleibt lokal auf dem Rechner. Optional Notizen und die Rohdaten/Spuren je Messung.</li>
-<li><b>CSV-Export</b> („Patient ▾"): alle Kennwerte eines Patienten breit, eine Zeile je Messung.</li>
+<li><b>CSV-Export</b> („Proband ▾"): alle Kennwerte eines Probanden breit, eine Zeile je Messung.</li>
 </ul>
 
 <h2 id="videolab">8&nbsp;· Aufnahme, Import und Auswertung</h2>
@@ -386,14 +386,14 @@ danach der Archiv-Clip.</p>
 <figure><img src="img/12_gesturelab.png" alt="Gesture Lab">
 <figcaption>Gesture Lab mit drei Bereichen: GESTEN (Referenzposen aufnehmen),
 ANALYSE (Soll/Ist-Vergleich, Gewichte), ERKENNUNG (Einzeln oder 12-Posen-Batterie).
-Kopfzeile zeigt Patient und aktive Quelle.</figcaption></figure>
+Kopfzeile zeigt Proband und aktive Quelle.</figcaption></figure>
 <ul>
-<li><b>Bibliothek aufbauen</b> (einmalig, ohne Patient): im Bereich GESTEN jede Pose
+<li><b>Bibliothek aufbauen</b> (einmalig, ohne Proband): im Bereich GESTEN jede Pose
     aufnehmen (statisch: stoppt automatisch nach 3&nbsp;s). Mit <b>⬆ Export / ⬇ Import</b>
     lässt sich die fertige Bibliothek als JSON zwischen Rechnern teilen.</li>
-<li><b>Patientenbezogene Batterie:</b> aus der <i>Patienten-Detailansicht</i> öffnen →
+<li><b>Probandenbezogene Batterie:</b> aus der <i>Probanden-Detailansicht</i> öffnen →
     ERKENNUNG → Modus „Batterie" → alle 12 Posen durchlaufen →
-    <b>💾 In Patientenakte speichern</b>. Ergebnis (Score, Ähnlichkeiten pro Pose)
+    <b>💾 In Probandenakte speichern</b>. Ergebnis (Score, Ähnlichkeiten pro Pose)
     erscheint in Matrix und Verlauf.</li>
 <li>Live-Feedback pro Finger (❌/✓) zeigt, welcher Finger von der Referenz abweicht.</li>
 </ul>

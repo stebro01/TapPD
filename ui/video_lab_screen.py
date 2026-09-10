@@ -293,7 +293,7 @@ class VideoLabScreen(QWidget):
         self._mirror_cb.setToolTip(
             "Dieses Video horizontal spiegeln.\n"
             "Nötig, wenn es mit einer Frontkamera aufgenommen wurde und der "
-            "Patient seitenverkehrt erscheint — sonst wird die linke Hand als "
+            "Proband seitenverkehrt erscheint — sonst wird die linke Hand als "
             "rechte erkannt.\n"
             "Gilt für dieses Video und wird mit der Video-Session gespeichert.")
         self._mirror_cb.stateChanged.connect(self._on_mirror_changed)
@@ -343,7 +343,8 @@ class VideoLabScreen(QWidget):
         bottom.addLayout(left, 1)
 
         page = QWidget()
-        page.setStyleSheet("background: transparent;")
+        page.setObjectName("scrollPage")
+        page.setStyleSheet("#scrollPage { background: transparent; }")
         right = QVBoxLayout(page)
         right.setContentsMargins(0, 0, 8, 0)
         right.addWidget(self._section("Auswertung"))
@@ -531,7 +532,7 @@ class VideoLabScreen(QWidget):
     # ── video loading ─────────────────────────────────────────────
     def _on_load_video(self) -> None:
         if self.session is None:
-            QMessageBox.warning(self, "VideoLab", "Kein Patient ausgewählt.")
+            QMessageBox.warning(self, "VideoLab", "Kein Proband ausgewählt.")
             return
         path, _ = QFileDialog.getOpenFileName(self, "Video auswählen", "", video_filter())
         if not path:

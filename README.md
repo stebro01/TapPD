@@ -20,7 +20,7 @@ VideoLab schneiden, anonymisieren und auswerten.
   Capability-Gating (Tests, die eine Quelle nicht unterstuetzt, sind gesperrt)
 - **VideoLab**: Handy-Video importieren, Segmente schneiden (Onset/Offset),
   Gesicht anonymisieren (hand-aware Defacing), Paradigma auf dem Segment
-  auswerten, Ergebnis in die Patientenakte exportieren
+  auswerten, Ergebnis in die Probandenakte exportieren
 - **Tremor auf Kamera-Quellen** ueber Augen-Referenz (Iris-Skala → absolute
   Handposition); mm-Werte von Kamera-Quellen sind als Modellschaetzung (≈mm)
   gekennzeichnet
@@ -28,7 +28,7 @@ VideoLab schneiden, anonymisieren und auswerten.
   Fehleranalyse pro Finger
 - Echtzeit-Visualisierung, YAML-konfigurierbare Analyse-Pipeline,
   Auto-Onset/Offset-Detection, bilaterale Tremor-Analyse (+ Asymmetrie)
-- Patientenverwaltung (SQLite, i2b2-Sternschema) mit Provenienz pro Messung
+- Probandenverwaltung (SQLite, i2b2-Sternschema) mit Provenienz pro Messung
   (`source_kind`), **📈 Verlaufsansicht** (Merkmale ueber Zeit), Detail-Plots,
   CSV-Export, optionale JSON-Rohdaten
 - Motor Performance Index (MPI) als Komposit-Verlaufsmarker
@@ -144,7 +144,7 @@ pip install -r requirements.txt
 
 ### Bedienung
 
-1. **Patient anklicken** — das ist bereits der Arbeitsplatz: links alle
+1. **Proband anklicken** — das ist bereits der Arbeitsplatz: links alle
    Sitzungen mit ihrem Inhalt, rechts der Arbeitsbereich, der der Auswahl folgt
 2. **„＋ Neue Sitzung"** legt eine Gruppe an; **„＋ Hinzufuegen"** fuellt die
    gewaehlte Sitzung: *Protokoll aufnehmen*, *Einzelnes Paradigma* oder
@@ -242,19 +242,19 @@ pip install -r requirements.txt
    842 mg · OFF"); Rechtsklick: Bearbeiten, Notiz, Loeschen. Jede Antwort
    liegt als eigene kodierte Beobachtung in der Datenbank (siehe
    DB_KONZEPT.md), Messungs-Abfragen lassen diese Zeilen aus
-8. Menue **„Patient ▾"**: Bearbeiten, 📈 Verlauf, CSV-Export, **📦 Export-Paket**,
-   Patient loeschen. Das Export-Paket ist ein ZIP zur Uebergabe: Bericht als
+8. Menue **„Proband ▾"**: Bearbeiten, 📈 Verlauf, CSV-Export, **📦 Export-Paket**,
+   Proband loeschen. Das Export-Paket ist ein ZIP zur Uebergabe: Bericht als
    HTML, PDF und JSON (Stammdaten, Anamnese, Medikation mit LEDD, alle
    Messungen mit Kennwerten, Kurven und Herkunft, Notizen), die Archiv-Clips
    (wahlweise nur anonymisierte), Tracking-Spuren, Rohdaten-JSON, Anhaenge und
    ein Manifest mit SHA-256 je Datei (`export/bundle.py`, `verify_bundle`).
    Optional pseudonymisiert (kein Name, kein Geburtsdatum)
 9. **🔬 Forschungsexport** (Startbildschirm, unten): pseudonymisierte
-   Langtabellen aller Patienten als CSV — `patients`, `visits` (mit H&Y,
+   Langtabellen aller Probanden als CSV — `patients`, `visits` (mit H&Y,
    UPDRS III, LEDD, ON/OFF), `measurements` (Herkunft, Qualitaetsflags),
    `features_long`, `clinical_long`, `medication`, optional `notes` und
    `signals/` (Rohdaten, Spuren) — plus automatisch erzeugtes `codebook.md`
-   und `manifest.json`. Die Zuordnung Pseudonym ↔ Patient liegt nur lokal in
+   und `manifest.json`. Die Zuordnung Pseudonym ↔ Proband liegt nur lokal in
    `data/pseudonyms.json` (`export/research.py`, `export/pseudonyms.py`)
 
 ## Projektstruktur
@@ -307,7 +307,7 @@ Drei Ebenen:
 - **Unit-Tests** (`tests/test_*.py`): Eingabe-Mapping, Quellen, Protokolle,
   Video-Store/-Archiv/-Export, Datenbank, Paradigmen-Logik.
 - **UI-Integration** (`tests/ui/`): das echte `MotryxMainWindow` offscreen auf
-  der Simulationsquelle — Patient → Sitzung → Protokoll → Take → Bestaetigen →
+  der Simulationsquelle — Proband → Sitzung → Protokoll → Take → Bestaetigen →
   Akte, Umlabeln, Kamerawechsel, Live-Messung bis zum Ergebnis, alle
   Bildschirme und Dialoge. Keine Kamera noetig.
 - **Sidecar** (Marker `sidecar`): die Pipeline mit echtem MediaPipe
@@ -329,7 +329,7 @@ nach **Neu auswerten** ist die JSON da.
 ### CSV-Export
 
 - **Einzelmessung**: ueber "CSV Export" auf dem Ergebnis-Screen
-- **Alle Messungen eines Patienten**: ueber "CSV Export" in der Patienten-Detailansicht
+- **Alle Messungen eines Probanden**: ueber "CSV Export" in der Probanden-Detailansicht
 
 ### JSON-Rohdaten
 
@@ -382,7 +382,7 @@ sqlite3 data/tappd.db \
 ### Spiegelung & Haendigkeit
 
 Das **Live-Kamerabild wird gespiegelt** (Selfie-Ansicht): die linke Hand des
-Patienten erscheint links im Bild — **und wird auch als links erkannt**. Beides
+Probanden erscheint links im Bild — **und wird auch als links erkannt**. Beides
 gehoert zusammen, denn MediaPipe vergibt links/rechts aus Sicht des Bildes, das
 es bekommt; wird das Bild gedreht, muss das Label mitgedreht werden. Der Sidecar
 erledigt das in einem Schritt, ohne Zutun.

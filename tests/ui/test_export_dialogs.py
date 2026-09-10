@@ -33,7 +33,7 @@ def test_research_dialog_writes_the_tables(app, workbench, tmp_path):
     dlg._run()
     assert dlg.result() == 1
     assert (dest / "measurements.csv").is_file() and (dest / "codebook.md").is_file()
-    assert "1 Patienten" in dlg._status.text()
+    assert "1 Probanden" in dlg._status.text()
 
 
 def test_export_entries_exist_in_menus(app, workbench):

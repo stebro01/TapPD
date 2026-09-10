@@ -16,7 +16,7 @@ pandas-Lademodul.
 
 1. YAML-gesteuerte Eingabemasken für klinische Daten (inkl. Medikation)
 2. Export strukturierter Reports und der Videos
-3. Wissenschaftliche Analysen über Patienten hinweg
+3. Wissenschaftliche Analysen über Probanden hinweg
 
 ## 0. Was heute schon da ist
 
@@ -29,7 +29,7 @@ pandas-Lademodul.
 | `NOTE_FACT` + Anhänge | fertig | Freitext und Dokumente je Eintrag |
 | `Measurement.provenance`, `Segment.meta` | fertig | Herkunft jeder Video-Messung (Kamera, Spiegelung, Clip, Spur, MediaPipe-Version) |
 | YAML-Protokolle (`video/protocols`), `paradigms/test_config.yaml` | fertig, mit Loader + Validierung | Muster für deklarative Masken: Schema → Loader → Validierung → UI |
-| CSV-Export je Patient | fertig (Kennwerte breit, eine Zeile je Messung) | Basis, aber ohne klinische Variablen, Herkunft, Codebuch |
+| CSV-Export je Proband | fertig (Kennwerte breit, eine Zeile je Messung) | Basis, aber ohne klinische Variablen, Herkunft, Codebuch |
 | FHIR-R4-`Composition` | in DB_KONZEPT §6 spezifiziert, kein Code | Zielformat für den klinischen Report |
 
 Fazit vorab: Alle drei Punkte sind ohne Schemabruch machbar. Die Reihenfolge
@@ -179,7 +179,7 @@ Forschungsexport ohne Join vollständig ist.
 * `ui/form_pane.py`: generischer Renderer (Abschnitte, Items nach `type`,
   wiederholbare Gruppen als Tabelle mit „+ Zeile", berechnete Felder
   schreibgeschützt, Pflichtfelder und Bereiche aus der YAML, Fehler inline).
-* Einstieg: Menü „Patient ▾ → Klinische Daten…" (scope patient) und im
+* Einstieg: Menü „Proband ▾ → Klinische Daten…" (scope patient) und im
   Sitzungsbaum „＋ Hinzufügen → Klinische Daten / Medikation" (scope visit).
   Ausgefüllte Masken erscheinen als Knoten der Sitzung („📋 MDS-UPDRS III ·
   32 Punkte", „💊 Medikation · LEDD 620 mg · OFF"), Doppelklick öffnet sie.
@@ -193,12 +193,12 @@ DB-Abbildung + Baum + Tests 1 Tag.
 
 ### Heute
 
-CSV je Patient (Kennwerte breit). Kein Report, kein Video-Export, FHIR nur
+CSV je Proband (Kennwerte breit). Kein Report, kein Video-Export, FHIR nur
 als Spezifikation.
 
 ### Vorschlag: ein `export/`-Paket mit drei Ausgaben
 
-**a) Report (PDF + HTML)** je Patient oder je Sitzung, ohne neue
+**a) Report (PDF + HTML)** je Proband oder je Sitzung, ohne neue
 Abhängigkeit über `QTextDocument` → `QPrinter`: Stammdaten, klinische Daten
 (alle Masken, aktuellster Stand), Medikation mit LEDD und Zustand, Messungen
 mit Kennwert-Tabelle, MPI und Kurvenbild (Matplotlib-PNG wie im
@@ -221,11 +221,11 @@ DEMO01_2026-09-10.zip
 ```
 
 Optionen beim Export: Videos ja/nein, nur anonymisierte Clips, Roh-Takes
-(falls behalten), Pseudonymisierung (Patientencode → Studien-ID, Name und
+(falls behalten), Pseudonymisierung (Probandencode → Studien-ID, Name und
 Geburtsdatum weg, Geburtsjahr bleibt). `report.json` ist dieselbe Struktur,
 die auch der Forschungsexport liest — ein Serializer, zwei Verwender.
 
-**c) FHIR R4 `Composition`** nach DB_KONZEPT §6: Patient-, Visit- und
+**c) FHIR R4 `Composition`** nach DB_KONZEPT §6: Proband-, Visit- und
 Observation-Sektionen; klinische Items mit LOINC/SNOMED, wo kodiert, sonst
 TapPD-Codes; Messungen als Observation mit `valueQuantity` je Kennwert
 (oder ein Observation-Bundle je Messung). Sinnvoll erst, wenn ein Empfänger
@@ -238,14 +238,14 @@ Tage (bei Bedarf).
 
 ### Ziel
 
-Analysefertige Tabellen über alle Patienten (oder eine Studie), langformatig,
+Analysefertige Tabellen über alle Probanden (oder eine Studie), langformatig,
 mit Codebuch und Herkunft — so, dass R/pandas sie ohne Aufbereitung lesen.
 
 ### Forschungsexport (Menü Startbildschirm → „Forschungsexport…")
 
 | Datei | eine Zeile je | Spalten (Auszug) |
 |---|---|---|
-| `patients.csv` | Patient | pseudonym, sex, birth_year, diagnosis_year, onset_side, dominant_hand, hoehn_yahr, moca |
+| `patients.csv` | Proband | pseudonym, sex, birth_year, diagnosis_year, onset_side, dominant_hand, hoehn_yahr, moca |
 | `visits.csv` | Sitzung | pseudonym, visit_id, date, med_state, minutes_since_dose, ledd_mg, updrs3_total |
 | `measurements.csv` | Messung | measurement_id, pseudonym, visit_id, recorded_at, test_type, hand, source_kind, analysed_on, deidentified, duration_s, eye_ref_coverage, mediapipe_version, camera, mirror |
 | `features_long.csv` | Kennwert | measurement_id, feature, value, unit, estimated_scale |
@@ -256,12 +256,12 @@ mit Codebuch und Herkunft — so, dass R/pandas sie ohne Aufbereitung lesen.
 | `signals/` (optional) | Messung | Roh-Frames und Spuren als JSON für Signalanalysen |
 
 Parquet zusätzlich, wenn `pyarrow` installiert ist. Pseudonymisierung
-Pflicht; die Zuordnung Patientencode → Pseudonym bleibt lokal
+Pflicht; die Zuordnung Probandencode → Pseudonym bleibt lokal
 (`data/pseudonyms.json`, nicht im Export).
 
 ### Was dafür sonst noch fehlt
 
-* **Kohorte**: `STUDY_DIMENSION`/`STUDY_PATIENT_LOOKUP` anlegen, Patienten
+* **Kohorte**: `STUDY_DIMENSION`/`STUDY_PATIENT_LOOKUP` anlegen, Probanden
   einer Studie zuordnen, Export je Studie.
 * **Versionierung der Auswertung**: Kennwerte hängen an Code und
   MediaPipe-Stand. `provenance` trägt schon die MediaPipe-Version; zusätzlich

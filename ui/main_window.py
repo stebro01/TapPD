@@ -483,7 +483,7 @@ class MotryxMainWindow(QMainWindow):
 
     def select_patient(self, patient: Patient) -> None:
         """Show patient detail screen with session history."""
-        log.info("Patient ausgewählt: %s (ID %s)", patient.patient_code, patient.id)
+        log.info("Proband ausgewählt: %s (ID %s)", patient.patient_code, patient.id)
         self.current_patient = patient
         self.current_session = None
         self.patient_detail.set_patient(patient)

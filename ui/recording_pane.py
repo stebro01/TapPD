@@ -104,7 +104,8 @@ class RecordingPane(QWidget):
         self._scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self._scroll.setStyleSheet("QScrollArea { background: transparent; }")
         page = QWidget()
-        page.setStyleSheet("background: transparent;")
+        page.setObjectName("scrollPage")
+        page.setStyleSheet("#scrollPage { background: transparent; }")
         self._scroll.setWidget(page)
         outer.addWidget(self._scroll)
         root = QVBoxLayout(page)
@@ -342,7 +343,7 @@ class RecordingPane(QWidget):
             self._stop_overlay()
 
         if phase == IDLE and step is not None:
-            self._status("Bereit — Aufnahme starten, wenn der Patient bereit ist."
+            self._status("Bereit — Aufnahme starten, wenn der Proband bereit ist."
                          if self._device is not None else
                          "Keine Kamera — Aufnahme nicht möglich.", self._device is None)
         elif phase == REVIEW:

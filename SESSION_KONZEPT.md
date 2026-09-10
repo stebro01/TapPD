@@ -10,14 +10,14 @@ Heute gibt es **zwei parallele Session-Begriffe**, die nur lose verbunden sind:
 | | Wo | Schlüssel | Inhalt |
 |---|---|---|---|
 | Klinische Session | SQLite `VISIT_DIMENSION` | pro **Besuch** | Measurements |
-| `VideoSession` | JSON, `data/video_sessions/` | pro **Patient** | Video + Segmente |
+| `VideoSession` | JSON, `data/video_sessions/` | pro **Proband** | Video + Segmente |
 
 Die Verbindung entsteht erst nachträglich über `db_session_id` beim Export in
 die Akte.
 
 Daraus folgen zwei Probleme:
 
-1. **Die Video-Session hängt am Patienten, nicht am Besuch.** Ein zweiter
+1. **Die Video-Session hängt am Probanden, nicht am Besuch.** Ein zweiter
    Termin arbeitet auf derselben Video-Session weiter — es gibt keine
    Möglichkeit, „das Video vom Januar" und „das Video vom März" nebeneinander
    zu halten.
@@ -40,7 +40,7 @@ Session (Besuch)
 **Umsetzung ohne Schema-Migration:** `VISIT_DIMENSION` hat bereits ein
 `VISIT_BLOB` mit JSON (heute `{"notes": ...}`). Dort kommt
 `acquisition_mode` hinein. Die `VideoSession` wird über die Session-ID
-verschlüsselt statt über den Patientencode; bestehende Dateien lassen sich
+verschlüsselt statt über den Probandencode; bestehende Dateien lassen sich
 beim ersten Öffnen der jeweils jüngsten Session zuordnen.
 
 ### Der Modus beschreibt, er sperrt nicht
@@ -142,7 +142,7 @@ Zwei bewusste Festlegungen:
 - **Validierung beim Laden.** Jeder `paradigm`-Key muss in der Registry
   existieren *und* seine `requires:`-Capabilities müssen von einer Kamera
   erfüllbar sein. Sonst verspricht ein Protokoll eine Auswertung, die das
-  Capability-Gating später sperrt — und das fällt erst am Patienten auf.
+  Capability-Gating später sperrt — und das fällt erst am Probanden auf.
 
 **Ein Protokoll pro Session.** Es wird beim Anlegen gewählt und ist danach die
 Struktur dieser Session.
@@ -266,15 +266,15 @@ ein Touch-Panel dieselbe Liste rendern, ohne dass die Logik doppelt entsteht.
 | Bereich | Änderung |
 |---|---|
 | `VISIT_BLOB` | zusätzlich `acquisition_mode` — kein Schema-Eingriff |
-| `VideoSession` | Schlüssel Patient → Session; `mirrored` bei Aufnahme aus der Webcam-Einstellung |
+| `VideoSession` | Schlüssel Proband → Session; `mirrored` bei Aufnahme aus der Webcam-Einstellung |
 | `video/protocols/` | neu: Protokolldateien + Loader mit Validierung |
 | VideoLab | zweiter Eingang „Aufnahme"; Segmentliste als primäre Ansicht ohne Elternvideo |
-| Patientenscreen | Tabelle → Baum, Aktionen je Knotentyp |
+| Probandenscreen | Tabelle → Baum, Aktionen je Knotentyp |
 | Analyse / Export | **unverändert** — Segmente laufen durch den bestehenden Pfad |
 
 ## 6. Offene Punkte
 
-- **Zuordnung bestehender Video-Sessions** beim Wechsel von Patient- auf
+- **Zuordnung bestehender Video-Sessions** beim Wechsel von Proband- auf
   Session-Schlüssel: automatisch der jüngsten Session zuordnen oder den
   Untersucher fragen?
 ## 6b. Ein Bildschirm für die Sitzung — die drei Fälle als *ein* Layout
@@ -314,7 +314,7 @@ Eine Liste aller Elemente der Sitzung, gleich welcher Herkunft. Ein Protokoll
 erscheint als Gruppe mit seinen Schritten, ein einzelnes Paradigma als Gruppe
 mit einem Schritt, ein Import als Video-Knoten mit den geschnittenen Segmenten
 darunter. Jedes Element zeigt Zustand (○ ◐ ✔) und — falls vorhanden — sein
-Ergebnis. Das ist dieselbe Struktur wie im Sitzungsbaum der Patientenseite,
+Ergebnis. Das ist dieselbe Struktur wie im Sitzungsbaum der Probandenseite,
 nur für *eine* Sitzung und mit Arbeitsbereich daneben.
 
 ### Rechts: der Arbeitsbereich
@@ -334,14 +334,14 @@ rechte Spalte des heutigen Aufnahme-Screens. Beide werden zu **Panes** eines
 
 ### Der Einstieg
 
-Auf der Patientenseite gibt es nur noch **einen** Knopf: *Neue Sitzung*. Er
+Auf der Probandenseite gibt es nur noch **einen** Knopf: *Neue Sitzung*. Er
 legt die DB-Sitzung an und öffnet diesen Bildschirm leer, mit dem
 „Hinzufügen"-Menü als einzig sinnvoller Aktion (Leerzustand: drei große
 Karten statt eines Menüs). Eine bestehende Sitzung öffnet sich aus dem Baum
 in genau demselben Bildschirm — es gibt keinen Unterschied zwischen „neu" und
 „weitermachen".
 
-Die Knöpfe *VideoLab* und *Gesture Lab* verschwinden von der Patientenseite;
+Die Knöpfe *VideoLab* und *Gesture Lab* verschwinden von der Probandenseite;
 das VideoLab geht in diesem Bildschirm auf, das Gesture Lab bleibt als
 experimentelle Funktion über das Hauptmenü erreichbar.
 
@@ -353,7 +353,7 @@ experimentelle Funktion über das Hauptmenü erreichbar.
    nutzt sie. `RecordingScreen` entfällt.
 3. Videobereich + Timeline + Segmentbearbeitung des `VideoLabScreen` →
    `CutPane`; `VideoLabScreen` entfällt.
-4. Patientenseite: ein Knopf, Baum-Aktionen öffnen den `SessionScreen`.
+4. Probandenseite: ein Knopf, Baum-Aktionen öffnen den `SessionScreen`.
 
 Nach Schritt 2 ist die Hauptfunktion (motorische Aufgabe aufnehmen, sofort
 auswerten) bereits vollständig im neuen Bildschirm; Schritt 3 holt den Import
@@ -367,10 +367,10 @@ nach.
 | Schrittzustände + Persistenz (`video/store.py`) | **erledigt** |
 | Aufnahme-Ablauf (Countdown, Sichtung, Wiederholen) | **erledigt** (`ui/recording_pane.py`) |
 | Zuschaltbare Analyse nach dem Bestätigen | **erledigt** (gleicher Weg wie Import) |
-| Ein Bildschirm pro Sitzung (§6b) | **überholt → ein Bildschirm pro Patient** (`ui/patient_workbench.py`): Sitzungsliste und Arbeitsbereich sind *ein* Screen, der Patientenklick ist der Einstieg |
+| Ein Bildschirm pro Sitzung (§6b) | **überholt → ein Bildschirm pro Proband** (`ui/patient_workbench.py`): Sitzungsliste und Arbeitsbereich sind *ein* Screen, der Probandenklick ist der Einstieg |
 | Ergebnis automatisch in die Akte, Neu auswerten / Umlabeln | **erledigt** (`export_or_update`, `relabel_step`) |
-| `VideoSession` von Patient auf Session umschlüsseln | **erledigt** (`load_for_session`, Altbestand → jüngste Sitzung) |
-| Session-Baum im Patientenscreen | **erledigt** |
+| `VideoSession` von Proband auf Session umschlüsseln | **erledigt** (`load_for_session`, Altbestand → jüngste Sitzung) |
+| Session-Baum im Probandenscreen | **erledigt** |
 | Ein Einstieg „Neue Sitzung", VideoLab/Gesture Lab als Knöpfe entfernt | **erledigt** |
 | `acquisition_mode` im `VISIT_BLOB` | offen — der Baum leitet die Art bislang aus dem Inhalt ab |
 | Interaktive Paradigmen als Schritt-Typ im Protokoll | offen (experimentell, siehe §6) |

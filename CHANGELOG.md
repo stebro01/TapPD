@@ -116,6 +116,16 @@ Versionierung: SemVer-artig (0.x = Forschungsprototyp).
   verweist darauf statt auf den Clip. Der Dialog stürzt bei älteren
   Video-Messungen (Clip als `raw_data_path`) nicht mehr ab, sondern sagt, dass
   Kurven erst nach „Neu auswerten" da sind.
+- **Wording**: in der Oberfläche, im Bericht und in der Doku heißt es jetzt
+  durchgängig **Proband/Probandin** statt Patient; Code, Datenbank-Namen
+  (`PATIENT_DIMENSION`, `patient_id`) und Dateinamen (`patients.csv`) bleiben.
+- **Aufnahme-Button unsichtbar**: die transparente Hintergrundregel der
+  scrollbaren Seite im Aufnahme- und Schnitt-Bereich vererbte sich an alle
+  Kind-Widgets — die grünen Buttons verloren ihre Farbe. Regel jetzt auf die
+  Seite selbst beschränkt. Außerdem bekam das Aufnahme-Panel nach Verlassen
+  und Rückkehr zum Probanden die Kamera nicht wieder (Button deaktiviert),
+  und unter offenen Schritten blieb der Ergebnistext des zuvor angesehenen
+  Takes stehen.
 - **Eine Pipeline für Takes und Import-Segmente** (`ui/segment_pipeline.py`):
   analysieren → archivieren → aufräumen ist aus dem Aufnahme-Panel
   herausgelöst und wird vom Arbeitsplatz geteilt; der Schnitt-Bereich hängt

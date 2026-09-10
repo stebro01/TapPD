@@ -191,7 +191,7 @@ class PatientWorkbench(QWidget):
 
         # header: back · patient · actions
         head = QHBoxLayout()
-        back = QPushButton("← Patienten")
+        back = QPushButton("← Probanden")
         back.setProperty("cssClass", "flat")
         back.clicked.connect(lambda: self.main_window.show_patient_screen())
         head.addWidget(back)
@@ -207,7 +207,7 @@ class PatientWorkbench(QWidget):
         head.addLayout(name_col, 1)
 
         self._patient_btn = QToolButton()
-        self._patient_btn.setText("Patient ▾")
+        self._patient_btn.setText("Proband ▾")
         self._patient_btn.setProperty("cssClass", "menu")
         self._patient_btn.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
         pm = QMenu(self._patient_btn)
@@ -219,7 +219,7 @@ class PatientWorkbench(QWidget):
             a.triggered.connect(lambda _c=False, f=cb: f())
             pm.addAction(a)
         pm.addSeparator()
-        a = QAction("Patient löschen…", self)
+        a = QAction("Proband löschen…", self)
         a.triggered.connect(lambda _c=False: self._on_delete_patient())
         pm.addAction(a)
         self._patient_btn.setMenu(pm)
@@ -1294,7 +1294,7 @@ class PatientWorkbench(QWidget):
             return
         dlg = NewPatientDialog(self, patient=self._patient)
         dlg.code_input.setReadOnly(True)
-        dlg.setWindowTitle("Patient bearbeiten")
+        dlg.setWindowTitle("Proband bearbeiten")
         if dlg.exec() == QDialog.DialogCode.Accepted:
             conn = get_db()
             save_patient(conn, dlg.patient)
@@ -1357,8 +1357,8 @@ class PatientWorkbench(QWidget):
             return
         total = sum(len(v) for v in self._measurements.values()) + len(self._orphans)
         if QMessageBox.question(
-                self, "Patient löschen",
-                f"Patient '{self._patient.display_name}' wirklich löschen?\n\n"
+                self, "Proband löschen",
+                f"Proband '{self._patient.display_name}' wirklich löschen?\n\n"
                 f"{len(self._sessions)} Sitzung(en), {total} Messung(en) und alle "
                 "zugehörigen Rohdaten werden unwiderruflich gelöscht.",
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No) \
