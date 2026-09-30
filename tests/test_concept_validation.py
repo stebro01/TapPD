@@ -54,9 +54,12 @@ from tests.conftest import (
 class TestObservationBlobContract:
     """The OBSERVATION_BLOB is the central storage contract.
     Every code path that creates or modifies it must produce the same
-    4-field JSON structure: hand, duration_s, raw_data_path, features."""
+    JSON structure: hand, duration_s, raw_data_path, source_kind, features,
+    provenance (video measurements: camera / import, mirror settings, archive
+    clip, analysis source — empty for live runs)."""
 
-    REQUIRED_KEYS = {"hand", "duration_s", "raw_data_path", "source_kind", "features"}
+    REQUIRED_KEYS = {"hand", "duration_s", "raw_data_path", "source_kind", "features",
+                     "provenance"}
 
     def test_marshal_produces_all_required_keys(self):
         blob = _marshal_observation_blob("right", 10.0, "/path.json", {"mpi": 0.5})
@@ -141,7 +144,9 @@ class TestObservationBlobContract:
         rows = v1_conn.execute("SELECT OBSERVATION_BLOB FROM OBSERVATION_FACT").fetchall()
         for row in rows:
             parsed = json.loads(row["OBSERVATION_BLOB"])
-            assert set(parsed.keys()) == self.REQUIRED_KEYS
+            # A v1 migration cannot know a video's provenance; the reader
+            # (_unmarshal_observation_blob) fills the empty default in.
+            assert set(parsed.keys()) == self.REQUIRED_KEYS - {"provenance"}
             assert isinstance(parsed["features"], dict)
 
 

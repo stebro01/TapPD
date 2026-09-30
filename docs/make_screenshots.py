@@ -14,7 +14,9 @@ import tempfile
 import time
 from pathlib import Path
 
-os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+# Offscreen renders without system fonts on Windows (every glyph a box), so use
+# the native platform there and keep the window off the desktop instead.
+os.environ.setdefault("QT_QPA_PLATFORM", "windows" if sys.platform == "win32" else "offscreen")
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
@@ -98,6 +100,8 @@ def main() -> None:
 
     from ui.main_window import MotryxMainWindow
     w = MotryxMainWindow(src)
+    from PyQt6.QtCore import Qt
+    w.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, True)   # grab() still renders
     w.resize(WIN_W, WIN_H)
     w.show()
     app.processEvents()
@@ -193,11 +197,169 @@ def main() -> None:
     app.processEvents()
     grab(w, "10_eingabequelle")
 
-    # 11) VideoLab
+    # 11) Sitzung (Aufnahme / Import / Auswertung in einem Bildschirm)
     w.current_patient = p
-    w.show_video_lab()
+    from storage.database import create_session, get_db
+    _c = get_db()
+    _s = create_session(_c, p.id)
+    _c.close()
+    w.show_session(_s)
     app.processEvents()
-    grab(w, "11_videolab")
+    grab(w, "11_sitzung")
+
+    # 11b) Protokoll in der Sitzung: ein Schritt offen (Aufnahme-Bereich, Kamera-Vorschau)
+    import shutil
+    from video.protocol import load_protocol
+    wb = w.patient_detail
+    v = wb._video_for(_s, create=True)
+    v.add_steps(load_protocol("updrs_hand_basis"))
+    v.save()
+    wb.refresh(); app.processEvents()
+    wb._select(("step", _s.id, "tap_right")); app.processEvents()
+    wb._rec._detect_lbl.setText("✔ 1 Hand (rechts)   ·   ✔ Gesicht")
+    grab(w, "11b_aufnahme")
+
+    # 11c) Bestätigter, ausgewerteter Take mit Zusammenfassung und Aufnahme-Info.
+    # Mit Sidecar läuft die echte Pipeline auf einem Demo-Clip; ohne bleibt ein
+    # synthetischer Stand (Take-Datei ohne Bild).
+    from tests.ui.conftest import sidecar_available
+    # A real tapping take (defaced archive) when the developer machine has one,
+    # else the Sim clip shipped with the repo.
+    _cands = [ROOT / "data" / "video_sessions" / "232" / "session_6" / "seg_006.mp4",
+              ROOT / "data" / "clips" / "default.mp4"]
+    demo_clip = next((c for c in _cands if c.is_file()), _cands[-1])
+    take = v.begin_take("tap_right")
+    if demo_clip.is_file():
+        shutil.copy(demo_clip, take)
+    else:
+        take.write_bytes(b"\x00" * 2048)
+    v.mark_recorded("tap_right", take)
+    from video import meta as vmeta
+    st = v.step("tap_right")
+    st.meta = vmeta.note_recorded(
+        vmeta.capture_meta(type("Cam", (), {"camera_index": 1, "camera_name": "OBSBOT Tiny 2",
+                                             "_face_on": True,
+                                             "sidecar_info": {"mediapipe": "1.0.1", "opencv": "4.12.0"}})(),
+                           take=1, take_file=str(take)),
+        {"w": 640, "h": 480, "fps": 30.0, "frames": 600, "codec": "avc1"})
+    seg = v.confirm_step("tap_right")
+    v.save()
+    wb.refresh(); app.processEvents()
+    wb._select(("step", _s.id, "tap_right")); app.processEvents()
+    if sidecar_available() and demo_clip.is_file():
+        wb._rec.enqueue(v, "tap_right", seg, analyse=True)
+        deadline = time.monotonic() + 240
+        while (wb._rec._job is not None or take.is_file()) and time.monotonic() < deadline:
+            app.processEvents(); time.sleep(0.05)
+    else:
+        seg.results["finger_tapping"] = {
+            "features": {"mpi": 0.81, "tap_frequency_hz": 3.04, "mean_amplitude_mm": 63.9,
+                         "amplitude_decrement": -0.008, "intertap_variability_cv": 0.10,
+                         "n_taps": 50},
+            "recorded_at": "2026-09-09T11:27:04", "analysed_on": "raw", "raw_path": ""}
+        v.save()
+    wb.refresh(); app.processEvents()
+    wb._select(("step", _s.id, "tap_right")); app.processEvents()
+    wb._rec._meta.set_expanded(True)
+    for _ in range(20):
+        app.processEvents(); time.sleep(0.05)
+    grab(w, "11c_take_info")
+
+    # 11d) Notiz zum Schritt
+    from storage.database import Note
+    from ui.note_dialog import NoteDialog
+    note = Note(patient_id=p.id, session_id=_s.id, kind="step", ref=f"{_s.id}:tap_right",
+                text="Patientin berichtet morgens stärkeres Zittern; Medikation um 8 Uhr.")
+    dlg = NoteDialog(w, "Finger-Tapping rechts", note, p.patient_code)
+    dlg.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, True)
+    dlg.show(); app.processEvents()
+    grab(dlg, "11d_notiz")
+    dlg.reject()
+
+    # 11d2) Anamnese-Maske
+    from clinical.schema import load_form
+    from ui.form_dialog import FormDialog
+    fdlg = FormDialog(w, load_form("pd_anamnese"), patient=p,
+                      session_label=f"Sitzung vom {_s.started_at[:10]}",
+                      answers={"diagnosis_year": 2019, "onset_year": 2017, "onset_side": "right",
+                               "dominant_hand": "right", "subtype": "tremor_dominant",
+                               "hoehn_yahr": "2", "updrs3_total": 28, "updrs3_state": "off",
+                               "family_pd": "no", "falls_12m": 1, "freezing": "no",
+                               "walking_aid": "none", "nms": ["hyposmia", "rbd", "constipation"],
+                               "moca": 27, "med_state": "off", "last_dose_minutes": 780,
+                               "medication": [
+                                   {"substance": "levodopa", "dose_mg": 100, "per_day": 4,
+                                    "times": "7, 11, 15, 19"},
+                                   {"substance": "pramipexole", "dose_mg": 0.7, "per_day": 3},
+                                   {"substance": "rasagiline", "dose_mg": 1, "per_day": 1}]})
+    fdlg.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, True)
+    fdlg.resize(900, 1000); fdlg.show(); app.processEvents()
+    from PyQt6.QtWidgets import QScrollArea as _QSA
+    _sa = fdlg.findChild(_QSA)
+    _sa.verticalScrollBar().setValue(_sa.verticalScrollBar().maximum() // 2)
+    app.processEvents()
+    grab(fdlg, "11h_anamnese")
+    fdlg.reject()
+
+    # 11e) Details einer Video-Messung (Kennwerte, Kurven, Herkunft)
+    from storage.database import get_measurements
+    _c = get_db(); ms = get_measurements(_c, p.id); _c.close()
+    m = next((x for x in ms if x.source_kind == "video"), ms[0])
+    from ui.detail_dialog import DetailDialog
+    dd = DetailDialog(p, m, siblings=[x for x in ms if x.test_type == m.test_type], parent=w)
+    dd.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, True)
+    dd.show(); dd._meta.set_expanded(True); app.processEvents()
+    grab(dd, "11e_details")
+    dd.close()
+
+    # 11f) Auswahl beim Hinzufügen: Protokoll oder einzelnes Paradigma
+    from ui.protocol_chooser import ProtocolChooser
+    pc = ProtocolChooser(w, single_only=True)
+    pc.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, True)
+    pc.show(); app.processEvents()
+    grab(pc, "11f_paradigma_wahl")
+    pc.reject()
+
+    # 11g) Schnitt-Bereich eines importierten Videos
+    if demo_clip.is_file():
+        _c = get_db(); _s2 = create_session(_c, p.id); _c.close()
+        wb.refresh(); app.processEvents()
+        v2 = wb._video_for(_s2, create=True)
+        dest = v2._dir() / "import.mp4"
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy(demo_clip, dest)
+        v2.set_video(str(dest), "handy_tapping.mp4")
+        v2.save()
+        wb.refresh(); app.processEvents()
+        wb._select(("import", _s2.id))
+        for _ in range(30):
+            app.processEvents(); time.sleep(0.05)
+        # a cut segment, extracted and (with the sidecar) analysed through the
+        # same pipeline as a take — shows summary, Details and info panel
+        from video.meta import import_meta
+        seg2 = v2.add_segment("Finger Tapping", 0.5, 4.5, paradigm="finger_tapping", hand="right")
+        seg2.meta = import_meta(v2, seg2)
+        v2.save()
+        wb._cut._refresh_segment_list()
+        if sidecar_available():
+            wb._cut._extract_segment(seg2)
+            deadline = time.monotonic() + 300
+            while time.monotonic() < deadline:
+                app.processEvents(); time.sleep(0.05)
+                if wb._cut._seg_worker is not None and wb._cut._seg_worker.isRunning():
+                    continue
+                if wb._pipeline.busy or not seg2.results:
+                    if time.monotonic() > deadline - 240 and not seg2.clip_path:
+                        break
+                    continue
+                break
+        wb.refresh(); app.processEvents()
+        wb._select(("segment", _s2.id, seg2.id))
+        wb._cut._meta.set_expanded(True)
+        for _ in range(20):
+            app.processEvents(); time.sleep(0.05)
+        grab(w, "11g_schnitt")
+    w.close_session()
 
     # 12) Gesture Lab
     w.show_gesture_lab("detail")

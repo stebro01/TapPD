@@ -29,6 +29,56 @@ class AlreadyExported(Exception):
         self.measurement_id = measurement_id
 
 
+from video.meta import build_provenance
+
+
+def _raw_artifact(result: dict, seg: Segment) -> str:
+    """What the measurement points to as raw data: the per-frame JSON the
+    analysis wrote (the detail dialog plots it), else the archived clip."""
+    return result.get("raw_path") or seg.clip_path or ""
+
+
+def export_or_update(session: VideoSession, seg: Segment, paradigm_key: str) -> Measurement:
+    """Put a segment result into the record; re-exports update the same row.
+
+    A confirmed, analysed take is a measurement — so the recording pane calls
+    this right after analysis. When the result already carries a
+    ``measurement_id`` (a re-analysis, or a relabel that kept the id), that
+    measurement is overwritten in place instead of a duplicate being created.
+    """
+    from storage.database import update_measurement
+
+    result = seg.results.get(paradigm_key)
+    if not result or not result.get("features"):
+        raise ValueError(f"Kein Analyse-Ergebnis für '{paradigm_key}' in Segment {seg.id}")
+    existing = result.get("measurement_id")
+    if not existing:
+        return export_result(session, seg, paradigm_key)
+
+    conn = get_db()
+    try:
+        m = Measurement(
+            id=int(existing),
+            patient_id=session.patient_id,
+            session_id=session.db_session_id,
+            test_type=paradigm_key,
+            hand=seg.hand if seg.hand in ("left", "right", "both") else "right",
+            duration_s=seg.duration_s,
+            recorded_at=result.get("recorded_at", ""),
+            raw_data_path=_raw_artifact(result, seg),
+            source_kind=result.get("source_kind", "video"),
+            provenance=build_provenance(session, seg, result),
+        )
+        m.features = result.get("features", {})
+        update_measurement(conn, m)
+    finally:
+        conn.close()
+    session.save()
+    log.info("VideoLab-Export: Segment %s/%s → Messung %d aktualisiert",
+             seg.id, paradigm_key, m.id)
+    return m
+
+
 def export_result(session: VideoSession, seg: Segment, paradigm_key: str) -> Measurement:
     """Save one segment result as a Measurement; returns the saved Measurement.
 
@@ -56,9 +106,9 @@ def export_result(session: VideoSession, seg: Segment, paradigm_key: str) -> Mea
             hand=seg.hand if seg.hand in ("left", "right", "both") else "right",
             duration_s=seg.duration_s,
             recorded_at=result.get("recorded_at", ""),
-            # The archived (defaced) segment clip is the raw artifact.
-            raw_data_path=seg.clip_path or "",
+            raw_data_path=_raw_artifact(result, seg),
             source_kind=result.get("source_kind", "video"),
+            provenance=build_provenance(session, seg, result),
         )
         m.features = result.get("features", {})
         save_measurement(conn, m)

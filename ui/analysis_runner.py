@@ -39,6 +39,7 @@ class AnalysisRunner(QObject):
         self._needs_abs = False
         self._frames_total = 0
         self._frames_eyeref = 0
+        self._track: dict[int, dict] = {}   # frame index → hands / iris (normalized)
         self._fallback = QTimer(self)
         self._fallback.setSingleShot(True)
         self._fallback.timeout.connect(self._on_done)
@@ -78,6 +79,7 @@ class AnalysisRunner(QObject):
             with_face = with_face or self._needs_abs
             self._frames_total = 0
             self._frames_eyeref = 0
+            self._track = {}
             test = self._spec.load_class()(capture=self._src, duration=self._dur,
                                            hand=hand, **(self._spec.cls_kwargs or {}))
             self._pr = ParadigmRunner(test, sidecar_bounded=True)
@@ -91,11 +93,15 @@ class AnalysisRunner(QObject):
             return
 
         src = self._src
-        src.configure(num_hands=2)          # track both hands → pick the moving one
+        # Both hands → pick the moving one. A slower preview stream during
+        # analysis: MediaPipe is the bottleneck on a laptop CPU, and every JPEG
+        # encode competes with it — the overlay only needs a few frames a second.
+        src.configure(num_hands=2, preview_fps=6)
         # Per-clip mirror flag (set at import); the sidecar reads it with
         # the next start and swaps the handedness label to match.
         src.replay_mirror = bool(mirrored)
-        src.play_range(video_path, start_s, end_s)
+        # Faster than real time: a 20 s take no longer costs 20 s of waiting.
+        src.play_range(video_path, start_s, end_s, realtime=False)
         src.set_preview_callback(lambda m: self.previewReady.emit(m))
         src.set_done_callback(lambda: self._doneSignal.emit())
         src.enable_preview(True)
@@ -112,8 +118,23 @@ class AnalysisRunner(QObject):
                 self._frames_total += 1
                 if getattr(frame, "eye_ref_mm", None) is not None:
                     self._frames_eyeref += 1
+                # Per-frame track for the overlay: exactly what the analysis
+                # saw, so a review never shows something it did not measure.
+                idx = getattr(frame, "frame_index", None)
+                lms = getattr(frame, "image_landmarks", None)
+                if idx is not None and lms:
+                    entry = self._track.setdefault(int(idx), {"hands": [], "iris": None})
+                    entry["hands"].append([frame.hand_type, lms])
+                    iris = getattr(frame, "iris_norm", None)
+                    if iris:
+                        entry["iris"] = iris
         if self._pr is not None:
             self._pr.feed(tf)              # live metric for both hands (the plot)
+
+    def track_data(self) -> dict:
+        """The per-frame overlay track of the last run: {frame: {hands, iris}}."""
+        with self._raw_lock:
+            return {k: v for k, v in self._track.items()}
 
     def eye_ref_coverage(self) -> float:
         """Fraction of frames that carried an eye reference (0..1)."""

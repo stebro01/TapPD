@@ -21,3 +21,6 @@ test = ["pytest>=8.0"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+markers = [
+    "sidecar: needs the MediaPipe sidecar venv (slow; skipped when it is not set up)",
+]

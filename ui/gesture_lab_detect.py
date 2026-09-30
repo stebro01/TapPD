@@ -219,7 +219,7 @@ class DetectPanel(QWidget):
         self.summary_label.setVisible(False)
         right_layout.addWidget(self.summary_label)
 
-        self.save_btn = QPushButton("💾 In Patientenakte speichern")
+        self.save_btn = QPushButton("💾 In Probandenakte speichern")
         self.save_btn.setProperty("cssClass", "accent")
         self.save_btn.setFixedHeight(SZ.BTN_H)
         self.save_btn.setVisible(False)
@@ -624,13 +624,13 @@ class DetectPanel(QWidget):
         patient = getattr(self.lab_screen, "patient", None)
         tested = [r for r in self._battery_results if r[1] != "ÜBERSPRUNGEN"]
         if patient is not None and patient.id and tested and not self._battery_saved:
-            self.save_btn.setText(f"💾 In Patientenakte speichern ({patient.display_name})")
+            self.save_btn.setText(f"💾 In Probandenakte speichern ({patient.display_name})")
             self.save_btn.setVisible(True)
         elif patient is None or not getattr(patient, "id", None):
             self.summary_label.setText(
                 self.summary_label.text()
-                + "\n\nℹ Kein Patient gewählt — zum Speichern das Gesture Lab "
-                  "aus der Patienten-Detailansicht öffnen.")
+                + "\n\nℹ Kein Proband gewählt — zum Speichern das Gesture Lab "
+                  "aus der Probanden-Detailansicht öffnen.")
 
     def _battery_features(self) -> dict[str, float]:
         """Aggregate the battery run into a numeric feature dict (DB/Verlauf)."""

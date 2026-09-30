@@ -12,8 +12,8 @@ from paradigms.saccade_test import SaccadeTest
 FS = 30.0
 # Synthetic gaze geometry: screen positions map linearly to gaze offsets of
 # ±0.10 IPD horizontally / ±0.06 vertically (plausible webcam magnitudes).
-def _gaze_for(point: str) -> tuple[float, float]:
-    nx, ny = POINTS[point]
+def _gaze_for(point: str, points: dict | None = None) -> tuple[float, float]:
+    nx, ny = (points or POINTS)[point]
     return ((nx - 0.5) * 0.20, (ny - 0.5) * 0.12)
 
 
@@ -29,7 +29,7 @@ def _run_proband(task: SaccadeTask, reaction_s: float = 0.25,
     """Simulate a proband: fixates calibration points, then jumps to each
     target after `reaction_s` (deterministic pseudo-noise)."""
     task.start(0.0)
-    look_at = POINT_ORDER[0]
+    look_at = task.calib_order[0]
     target_since = 0.0
     current_target = None
     n = int(seconds * FS)
@@ -45,7 +45,7 @@ def _run_proband(task: SaccadeTask, reaction_s: float = 0.25,
                 look_at = current_target
         else:
             break
-        gx, gy = _gaze_for(look_at)
+        gx, gy = _gaze_for(look_at, task.points)
         gx += noise * math.sin(2 * math.pi * 3.1 * t)
         gy += noise * math.sin(2 * math.pi * 4.3 * t + 1.0)
         task.update(t, (gx, gy), ear=0.30, roll_deg=1.0, ipd_px=50.0,
@@ -124,7 +124,7 @@ def test_paradigm_wraps_logic_and_computes_features():
     test = SaccadeTest(capture=src, duration=30.0)
     # Feed synthetic FacePoses through the envelope path (like the runner).
     task = test.task
-    look = POINT_ORDER[0]
+    look = task.calib_order[0]              # layout comes from test_config.yaml
     for i in range(int(40 * FS)):
         t = i / FS
         if task.phase is Phase.CALIBRATING:
@@ -133,7 +133,7 @@ def test_paradigm_wraps_logic_and_computes_features():
             look = task.current_target
         elif task.phase in (Phase.DONE, Phase.FAILED):
             break
-        gx, gy = _gaze_for(look)
+        gx, gy = _gaze_for(look, task.points)
         ipd = 50.0
         cx, cy = 340.0, 200.0
         face = FacePose(
@@ -150,3 +150,71 @@ def test_paradigm_wraps_logic_and_computes_features():
     assert feats["n_targets_acquired"] > 10
     assert feats["n_face_frames"] > 100
     assert "_fail_reason" not in feats
+
+
+def test_horizontal_layout_alternates_left_right():
+    """The clinical default: three points L / M / R, calibration starts in the
+    centre and visits L and R three times each, test targets in fixed turn
+    L, R, L, R … (every jump full width)."""
+    task = _task(layout="horizontal", sequence="alternate")
+    assert task.calib_visits == ["M", "L", "R", "L", "R", "L", "R"]
+    assert task.calib_order == ["M", "L", "R"] and set(task.points) == {"L", "M", "R"}
+    run = _run_proband(task, seconds=20.0)
+    assert run.phase in (Phase.TESTING, Phase.DONE), run.fail_reason
+    assert set(run.references) == {"L", "M", "R"}
+    seq = [h.target for h in run.hits]
+    assert len(seq) >= 6 and all(a != b for a, b in zip(seq, seq[1:]))
+    assert set(seq) <= {"L", "R"}                       # the centre is never a target
+    import pytest as _pt
+    with _pt.raises(ValueError):
+        _task(layout="diagonal")
+    with _pt.raises(ValueError):
+        _task(sequence="zigzag")
+
+
+def test_repeated_visits_ignore_a_late_first_arrival():
+    """Why the points are visited three times: on the first visit of L the eyes
+    arrive late (the offset drifts through the whole window), on the later
+    visits they sit still. The reference is the median over the visits, so it
+    lands where the eyes really rest — a single visit would put it halfway."""
+    task = _task(layout="horizontal", sequence="alternate")
+    true = {k: _gaze_for(k, task.points) for k in task.points}
+    task.start(0.0)
+    visit_of = {}
+    t = 0.0
+    while task.phase is Phase.CALIBRATING and t < 20:
+        key = task.calib_point
+        idx = task.calib_index
+        visit_of.setdefault(key, []).append(idx) if idx not in visit_of.get(key, []) else None
+        gx, gy = true[key]
+        if key == "L" and visit_of["L"][0] == idx:        # first L visit: slow drift in
+            frac = min(1.0, (t - task._calib_point_started) / task.calib_per_point_s)
+            gx = true["M"][0] + (gx - true["M"][0]) * frac
+        task.update(t, (gx, gy), ear=0.30, roll_deg=0.0, ipd_px=50.0, nose_shift=0.0)
+        t += 1 / FS
+    assert task.phase is Phase.TESTING, task.fail_reason
+    rx, _ = task.references["L"]
+    assert abs(rx - true["L"][0]) < 0.005            # not dragged towards the centre
+    assert task.noise["L"] < 0.01 and task.noise["M"] < 0.002
+    # explicit visit lists are validated against the layout
+    with pytest.raises(ValueError):
+        _task(layout="horizontal", calib_visits=["M", "X"])
+
+
+def test_separation_is_judged_against_noise():
+    """A 0.03-IPD gap is fine with 0.002 noise and hopeless with 0.012 noise."""
+    def run(noise):
+        task = _task(layout="horizontal", min_separation=0.012, min_separation_snr=4.0)
+        task.start(0.0)
+        t = 0.0
+        i = 0
+        while task.phase is Phase.CALIBRATING and t < 20:
+            key = task.calib_point
+            gx = {"L": -0.03, "M": 0.0, "R": 0.03}[key] + noise * (1 if i % 2 else -1)
+            task.update(t, (gx, 0.0), ear=0.30, roll_deg=0.0, ipd_px=50.0, nose_shift=0.0)
+            t += 1 / FS
+            i += 1
+        return task
+    assert run(0.002).phase is Phase.TESTING
+    bad = run(0.012)
+    assert bad.phase is Phase.FAILED and "Rauschen" in bad.fail_reason

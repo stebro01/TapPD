@@ -7,25 +7,28 @@ import logging
 import shutil
 from pathlib import Path
 
-from PyQt6.QtCore import Qt, QThread, QTimer, QUrl, pyqtSignal
+from PyQt6.QtCore import pyqtSignal, Qt, QThread, QTimer, QUrl, pyqtSignal
 from PyQt6.QtGui import QCursor
 from PyQt6.QtWidgets import (
+    QFrame,
+    QScrollArea,
     QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFileDialog, QFormLayout,
     QHBoxLayout, QInputDialog, QLabel, QLineEdit, QListWidget, QListWidgetItem,
     QMessageBox, QPlainTextEdit, QProgressDialog, QPushButton, QSizePolicy,
     QStyle, QVBoxLayout, QWidget,
 )
 from PyQt6.QtMultimedia import QAudioOutput, QMediaPlayer
-from PyQt6.QtMultimediaWidgets import QVideoWidget
+from ui.widgets.video_view import VideoView
 
 from paradigms import registry
 from paradigms.config import get_unmet_capabilities
-from ui.analysis_runner import AnalysisRunner
+from ui.segment_pipeline import SegmentPipeline
+from ui.widgets.meta_panel import MetaPanel
 from ui.widgets.live_metric_plot import LiveMetricPlot
 from ui.widgets.webcam_preview import WebcamPreview
 from ui.video_timeline import VideoTimeline
 from video.config import cfg, video_filter
-from video.store import VideoSession, load_for_patient
+from video.store import VideoSession
 from ui import theme
 
 log = logging.getLogger(__name__)
@@ -177,18 +180,38 @@ class _RenameDialog(QDialog):
 
 
 class VideoLabScreen(QWidget):
-    def __init__(self, main_window) -> None:
+    """Import a video, cut segments, analyse and export them.
+
+    Lives inside the session screen as its "cut" pane (``embedded=True``): the
+    header row is hidden there and the session is handed in by the host rather
+    than looked up per patient.
+    """
+
+    contentChanged = pyqtSignal()   # segments/video changed → host refreshes
+    detailsRequested = pyqtSignal(int)   # measurement id: open its details
+    extra_rows = None               # host hook: segment → [(label, value)] for the info panel
+
+    def __init__(self, main_window, embedded: bool = False,
+                 pipeline: SegmentPipeline | None = None) -> None:
         super().__init__()
         self.main_window = main_window
+        self._embedded = embedded
         self.session: VideoSession | None = None
         self.current_range = (0.0, 0.0)
         self.current_segment = None
         self._running = False
 
-        self.runner = AnalysisRunner(self)
-        self.runner.previewReady.connect(self._on_preview)
-        self.runner.finished.connect(self._on_finished)
-        self.runner.failed.connect(self._on_failed)
+        # The same analyse → archive → cleanup pipeline the recording pane
+        # runs its takes through; a cut of an imported video is just another
+        # segment to it (source: the imported file, the segment's range).
+        self._pipeline = pipeline or SegmentPipeline(self)
+        self._pipeline.previewReady.connect(self._on_preview)
+        self._pipeline.analysisStarted.connect(self._on_started)
+        self._pipeline.analysisFinished.connect(self._on_finished)
+        self._pipeline.analysisFailed.connect(self._on_failed)
+        self._pipeline.stageText.connect(self._on_stage_text)
+        self._pipeline.jobDone.connect(self._on_job_done)
+        self._pipeline.contentChanged.connect(self.contentChanged.emit)
 
         self._plot_timer = QTimer(self)
         self._plot_timer.setInterval(120)
@@ -206,7 +229,9 @@ class VideoLabScreen(QWidget):
         header = QHBoxLayout()
         back = QPushButton("← Zurück")
         back.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
-        back.clicked.connect(lambda: self.main_window.close_video_lab())
+        # Standalone use only (the workbench hides this row): back to the list.
+        back.clicked.connect(lambda: getattr(self.main_window, "show_patient_screen",
+                                             lambda: None)())
         header.addWidget(back)
         self._title = QLabel("VideoLab")
         self._title.setStyleSheet("font-size: 20px; font-weight: 700; color: #263238;")
@@ -218,6 +243,10 @@ class VideoLabScreen(QWidget):
         self._save_btn.clicked.connect(self._on_save_session)
         header.addWidget(self._save_btn)
         root.addLayout(header)
+        if self._embedded:
+            # The host screen carries title, back button and the "add" menu.
+            for w in (back, self._title, self._load_btn, self._save_btn):
+                w.setVisible(False)
 
         # Video row: original info (left) | video (center) | normalized info (right)
         vrow = QHBoxLayout()
@@ -228,10 +257,11 @@ class VideoLabScreen(QWidget):
         self._player = QMediaPlayer(self)
         self._audio = QAudioOutput(self)
         self._player.setAudioOutput(self._audio)
-        self._video_widget = QVideoWidget()
+        # Shows the clip under its own mirror flag (see the "Gespiegelt" box),
+        # so the player agrees with the analysis about left and right.
+        self._video_widget = VideoView()
         self._video_widget.setMinimumHeight(240)
-        self._video_widget.setStyleSheet("background:#000;")
-        self._player.setVideoOutput(self._video_widget)
+        self._player.setVideoSink(self._video_widget.sink)
         self._player.durationChanged.connect(self._timeline_duration)
         self._player.positionChanged.connect(lambda ms: self._timeline.setPosition(ms))
         vrow.addWidget(self._video_widget, 1)
@@ -266,20 +296,32 @@ class VideoLabScreen(QWidget):
         self._mirror_cb.setToolTip(
             "Dieses Video horizontal spiegeln.\n"
             "Nötig, wenn es mit einer Frontkamera aufgenommen wurde und der "
-            "Patient seitenverkehrt erscheint — sonst wird die linke Hand als "
+            "Proband seitenverkehrt erscheint — sonst wird die linke Hand als "
             "rechte erkannt.\n"
             "Gilt für dieses Video und wird mit der Video-Session gespeichert.")
         self._mirror_cb.stateChanged.connect(self._on_mirror_changed)
         ctl.addWidget(self._mirror_cb)
-        self._deface_cb = QCheckBox("Defacing")
-        self._deface_cb.setToolTip("Gesicht im Segment-Clip anonymisieren (Datenschutz)")
-        self._deface_cb.setChecked(cfg("privacy", "deface", default="blur") in ("blur", "mesh"))
-        ctl.addWidget(self._deface_cb)
         self._add_seg_btn = QPushButton("Bereich übernehmen →")
+        self._add_seg_btn.setProperty("cssClass", "primary")
         self._add_seg_btn.setToolTip("Markierten Bereich als benanntes Segment speichern")
         self._add_seg_btn.clicked.connect(self._on_add_segment)
         ctl.addWidget(self._add_seg_btn)
         root.addLayout(ctl)
+
+        # Options for the next segment — same wording as under a take.
+        opts = QHBoxLayout()
+        self._deface_cb = QCheckBox("Gesicht unkenntlich machen")
+        self._deface_cb.setToolTip("Gesicht im Segment-Clip anonymisieren (Datenschutz). "
+                                   "Die Analyse läuft immer auf dem Original.")
+        self._deface_cb.setChecked(cfg("privacy", "deface", default="blur") in ("blur", "mesh"))
+        opts.addWidget(self._deface_cb)
+        self._auto_cb = QCheckBox("Nach Anlegen automatisch auswerten")
+        self._auto_cb.setChecked(True)
+        self._auto_cb.setToolTip("Ein neues Segment wird nach dem Zuschnitt sofort ausgewertet "
+                                 "und landet als Messung in der Akte — wie ein bestätigter Take.")
+        opts.addWidget(self._auto_cb)
+        opts.addStretch()
+        root.addLayout(opts)
 
         # Bottom: segments (left) | work area (right)
         bottom = QHBoxLayout()
@@ -303,7 +345,11 @@ class VideoLabScreen(QWidget):
         left.addLayout(seg_btns)
         bottom.addLayout(left, 1)
 
-        right = QVBoxLayout()
+        page = QWidget()
+        page.setObjectName("scrollPage")
+        page.setStyleSheet("#scrollPage { background: transparent; }")
+        right = QVBoxLayout(page)
+        right.setContentsMargins(0, 0, 8, 0)
         right.addWidget(self._section("Auswertung"))
         self._seg_info = QLabel("Kein Segment gewählt.")
         self._seg_info.setWordWrap(True)
@@ -317,24 +363,28 @@ class VideoLabScreen(QWidget):
         self._run_btn.setProperty("cssClass", "accent")
         self._run_btn.clicked.connect(self._on_run)
         pick.addWidget(self._run_btn)
-        self._export_btn = QPushButton("→ In Patientenakte")
-        self._export_btn.setToolTip(
-            "Ergebnis dieses Segments als Messung in die Datenbank übernehmen")
-        self._export_btn.clicked.connect(self._on_export)
-        self._export_btn.setEnabled(False)
-        pick.addWidget(self._export_btn)
+        # An analysed segment is a measurement in the record (the pipeline
+        # exports it); this opens the same detail view as for any measurement.
+        self._details_btn = QPushButton("Details…")
+        self._details_btn.setToolTip("Kennwerte und Kurven dieser Auswertung")
+        self._details_btn.clicked.connect(self._on_details)
+        self._details_btn.setEnabled(False)
+        pick.addWidget(self._details_btn)
         pick.addStretch()
         right.addLayout(pick)
 
         viz = QHBoxLayout()
         self._overlay = WebcamPreview()
         self._overlay.setMinimumSize(260, 200)
+        self._overlay.setMaximumHeight(260)
         self._overlay.set_placeholder("Vorschau erscheint beim Start der Analyse")
         viz.addWidget(self._overlay, 1)
         self._plot = LiveMetricPlot(figsize=(3, 2))
         self._plot.setMinimumWidth(260)
+        self._plot.setMinimumHeight(200)
+        self._plot.setMaximumHeight(260)
         viz.addWidget(self._plot, 1)
-        right.addLayout(viz, 1)
+        right.addLayout(viz)
 
         self._result_lbl = QLabel("")
         self._result_lbl.setWordWrap(True)
@@ -345,7 +395,17 @@ class VideoLabScreen(QWidget):
         self._status = QLabel("")
         self._status.setStyleSheet(f"font-size:12px; color:{theme.TEXT_SECONDARY};")
         right.addWidget(self._status)
-        bottom.addLayout(right, 2)
+        # Same provenance panel as under a take: source, cut, archive, analysis.
+        self._meta = MetaPanel("Aufnahme-Info")
+        self._meta.setVisible(False)
+        right.addWidget(self._meta)
+        right.addStretch()
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setStyleSheet("QScrollArea { background: transparent; }")
+        scroll.setWidget(page)
+        bottom.addWidget(scroll, 2)
 
         root.addLayout(bottom, 3)
         self._set_controls_enabled(False)
@@ -420,18 +480,62 @@ class VideoLabScreen(QWidget):
             self._set_controls_enabled(False)
         self._refresh_segment_list()
 
+    def load_session(self, patient, video: VideoSession) -> None:
+        """Embedded entry: show *this* video session (no per-patient lookup)."""
+        self.current_segment = None
+        self._result_lbl.setText("")
+        self._overlay.clear()
+        self.session = video
+        code = getattr(patient, "patient_code", "") if patient else ""
+        self._title.setText(f"VideoLab – {code}")
+        self._mirror_cb.blockSignals(True)
+        self._mirror_cb.setChecked(bool(video.mirrored))
+        self._mirror_cb.blockSignals(False)
+        self._video_widget.set_mirrored(bool(video.mirrored))
+        if video.video_path:
+            from video.clip import VideoClip
+            self._player.setSource(QUrl.fromLocalFile(video.video_path))
+            self._show_first_frame()
+            try:
+                self._populate_info(VideoClip.load(video.video_path))
+            except Exception:
+                self._populate_info(None)
+            self._set_controls_enabled(True)
+        else:
+            try:
+                self._player.setSource(QUrl())
+            except Exception:
+                pass
+            self._populate_info(None)
+            self._set_controls_enabled(False)
+        self._refresh_segment_list()
+
+    def import_video(self) -> None:
+        """Host-triggered import (the "Video importieren…" menu entry)."""
+        self._on_load_video()
+
     def on_leave(self) -> None:
         self._plot_timer.stop()
         try:
             self._player.stop()
         except Exception:
             pass
-        self.runner.teardown()
+        if self._pipeline.parent() is self:
+            self._pipeline.teardown()
+
+    def select_segment(self, seg_id: str) -> None:
+        """Host entry: show this segment (the tree lists them)."""
+        for i in range(self._seg_list.count()):
+            it = self._seg_list.item(i)
+            if it.data(Qt.ItemDataRole.UserRole) == seg_id:
+                self._seg_list.setCurrentItem(it)
+                self._on_segment_selected(it)
+                return
 
     # ── video loading ─────────────────────────────────────────────
     def _on_load_video(self) -> None:
         if self.session is None:
-            QMessageBox.warning(self, "VideoLab", "Kein Patient ausgewählt.")
+            QMessageBox.warning(self, "VideoLab", "Kein Proband ausgewählt.")
             return
         path, _ = QFileDialog.getOpenFileName(self, "Video auswählen", "", video_filter())
         if not path:
@@ -464,6 +568,7 @@ class VideoLabScreen(QWidget):
         if self.session is None:
             return
         mirrored = self._mirror_cb.isChecked()
+        self._video_widget.set_mirrored(mirrored)
         if mirrored == self.session.mirrored:
             return
         self.session.mirrored = mirrored
@@ -492,6 +597,7 @@ class VideoLabScreen(QWidget):
         self._populate_info(VideoClip.load(dest))
         self._set_controls_enabled(True)
         self._status.setText(f"Video geladen: {name}")
+        self.contentChanged.emit()
 
     def _on_import_failed(self, msg: str) -> None:
         self._hide_busy()
@@ -590,6 +696,8 @@ class VideoLabScreen(QWidget):
             return
         name = registry.get(para).label.replace("\n", " ")
         seg = self.session.add_segment(name, s, e, paradigm=para, hand=hand)
+        from video.meta import import_meta
+        seg.meta = import_meta(self.session, seg)
         self.session.save()
         self._refresh_segment_list()
         self._extract_segment(seg)
@@ -647,7 +755,12 @@ class VideoLabScreen(QWidget):
             seg.deidentified = deid
             clip = VideoClip.load(clip_path)
             seg.thumb_path = (clip.extra or {}).get("thumb", "") if clip else ""
+            if clip is not None:
+                from video.meta import note_archive
+                note_archive(seg, clip, None)
             self.session.save()
+            if self._auto_cb.isChecked() and seg.paradigm:
+                self._pipeline.enqueue(self.session, seg, analyse=True)
             self._refresh_segment_list()
             if self.current_segment and self.current_segment.id == seg_id:
                 self._load_thumb(seg)
@@ -666,12 +779,24 @@ class VideoLabScreen(QWidget):
                 f'Segment „{self.current_segment.name}" wirklich löschen?'
                 ) != QMessageBox.StandardButton.Yes:
             return
-        self.session.remove_segment(self.current_segment.id)
+        seg = self.current_segment
+        mids = [r.get("measurement_id") for r in seg.results.values()
+                if isinstance(r, dict) and r.get("measurement_id")]
+        if mids:
+            from storage.database import delete_measurement, get_db
+            conn = get_db()
+            try:
+                for mid in mids:
+                    delete_measurement(conn, int(mid))
+            finally:
+                conn.close()
+        self.session.remove_segment(seg.id)
         self.session.save()
         self.current_segment = None
         self._refresh_segment_list()
         self._seg_info.setText("Kein Segment gewählt.")
         self._overlay.clear()
+        self._meta.setVisible(False)
 
     def _on_rename_segment(self) -> None:
         if self.session is None or self.current_segment is None:
@@ -709,6 +834,7 @@ class VideoLabScreen(QWidget):
                 item.setData(Qt.ItemDataRole.UserRole, seg.id)
                 self._seg_list.addItem(item)
         self._seg_list.blockSignals(False)
+        self.contentChanged.emit()
 
     def _on_segment_selected(self, item, _prev=None) -> None:
         if item is None or self.session is None:
@@ -749,156 +875,127 @@ class VideoLabScreen(QWidget):
 
     def _show_existing_result(self) -> None:
         seg = self.current_segment
-        if seg and seg.paradigm and seg.paradigm in seg.results:
-            self._render_features(seg.results[seg.paradigm].get("features", {}),
-                                  prefix="Gespeichertes Ergebnis")
-        else:
+        from video.meta import describe_segment, result_summary, segment_issues
+        if seg is None or self.session is None:
             self._result_lbl.setText("")
+            self._meta.setVisible(False)
+            return
+        self._result_lbl.setText(result_summary(seg) if seg.results else
+                                 ("Noch nicht ausgewertet." if seg.paradigm else ""))
+        rows = describe_segment(self.session, seg)
+        if self.extra_rows is not None:
+            try:
+                rows = list(self.extra_rows(seg)) + rows
+            except Exception:
+                log.debug("extra_rows fehlgeschlagen", exc_info=True)
+        issues = segment_issues(self.session, seg)
+        job = self._pipeline.job
+        if job is not None and job.get("segment") is seg:
+            stage = {"analyse": "Auswertung läuft", "compact": "Clip wird archiviert",
+                     "cleanup": "Aufräumen"}.get(job.get("stage"), "in Bearbeitung")
+            rows = [("Status", f"⏳ {stage} …")] + rows
+            issues = []
+        self._meta.set_content(rows, issues)
+        self._meta.setVisible(True)
+
+    def _measurement_id(self, seg) -> int | None:
+        for r in (seg.results.values() if seg else []):
+            if isinstance(r, dict) and r.get("measurement_id"):
+                return int(r["measurement_id"])
+        return None
 
     def _update_run_enabled(self) -> None:
         seg = self.current_segment
         ok = not self._running and seg is not None and bool(seg.paradigm)
         self._run_btn.setEnabled(ok)
-        result = None
         if seg is not None and seg.paradigm:
             done = seg.paradigm in seg.results
-            self._run_btn.setText("▶ Erneut auswerten" if done else "▶ Analyse starten")
-            result = seg.results.get(seg.paradigm)
-        exported = bool(result and result.get("measurement_id"))
-        self._export_btn.setEnabled(
-            not self._running and bool(result and result.get("features")) and not exported)
-        self._export_btn.setText("✓ In Akte übernommen" if exported else "→ In Patientenakte")
+            self._run_btn.setText("⟳ Neu auswerten" if done else "▶ Analyse starten")
+        self._details_btn.setEnabled(self._measurement_id(seg) is not None)
 
-    def _on_export(self) -> None:
-        seg = self.current_segment
-        if seg is None or self.session is None or not seg.paradigm:
-            return
-        from video.export import AlreadyExported, export_result
-        try:
-            m = export_result(self.session, seg, seg.paradigm)
-        except AlreadyExported as e:
-            self._status.setText(str(e))
-        except Exception as e:
-            log.exception("VideoLab-Export fehlgeschlagen")
-            self._status.setText(f"Export fehlgeschlagen: {e}")
-        else:
-            self._status.setText(
-                f"Als Messung übernommen (ID {m.id}, Session {self.session.db_session_id}).")
-        self._update_run_enabled()
+    def _on_details(self) -> None:
+        mid = self._measurement_id(self.current_segment)
+        if mid is not None:
+            self.detailsRequested.emit(mid)
 
     # ── analysis run ──────────────────────────────────────────────
     def _on_run(self) -> None:
-        if self.current_segment is None or self.session is None or self._running:
-            return
         seg = self.current_segment
-        key = seg.paradigm
-        if not key:
+        if seg is None or self.session is None or not seg.paradigm:
             return
-        self._running = True
-        self._set_controls_enabled(True)
-        self._run_btn.setEnabled(False)
-        self._result_lbl.setText("")
-        self._overlay.set_placeholder("Analyse läuft …")
-        self._overlay.clear()
-        self._plot.clear_plot()
-        self._status.setText("Analyse läuft …")
-        self._plot_timer.start()
-        # Both hands are tracked; the paradigm analyses only the chosen side's
-        # MediaPipe label. If it grabs the wrong hand (mirrored video), switch the
-        # segment's side via "Umbenennen".
-        hand = seg.hand if seg.hand in ("left", "right") else "right"
-        with_face = bool(cfg("analysis", "with_face", default=False))
-        import os
-        # Analyse IMMER auf dem Original (volle Qualität, kein Deface-Blur, der
-        # eine Hand vor dem Gesicht mit unkenntlich machen würde). Der kompakte
-        # Segment-Clip ist Archiv/Review — Fallback nur, wenn das Original fehlt.
-        if self.session.video_path and os.path.exists(self.session.video_path):
-            self.runner.start(self.session.video_path, seg.start_s, seg.end_s, key,
-                              hand=hand, with_face=with_face,
-                              mirrored=self.session.mirrored)
-        elif seg.clip_path and os.path.exists(seg.clip_path):
-            self.runner.start(seg.clip_path, 0.0, seg.duration_s, key,
-                              hand=hand, with_face=with_face,
-                              mirrored=self.session.mirrored)
-        else:
-            self._running = False
-            self._plot_timer.stop()
-            self._status.setText("Kein Video für dieses Segment gefunden.")
-            self._set_controls_enabled(True)
+        self._pipeline.enqueue(self.session, seg, analyse=True)
+
+    def _mine(self, session) -> bool:
+        return session is self.session
 
     def _on_preview(self, msg: dict) -> None:
+        job = self._pipeline.job
+        if job is None or not self._mine(job["session"]):
+            return
         self._overlay.set_frame(msg.get("jpeg", ""), msg.get("landmarks", []),
                                 msg.get("face"))
 
     def _refresh_plot(self) -> None:
         win = int(cfg("analysis", "live_plot_window_points", default=300))
+        runner = self._pipeline.runner
         # Show both hands live (so the moving one is visible); the result uses the
         # moving hand, attributed to the chosen side.
-        self._plot.update_plot(self.runner.live, self.runner.metric_label(),
-                               window_points=win)
+        self._plot.update_plot(runner.live, runner.metric_label(), window_points=win)
 
-    def _on_finished(self, test, features: dict) -> None:
+    def _on_started(self, session, seg) -> None:
+        if not self._mine(session):
+            return
+        self._running = True
+        self._run_btn.setEnabled(False)
+        self._result_lbl.setText("")
+        self._overlay.set_placeholder("Analyse läuft …")
+        self._overlay.clear()
+        self._plot.clear_plot()
+        self._plot_timer.start()
+
+    def _on_stage_text(self, text: str) -> None:
+        job = self._pipeline.job
+        if job is not None and self._mine(job["session"]):
+            self._status.setText(text)
+
+    def _on_job_done(self, session, seg) -> None:
+        if not self._mine(session):
+            return
+        self._running = False
+        self._refresh_segment_list()
+        self._reselect_current_segment()
+        if self.current_segment is not None:
+            self._show_existing_result()
+        self._update_run_enabled()
+
+    def _on_finished(self, session, seg, features: dict) -> None:
+        if not self._mine(session):
+            return
         self._plot_timer.stop()
         self._refresh_plot()
         self._running = False
-        # No frames for the chosen hand → likely the wrong side was selected.
-        seg = self.current_segment
-        if seg is not None and seg.hand in ("left", "right") and not test.bilateral \
-                and len(test.get_frames()) == 0:
-            self._render_features({}, "")
+        self._refresh_segment_list()
+        self._reselect_current_segment()
+        if self.current_segment is seg:
+            self._show_existing_result()
+        cov = (seg.results.get(seg.paradigm) or {}).get("eye_ref_coverage") if seg.paradigm else None
+        if isinstance(cov, (int, float)) and cov < 0.5:
             self._status.setText(
-                f"Keine {self._HAND_LONG.get(seg.hand, seg.hand)}e Hand im Segment "
-                "erkannt — evtl. andere Seite wählen (Umbenennen ändert nur den Namen; "
-                "Seite über ein neues Segment).")
-            self._update_run_enabled()
-            return
-        key = test.test_type()
-        eye_cov = self.runner.eye_ref_coverage()
-        if self.current_segment is not None and self.session is not None:
-            from datetime import datetime
-            result = {
-                "features": features,
-                "recorded_at": datetime.now().isoformat(),
-                "raw_path": "",
-                "source_kind": "video",
-            }
-            if self.runner.needs_abs_position:
-                result["eye_ref_coverage"] = round(eye_cov, 3)
-            self.current_segment.results[key] = result
-            self.session.save()
-            self._refresh_segment_list()
-            self._reselect_current_segment()
-        self._render_features(features, prefix="Ergebnis")
-        if self.runner.needs_abs_position and eye_cov < 0.5:
-            self._status.setText(
-                f"⚠ Augen-Referenz nur in {eye_cov:.0%} der Frames gefunden — "
+                f"⚠ Augen-Referenz nur in {cov:.0%} der Frames gefunden — "
                 "Amplituden unzuverlässig (Gesicht im Video sichtbar?).")
-        else:
-            self._status.setText("Analyse fertig.")
+        elif not features:
+            hand = self._HAND_LONG.get(seg.hand, seg.hand)
+            self._status.setText(f"Keine {hand}e Hand im Segment erkannt — evtl. andere "
+                                 "Seite wählen (Umbenennen → Seite).")
         self._update_run_enabled()
 
-    def _on_failed(self, msg: str) -> None:
+    def _on_failed(self, session, seg, msg: str) -> None:
+        if not self._mine(session):
+            return
         self._plot_timer.stop()
         self._running = False
         self._status.setText(f"Fehler: {msg}")
         self._update_run_enabled()
-
-    def _render_features(self, features: dict, prefix: str = "Ergebnis") -> None:
-        if not features:
-            self._result_lbl.setText("")
-            return
-        from ui.feature_meta import unit_label, has_estimated_scale, SCALE_NOTE
-        lines = [f"<b>{prefix}</b>"]
-        for k, v in features.items():
-            unit = unit_label(k, "video")
-            suffix = f" {unit}" if unit else ""
-            if isinstance(v, (int, float)):
-                lines.append(f"{k}: {v:.3g}{suffix}")
-            else:
-                lines.append(f"{k}: {v}{suffix}")
-        if has_estimated_scale(features, "video"):
-            lines.append(f"<i>{SCALE_NOTE}</i>")
-        self._result_lbl.setText("<br>".join(lines))
 
     def _reselect_current_segment(self) -> None:
         if self.current_segment is None:

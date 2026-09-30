@@ -1,0 +1,248 @@
+# Parkinson-Anamnese — eine Maske je Sitzung (Zustand am Messtag).
+#
+# Aufbau: Abschnitte mit Items; ein Abschnitt kann eine wiederholbare Gruppe
+# tragen (Medikation: eine Zeile je Präparat). Jedes Item mit `concept` wird
+# als eigene kodierte Beobachtung gespeichert (siehe clinical/store.py),
+# die ganze Maske zusätzlich als Fragebogen-Zeile (VALTYPE_CD Q).
+#
+# Item-Typen: integer, decimal, scale, choice, multichoice, bool, text, date.
+# `range: [min, max]` für Zahlen, `choices` für Auswahl (code + label),
+# `catalog` verweist auf eine Liste unter `catalogs:`. `required` ist
+# standardmäßig aus — eine Anamnese darf lückenhaft sein.
+
+id: pd_anamnese
+name: "Parkinson-Anamnese"
+version: 1
+scope: visit
+carry_forward: true          # eine neue Maske beginnt mit den Antworten der letzten
+summary: [hoehn_yahr, updrs3_total, ledd_mg, med_state]   # Kurzzeile im Sitzungsbaum
+
+sections:
+  - id: diagnosis
+    title: "Diagnose und Verlauf"
+    items:
+      - key: diagnosis_year
+        label: "Diagnosejahr"
+        type: integer
+        range: [1950, 2100]
+        concept: "TAPPD:PD_DIAGNOSIS_YEAR"
+      - key: onset_year
+        label: "Erste Symptome (Jahr)"
+        type: integer
+        range: [1950, 2100]
+        concept: "TAPPD:PD_ONSET_YEAR"
+      - key: onset_side
+        label: "Erstsymptom-Seite"
+        type: choice
+        choices:
+          - {code: left, label: "links"}
+          - {code: right, label: "rechts"}
+          - {code: bilateral, label: "beidseits"}
+          - {code: unknown, label: "unklar"}
+        concept: "TAPPD:PD_ONSET_SIDE"
+      - key: dominant_hand
+        label: "Dominante Hand"
+        type: choice
+        choices:
+          - {code: right, label: "rechts"}
+          - {code: left, label: "links"}
+          - {code: ambidextrous, label: "beidhändig"}
+        concept: "TAPPD:DOMINANT_HAND"
+      - key: subtype
+        label: "Subtyp"
+        type: choice
+        choices:
+          - {code: tremor_dominant, label: "tremordominant"}
+          - {code: akinetic_rigid, label: "akinetisch-rigide"}
+          - {code: mixed, label: "Äquivalenztyp"}
+          - {code: unknown, label: "unklar"}
+        concept: "TAPPD:PD_SUBTYPE"
+      - key: hoehn_yahr
+        label: "Hoehn & Yahr"
+        type: choice
+        store_as: number
+        choices:
+          - {code: "1", label: "1 – einseitig"}
+          - {code: "1.5", label: "1.5 – einseitig + axial"}
+          - {code: "2", label: "2 – beidseitig, keine Gleichgewichtsstörung"}
+          - {code: "2.5", label: "2.5 – leichte beidseitige Symptome, Zugtest bestanden"}
+          - {code: "3", label: "3 – posturale Instabilität"}
+          - {code: "4", label: "4 – schwer, Gehen noch möglich"}
+          - {code: "5", label: "5 – Rollstuhl / Bett"}
+        concept: "TAPPD:HOEHN_YAHR"
+      - key: updrs3_total
+        label: "MDS-UPDRS Teil III (Gesamt)"
+        type: integer
+        range: [0, 132]
+        concept: "TAPPD:UPDRS3_TOTAL"
+      - key: updrs3_state
+        label: "UPDRS III erhoben im"
+        type: choice
+        choices:
+          - {code: "on", label: "ON"}
+          - {code: "off", label: "OFF"}
+          - {code: unknown, label: "unklar"}
+        concept: "TAPPD:UPDRS3_STATE"
+
+  - id: family
+    title: "Familienanamnese"
+    items:
+      - key: family_pd
+        label: "Parkinson in der Familie"
+        type: choice
+        choices:
+          - {code: "yes", label: "ja"}
+          - {code: "no", label: "nein"}
+          - {code: unknown, label: "unklar"}
+        concept: "TAPPD:FAMILY_PD"
+      - key: family_detail
+        label: "Wer / Details"
+        type: text
+        concept: "TAPPD:FAMILY_PD_DETAIL"
+
+  - id: falls
+    title: "Stürze und Gang"
+    items:
+      - key: falls_12m
+        label: "Stürze in den letzten 12 Monaten"
+        type: integer
+        range: [0, 999]
+        concept: "TAPPD:FALLS_12M"
+      - key: freezing
+        label: "Freezing of Gait"
+        type: choice
+        choices:
+          - {code: "yes", label: "ja"}
+          - {code: "no", label: "nein"}
+          - {code: unknown, label: "unklar"}
+        concept: "TAPPD:FOG"
+      - key: walking_aid
+        label: "Gehhilfe"
+        type: choice
+        choices:
+          - {code: none, label: "keine"}
+          - {code: cane, label: "Stock"}
+          - {code: walker, label: "Rollator"}
+          - {code: wheelchair, label: "Rollstuhl"}
+        concept: "TAPPD:WALKING_AID"
+
+  - id: nonmotor
+    title: "Nicht-motorische Symptome"
+    items:
+      - key: nms
+        label: "Vorhanden"
+        type: multichoice
+        choices:
+          - {code: hyposmia, label: "Riechstörung"}
+          - {code: constipation, label: "Obstipation"}
+          - {code: rbd, label: "REM-Schlaf-Verhaltensstörung"}
+          - {code: insomnia, label: "Schlafstörung"}
+          - {code: daytime_sleepiness, label: "Tagesmüdigkeit"}
+          - {code: depression, label: "Depression"}
+          - {code: anxiety, label: "Angst"}
+          - {code: apathy, label: "Apathie"}
+          - {code: cognitive, label: "Kognitive Beschwerden"}
+          - {code: hallucinations, label: "Halluzinationen"}
+          - {code: orthostatic, label: "Orthostase / Schwindel"}
+          - {code: urinary, label: "Blasenstörung"}
+          - {code: pain, label: "Schmerzen"}
+          - {code: fatigue, label: "Fatigue"}
+        concept: "TAPPD:NMS"
+      - key: moca
+        label: "MoCA (0–30)"
+        type: integer
+        range: [0, 30]
+        concept: "LOINC:72172-0"
+      - key: nms_note
+        label: "Anmerkungen"
+        type: text
+        multiline: true
+        concept: "TAPPD:NMS_NOTE"
+
+  - id: medication
+    title: "Medikation"
+    repeat:
+      key: medication
+      label: "Präparat"
+      concept: "TAPPD:MEDICATION"
+      items:
+        - key: substance
+          label: "Wirkstoff"
+          type: choice
+          catalog: substances
+        - key: dose_mg
+          label: "Einzeldosis (mg)"
+          type: decimal
+          range: [0, 5000]
+          unit: mg
+        - key: per_day
+          label: "Einnahmen / Tag"
+          type: integer
+          range: [1, 12]
+        - key: times
+          label: "Uhrzeiten"
+          type: text
+    items:
+      - key: med_state
+        label: "Zustand bei der Messung"
+        type: choice
+        choices:
+          - {code: "on", label: "ON"}
+          - {code: "off", label: "OFF (praktisch definiert, ≥ 12 h ohne Medikation)"}
+          - {code: unknown, label: "unklar"}
+        concept: "TAPPD:MED_STATE"
+      - key: last_dose_minutes
+        label: "Minuten seit letzter Einnahme"
+        type: integer
+        range: [0, 1440]
+        unit: min
+        concept: "TAPPD:MIN_SINCE_DOSE"
+      - key: dbs
+        label: "Tiefe Hirnstimulation"
+        type: bool
+        concept: "TAPPD:DBS"
+
+  - id: misc
+    title: "Sonstiges"
+    items:
+      - key: comment
+        label: "Bemerkungen"
+        type: text
+        multiline: true
+        concept: "TAPPD:ANAMNESIS_NOTE"
+
+# Aus den Antworten berechnet, schreibgeschützt in der Maske, als eigene
+# Zeile gespeichert (abfragbar ohne Nachrechnen).
+computed:
+  - key: disease_duration_y
+    label: "Erkrankungsdauer (Jahre)"
+    expr: "years_since(diagnosis_year)"
+    concept: "TAPPD:PD_DURATION_Y"
+  - key: ledd_mg
+    label: "LEDD (mg/Tag)"
+    expr: "ledd(medication)"
+    unit: mg
+    concept: "TAPPD:LEDD"
+
+# Umrechnung in Levodopa-Äquivalenzdosis nach Tomlinson et al. 2010
+# (Mov Disord 25:2649). `of: levodopa` = COMT-Hemmer: Faktor mal der
+# Levodopa-Tagesdosis, unabhängig von der eigenen Dosis.
+catalogs:
+  substances:
+    - {code: levodopa, label: "Levodopa (Standard, mit Decarboxylasehemmer)", atc: N04BA02, ledd_factor: 1.0}
+    - {code: levodopa_cr, label: "Levodopa retard", atc: N04BA02, ledd_factor: 0.75}
+    - {code: levodopa_duodopa, label: "Levodopa intestinal (Duodopa)", atc: N04BA02, ledd_factor: 1.11}
+    - {code: entacapone, label: "Entacapon (auch in Kombination)", atc: N04BX02, ledd_factor: 0.33, of: levodopa}
+    - {code: opicapone, label: "Opicapon", atc: N04BX04, ledd_factor: 0.5, of: levodopa}
+    - {code: tolcapone, label: "Tolcapon", atc: N04BX01, ledd_factor: 0.5, of: levodopa}
+    - {code: pramipexole, label: "Pramipexol", atc: N04BC05, ledd_factor: 100}
+    - {code: pramipexole_er, label: "Pramipexol retard", atc: N04BC05, ledd_factor: 100}
+    - {code: ropinirole, label: "Ropinirol", atc: N04BC04, ledd_factor: 20}
+    - {code: rotigotine, label: "Rotigotin (Pflaster, mg/24 h)", atc: N04BC09, ledd_factor: 30}
+    - {code: piribedil, label: "Piribedil", atc: N04BC08, ledd_factor: 1.0}
+    - {code: apomorphine, label: "Apomorphin (s.c.)", atc: N04BC07, ledd_factor: 10}
+    - {code: rasagiline, label: "Rasagilin", atc: N04BD02, ledd_factor: 100}
+    - {code: selegiline, label: "Selegilin (oral)", atc: N04BD01, ledd_factor: 10}
+    - {code: safinamide, label: "Safinamid", atc: N04BD03, ledd_factor: 1.0}
+    - {code: amantadine, label: "Amantadin", atc: N04BB01, ledd_factor: 1.0}
+    - {code: other, label: "Sonstiges (ohne LEDD)", ledd_factor: 0}

@@ -162,9 +162,31 @@ Klinische Beobachtungen und Messwerte. **Zentrale Datentabelle.**
 |---|---|---|
 | N | NVAL_NUM | 73 (MoCA Score) |
 | T | TVAL_CHAR | "Metformin 2x500mg" |
-| B | OBSERVATION_BLOB | JSON-Objekt (z.B. Fragebogen-Ergebnisse) |
+| B | OBSERVATION_BLOB | JSON-Objekt (z.B. Fragebogen-Ergebnisse); Messungen: `hand`, `duration_s`, `raw_data_path`, `source_kind`, `features`, `provenance` (Video-Messungen: Kamera/Import, Spiegel-Flags, Archiv-Clip, Spur, Auswertungs-Quelle — siehe `video/meta.py`; leer bei Live-Messungen); klinische Wiederholzeilen (z.B. `TAPPD:MEDICATION`): `{form_entry, key, row}` |
 | D | START_DATE | "2024-11-29" |
-| Q | OBSERVATION_BLOB | Fragebogen-Antworten |
+| Q | OBSERVATION_BLOB | Fragebogen-Antworten — TapPD: eine ausgefuellte Maske (`CONCEPT_CD='TAPPD:FORM_<ID>'`), Blob `{form, version, answers, computed}` |
+
+#### Klinische Masken (clinical/store.py)
+
+Eine ausgefuellte YAML-Maske (`clinical/forms/*.yaml`) ist ein *Eintrag*:
+die Q-Zeile oben plus je Antwort eine kodierte Zeile. Alle Zeilen tragen
+`CATEGORY_CHAR='CLINICAL'`; die Messungs-Abfragen (`get_measurements` u. a.)
+lassen diese Kategorie aus. Item-Zeilen verweisen ueber
+`OBSERVATION_BLOB.form_entry` auf die Q-Zeile ihres Eintrags.
+
+| Item-Typ | VALTYPE_CD | Wert |
+|---|---|---|
+| integer, decimal, scale, choice mit `store_as: number`, bool | N | `NVAL_NUM` (bool 1/0), `TVAL_CHAR` = Auswahltext |
+| choice, multichoice (Codes kommagetrennt), text | T | `TVAL_CHAR` |
+| date | D | `TVAL_CHAR` (ISO) |
+| Wiederholgruppe (z.B. Medikament) | B | eine Zeile je Eintrag, `INSTANCE_NUM` = laufende Nr., Blob `{form_entry, key, row}` |
+| berechnet (LEDD, Erkrankungsdauer) | N | `NVAL_NUM` |
+
+Konzepte (`CONCEPT_CD` aus der YAML, Pfad `/TapPD/Clinical/<form>/<key>/`,
+Werttyp, Einheit, `CATEGORY_CHAR='CLINICAL'`) werden beim ersten Speichern
+in `CONCEPT_DIMENSION` registriert. Loeschen einer Sitzung entfernt die
+Zeilen per `ENCOUNTER_NUM`; `delete_form_entry` loescht einen Eintrag samt
+Item-Zeilen.
 
 ---
 
@@ -280,7 +302,7 @@ Klinische Notizen und Dokumentation.
 | CATEGORY_CHAR | TEXT | Notiz-Kategorie |
 | NAME_CHAR | TEXT | Titel |
 | NOTE_TEXT | TEXT | Notizinhalt |
-| NOTE_BLOB | TEXT | Erweiterte Notizdaten |
+| NOTE_BLOB | TEXT | Erweiterte Notizdaten — TapPD: `{"attachments": [{name, path, size, added_at}]}`, Dateien unter `data/attachments/` |
 | **PATIENT_NUM** | INTEGER FK → PATIENT_DIMENSION | Verweis auf Patient |
 | **ENCOUNTER_NUM** | INTEGER FK → VISIT_DIMENSION | Verweis auf Besuch |
 | UPDATE_DATE | TEXT | Letzte Aenderung |
@@ -290,6 +312,19 @@ Klinische Notizen und Dokumentation.
 | UPLOAD_ID | NUMERIC | Upload-Batch-ID |
 
 **Indizes:** `idx_note_patient_num`, `idx_note_encounter_num`, `idx_note_category`
+
+**TapPD-Nutzung (`storage.database.Note`):** eine Notiz je Eintrag der Akte.
+`CATEGORY_CHAR` traegt die Art des Eintrags, `NAME_CHAR` den Bezug:
+
+| Art (`CATEGORY_CHAR`) | `NAME_CHAR` | `ENCOUNTER_NUM` |
+|---|---|---|
+| SESSION | `<Sitzungs-ID>` | die Sitzung |
+| STEP | `<Sitzungs-ID>:<Schritt-ID>` (Aufnahme-Schritt / Take) | die Sitzung |
+| IMPORT | `<Sitzungs-ID>` (das importierte Video) | die Sitzung |
+| MEASUREMENT | `<OBSERVATION_ID>` | Sitzung der Messung |
+
+Loeschen einer Messung entfernt ihre Notiz samt Dateien (`delete_measurement`),
+Loeschen einer Sitzung per FK-Kaskade.
 
 ---
 

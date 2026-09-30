@@ -30,7 +30,7 @@ from ui.theme import SZ
 class NewPatientDialog(QDialog):
     def __init__(self, parent=None, patient: Patient | None = None) -> None:
         super().__init__(parent)
-        self.setWindowTitle("Neuer Patient" if patient is None else "Patient bearbeiten")
+        self.setWindowTitle("Neuer Proband" if patient is None else "Proband bearbeiten")
         self.setMinimumWidth(460)
         self.patient = patient or Patient()
 
@@ -40,7 +40,7 @@ class NewPatientDialog(QDialog):
 
         self.code_input = QLineEdit(self.patient.patient_code)
         self.code_input.setPlaceholderText("z.B. PD001 (Pflichtfeld)")
-        layout.addRow("Patienten-ID", self.code_input)
+        layout.addRow("Probanden-ID", self.code_input)
 
         self.last_name_input = QLineEdit(self.patient.last_name)
         layout.addRow("Nachname", self.last_name_input)
@@ -169,12 +169,12 @@ class PatientScreen(QWidget):
         search_row.setSpacing(10)
 
         self.search_input = QLineEdit()
-        self.search_input.setPlaceholderText("Patient suchen...")
+        self.search_input.setPlaceholderText("Proband suchen...")
         self.search_input.setFixedHeight(SZ.INPUT_H)
         self.search_input.textChanged.connect(self._on_search)
         search_row.addWidget(self.search_input)
 
-        self.new_button = QPushButton("+ Neuer Patient")
+        self.new_button = QPushButton("+ Neuer Proband")
         self.new_button.setProperty("cssClass", "accent")
         self.new_button.setFixedWidth(180)
         self.new_button.setFixedHeight(SZ.BTN_H)
@@ -229,9 +229,18 @@ class PatientScreen(QWidget):
         lab_btn.setFixedWidth(150)
         lab_btn.setFixedHeight(SZ.BTN_H)
         lab_btn.setToolTip("Gesten-Bibliothek pflegen (Referenzposen aufnehmen). "
-                           "Patientenbezogene Batterie: aus der Patienten-Detailansicht öffnen.")
+                           "Probandenbezogene Batterie: aus der Probanden-Detailansicht öffnen.")
         lab_btn.clicked.connect(lambda: self.main_window.show_gesture_lab("patients"))
         bottom_bar.addWidget(lab_btn)
+
+        research_btn = QPushButton("🔬 Forschungsexport")
+        research_btn.setProperty("cssClass", "flat")
+        research_btn.setFixedWidth(190)
+        research_btn.setFixedHeight(SZ.BTN_H)
+        research_btn.setToolTip("Pseudonymisierte Langtabellen aller Probanden mit Codebuch "
+                                "(CSV) für die statistische Auswertung")
+        research_btn.clicked.connect(self._on_research_export)
+        bottom_bar.addWidget(research_btn)
 
         bottom_bar.addStretch()
 
@@ -302,6 +311,11 @@ class PatientScreen(QWidget):
             conn.close()
             self.refresh_list()
             self.main_window.select_patient(dialog.patient)
+
+    def _on_research_export(self) -> None:
+        from storage.database import get_db
+        from ui.export_dialog import ResearchExportDialog
+        ResearchExportDialog(self, get_db).exec()
 
     def _on_manual(self) -> None:
         """Nutzerhandbuch (docs/manual.html) im Standard-Browser öffnen."""

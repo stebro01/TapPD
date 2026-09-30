@@ -25,8 +25,11 @@ _DEFAULTS = {
     },
     "record": {"default_seconds": 10, "min_seconds": 1, "max_seconds": 120},
     "segments": {"min_length_s": 0.3, "extract": True, "max_width": 1080,
-                 "max_height": 1080, "target_fps": 30, "capture_eyeref": True},
+                 "max_height": 1080, "target_fps": 30, "capture_eyeref": True,
+                 "crf": 23},
     "privacy": {"deface": "blur", "blur_strength": 41},
+    # Confirmed takes → compact clips (see video.yaml archive:).
+    "archive": {"compact_takes": True, "keep_raw_take": False},
     "analysis": {
         "default_hand": "right",
         "with_face": False,

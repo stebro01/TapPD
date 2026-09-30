@@ -11,7 +11,7 @@ import json
 import logging
 import shutil
 import sqlite3
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date, datetime
 from pathlib import Path
 
@@ -123,6 +123,10 @@ class Measurement:
     recorded_at: str = ""
     raw_data_path: str = ""
     source_kind: str = ""  # capture source: "leap" | "webcam" | "mock" (provenance)
+    # For video-based measurements: where the footage came from and what became
+    # of it (camera, mirror/handedness settings, archive clip, track, analysis
+    # source) — see video.meta.build_provenance. Empty for live Leap/webcam runs.
+    provenance: dict = field(default_factory=dict)
 
     @property
     def features(self) -> dict:
@@ -149,19 +153,21 @@ def _unmarshal_patient_blob(blob: str | None) -> dict:
 
 
 def _marshal_observation_blob(hand: str, duration_s: float, raw_data_path: str,
-                              features: dict, source_kind: str = "") -> str:
+                              features: dict, source_kind: str = "",
+                              provenance: dict | None = None) -> str:
     return json.dumps({
         "hand": hand,
         "duration_s": duration_s,
         "raw_data_path": raw_data_path,
         "source_kind": source_kind,
         "features": features,
+        "provenance": provenance or {},
     }, default=str)
 
 
 def _unmarshal_observation_blob(blob: str | None) -> dict:
     default = {"hand": "", "duration_s": 0.0, "raw_data_path": "",
-               "source_kind": "", "features": {}}
+               "source_kind": "", "features": {}, "provenance": {}}
     if not blob:
         return default
     try:
@@ -226,6 +232,10 @@ def _ensure_schema(conn: sqlite3.Connection) -> None:
 def _migrate_v2(conn: sqlite3.Connection) -> None:
     """Inline migrations for existing v2 star schema databases."""
     # Add LOOKUP_BLOB column to CODE_LOOKUP if missing
+    note_cols = {r[1] for r in conn.execute("PRAGMA table_info(NOTE_FACT)").fetchall()}
+    if note_cols and "NOTE_BLOB" not in note_cols:
+        conn.execute("ALTER TABLE NOTE_FACT ADD COLUMN NOTE_BLOB TEXT")
+        conn.commit()
     cols = {r[1] for r in conn.execute("PRAGMA table_info(CODE_LOOKUP)").fetchall()}
     if "LOOKUP_BLOB" not in cols:
         conn.execute("ALTER TABLE CODE_LOOKUP ADD COLUMN LOOKUP_BLOB TEXT")
@@ -354,6 +364,7 @@ def _create_tables(conn: sqlite3.Connection) -> None:
             CATEGORY_CHAR TEXT,
             NAME_CHAR TEXT,
             NOTE_TEXT TEXT,
+            NOTE_BLOB TEXT,
             PATIENT_NUM INTEGER REFERENCES PATIENT_DIMENSION(PATIENT_NUM) ON DELETE CASCADE,
             ENCOUNTER_NUM INTEGER REFERENCES VISIT_DIMENSION(ENCOUNTER_NUM) ON DELETE CASCADE,
             UPDATE_DATE TEXT,
@@ -534,6 +545,7 @@ def _row_to_measurement(r) -> Measurement:
         features_json=json.dumps(features, default=str),
         recorded_at=d.get("START_DATE") or "",
         raw_data_path=blob.get("raw_data_path", ""),
+        provenance=blob.get("provenance") or {},
         # Blob is authoritative; the SOURCESYSTEM_CD column ('TAPPD:<kind>')
         # is the SQL-queryable mirror and the fallback for old rows.
         source_kind=blob.get("source_kind", "")
@@ -643,10 +655,16 @@ def delete_session(conn: sqlite3.Connection, session_id: int) -> None:
 
 def get_session_measurements(conn: sqlite3.Connection, session_id: int) -> list[Measurement]:
     rows = conn.execute(
-        "SELECT * FROM OBSERVATION_FACT WHERE ENCOUNTER_NUM=? ORDER BY START_DATE",
+        "SELECT * FROM OBSERVATION_FACT WHERE ENCOUNTER_NUM=? AND " + NOT_CLINICAL
+        + " ORDER BY START_DATE",
         (session_id,),
     ).fetchall()
     return [_row_to_measurement(r) for r in rows]
+
+
+# Clinical form rows (clinical/store.py) share the fact table but are not
+# measurements: every measurement query leaves that category out.
+NOT_CLINICAL = "COALESCE(CATEGORY_CHAR, '') != 'CLINICAL'"
 
 
 # ── Measurement CRUD ────────────────────────────────────────────────
@@ -659,7 +677,7 @@ def save_measurement(conn: sqlite3.Connection, m: Measurement) -> Measurement:
     category = _category_for_test(m.test_type)
     features = m.features
     obs_blob = _marshal_observation_blob(m.hand, m.duration_s, m.raw_data_path,
-                                         features, m.source_kind)
+                                         features, m.source_kind, m.provenance)
     mpi = features.get("mpi")
 
     source_cd = f"TAPPD:{m.source_kind}" if m.source_kind else "TAPPD"
@@ -678,18 +696,158 @@ def save_measurement(conn: sqlite3.Connection, m: Measurement) -> Measurement:
     return m
 
 
+def update_measurement(conn: sqlite3.Connection, m: Measurement) -> Measurement:
+    """Overwrite an existing observation's values in place (same row, same id).
+
+    Used when a take is re-analysed: the measurement stays the one the record
+    already knows, only its numbers change — never a second copy.
+    """
+    if not m.id:
+        raise ValueError("update_measurement braucht eine Messung mit ID")
+    features = m.features
+    obs_blob = _marshal_observation_blob(m.hand, m.duration_s, m.raw_data_path,
+                                         features, m.source_kind, m.provenance)
+    source_cd = f"TAPPD:{m.source_kind}" if m.source_kind else "TAPPD"
+    conn.execute(
+        "UPDATE OBSERVATION_FACT SET TVAL_CHAR=?, NVAL_NUM=?, OBSERVATION_BLOB=?, "
+        "SOURCESYSTEM_CD=?, UPDATE_DATE=? WHERE OBSERVATION_ID=?",
+        (m.hand, features.get("mpi"), obs_blob, source_cd,
+         datetime.now().isoformat(), m.id),
+    )
+    conn.commit()
+    log.info("Messung aktualisiert: %s %s (ID %d)", m.test_type, m.hand, m.id)
+    return m
+
+
 def get_measurements(conn: sqlite3.Connection, patient_id: int) -> list[Measurement]:
     rows = conn.execute(
-        "SELECT * FROM OBSERVATION_FACT WHERE PATIENT_NUM=? ORDER BY START_DATE DESC",
+        "SELECT * FROM OBSERVATION_FACT WHERE PATIENT_NUM=? AND " + NOT_CLINICAL
+        + " ORDER BY START_DATE DESC",
         (patient_id,),
     ).fetchall()
     return [_row_to_measurement(r) for r in rows]
 
 
+def move_measurement(conn: sqlite3.Connection, measurement_id: int,
+                     session_id: int | None) -> None:
+    """Put a measurement into another session (or none); its note follows."""
+    conn.execute("UPDATE OBSERVATION_FACT SET ENCOUNTER_NUM=?, UPDATE_DATE=? "
+                 "WHERE OBSERVATION_ID=?",
+                 (session_id, datetime.now().isoformat(), measurement_id))
+    conn.execute("UPDATE NOTE_FACT SET ENCOUNTER_NUM=? WHERE CATEGORY_CHAR='MEASUREMENT' "
+                 "AND NAME_CHAR=?", (session_id, str(measurement_id)))
+    conn.commit()
+    log.info("Messung %d → Sitzung %s", measurement_id, session_id)
+
+
 def delete_measurement(conn: sqlite3.Connection, measurement_id: int) -> None:
     conn.execute("DELETE FROM OBSERVATION_FACT WHERE OBSERVATION_ID=?", (measurement_id,))
+    # A note about the measurement has nothing left to be about.
+    for n in get_notes_for(conn, "measurement", str(measurement_id)):
+        _remove_note_files(n)
+    conn.execute("DELETE FROM NOTE_FACT WHERE CATEGORY_CHAR='MEASUREMENT' AND NAME_CHAR=?",
+                 (str(measurement_id),))
     conn.commit()
     log.info("Messung gelöscht: ID %d", measurement_id)
+
+
+# ── Notes (NOTE_FACT) ───────────────────────────────────────────────
+#
+# One free-text note with attachments per item of the record. The item is
+# addressed the way the workbench tree addresses it:
+#   kind        NAME_CHAR (ref)          ENCOUNTER_NUM
+#   session     "<session id>"           the session
+#   step        "<session id>:<step id>" the session      (a recording step / its take)
+#   import      "<session id>"           the session      (the imported video)
+#   measurement "<observation id>"       the measurement's session (or NULL)
+# CATEGORY_CHAR carries the kind (upper case), NOTE_TEXT the text, NOTE_BLOB
+# {"attachments": [{name, path, size, added_at}]} — the files themselves live
+# in data/attachments (storage.attachments).
+
+NOTE_KINDS = ("session", "step", "import", "measurement", "form", "segment")
+
+
+@dataclass
+class Note:
+    id: int | None = None
+    patient_id: int = 0
+    session_id: int | None = None
+    kind: str = "session"
+    ref: str = ""
+    text: str = ""
+    attachments: list = field(default_factory=list)
+    created_at: str = ""
+    updated_at: str = ""
+
+    @property
+    def is_empty(self) -> bool:
+        return not self.text.strip() and not self.attachments
+
+
+def _row_to_note(r) -> Note:
+    d = dict(r)
+    try:
+        blob = json.loads(d.get("NOTE_BLOB") or "{}")
+    except (json.JSONDecodeError, TypeError):
+        blob = {}
+    return Note(id=d["NOTE_ID"], patient_id=d["PATIENT_NUM"], session_id=d.get("ENCOUNTER_NUM"),
+                kind=(d.get("CATEGORY_CHAR") or "").lower(), ref=d.get("NAME_CHAR") or "",
+                text=d.get("NOTE_TEXT") or "", attachments=list(blob.get("attachments") or []),
+                created_at=d.get("CREATED_AT") or "", updated_at=d.get("UPDATE_DATE") or "")
+
+
+def get_notes(conn: sqlite3.Connection, patient_id: int) -> list[Note]:
+    rows = conn.execute("SELECT * FROM NOTE_FACT WHERE PATIENT_NUM=? ORDER BY NOTE_ID",
+                        (patient_id,)).fetchall()
+    return [_row_to_note(r) for r in rows]
+
+
+def get_notes_for(conn: sqlite3.Connection, kind: str, ref: str) -> list[Note]:
+    rows = conn.execute("SELECT * FROM NOTE_FACT WHERE CATEGORY_CHAR=? AND NAME_CHAR=? "
+                        "ORDER BY NOTE_ID", (kind.upper(), ref)).fetchall()
+    return [_row_to_note(r) for r in rows]
+
+
+def save_note(conn: sqlite3.Connection, note: Note) -> Note:
+    """Insert a new note or overwrite the one with ``note.id`` in place."""
+    if note.kind not in NOTE_KINDS:
+        raise ValueError(f"Unbekannte Notiz-Art: {note.kind!r}")
+    blob = json.dumps({"attachments": list(note.attachments)}, default=str)
+    now = datetime.now().isoformat()
+    if note.id:
+        conn.execute("UPDATE NOTE_FACT SET NOTE_TEXT=?, NOTE_BLOB=?, UPDATE_DATE=?, "
+                     "ENCOUNTER_NUM=? WHERE NOTE_ID=?",
+                     (note.text, blob, now, note.session_id, note.id))
+        note.updated_at = now
+    else:
+        cur = conn.execute(
+            "INSERT INTO NOTE_FACT (CATEGORY_CHAR, NAME_CHAR, NOTE_TEXT, NOTE_BLOB, "
+            "PATIENT_NUM, ENCOUNTER_NUM, UPDATE_DATE) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (note.kind.upper(), note.ref, note.text, blob, note.patient_id, note.session_id, now))
+        note.id = cur.lastrowid
+        note.created_at = note.updated_at = now
+    conn.commit()
+    log.info("Notiz gespeichert: %s %s (ID %d)", note.kind, note.ref, note.id)
+    return note
+
+
+def delete_note(conn: sqlite3.Connection, note_id: int, remove_files: bool = True) -> None:
+    if remove_files:
+        row = conn.execute("SELECT * FROM NOTE_FACT WHERE NOTE_ID=?", (note_id,)).fetchone()
+        if row is not None:
+            _remove_note_files(_row_to_note(row))
+    conn.execute("DELETE FROM NOTE_FACT WHERE NOTE_ID=?", (note_id,))
+    conn.commit()
+    log.info("Notiz gelöscht: ID %d", note_id)
+
+
+def _remove_note_files(note: Note) -> None:
+    try:
+        from storage.attachments import remove_attachment
+        for a in note.attachments:
+            remove_attachment(a)
+    except Exception:
+        log.debug("Anhänge konnten nicht entfernt werden", exc_info=True)
 
 
 def delete_patient(conn: sqlite3.Connection, patient_id: int) -> None:
@@ -705,7 +863,7 @@ def get_last_measurement_dates(conn: sqlite3.Connection) -> dict[int, str]:
     """Return {patient_id: last_recorded_at} for all patients with measurements."""
     rows = conn.execute(
         "SELECT PATIENT_NUM, MAX(START_DATE) as last_date "
-        "FROM OBSERVATION_FACT GROUP BY PATIENT_NUM"
+        "FROM OBSERVATION_FACT WHERE " + NOT_CLINICAL + " GROUP BY PATIENT_NUM"
     ).fetchall()
     return {r["PATIENT_NUM"]: r["last_date"] for r in rows}
 
@@ -718,6 +876,7 @@ def get_all_measurements(conn: sqlite3.Connection) -> list[tuple[Patient, Measur
         "  p.PATIENT_CD, p.BIRTH_DATE, p.SEX_CD, p.PATIENT_BLOB, "
         "  p.CREATED_AT AS P_CREATED_AT "
         "FROM OBSERVATION_FACT o JOIN PATIENT_DIMENSION p ON o.PATIENT_NUM = p.PATIENT_NUM "
+        "WHERE COALESCE(o.CATEGORY_CHAR, '') != 'CLINICAL' "
         "ORDER BY o.START_DATE DESC"
     ).fetchall()
     results = []
@@ -758,7 +917,7 @@ def update_raw_data_path(conn: sqlite3.Connection, observation_id: int, path: st
             return
     else:
         blob = {"hand": "", "duration_s": 0.0, "raw_data_path": "",
-                "source_kind": "", "features": {}}
+                "source_kind": "", "features": {}, "provenance": {}}
 
     blob["raw_data_path"] = path
     conn.execute(

@@ -24,12 +24,23 @@ cd TapPD
 
 # 2. Start-Script erledigt alles automatisch:
 #    - Erstellt venv + installiert Abhaengigkeiten
-#    - Kopiert LeapC-Bindings aus dem SDK
-#    - Benennt .pyd fuer aktuelle Python-Version um
+#    - Richtet beim ersten Start das MediaPipe-Sidecar ein (~200 MB)
 .\start.ps1
+
+# Leap Motion zusaetzlich einrichten und aktivieren:
+#    - Kopiert LeapC-Bindings aus dem SDK
+#    - Benennt .pyd fuer die aktuelle Python-Version um
+#    - setzt MOTRYX_ENABLE_LEAP=1
+.\start.ps1 --leap
 ```
 
-Alternativ `start.bat` fuer cmd.exe.
+Alternativ `start.bat` fuer cmd.exe — ein duenner Wrapper um `start.ps1`, der
+auch bei der Windows-Standard-ExecutionPolicy `Restricted` laeuft.
+
+**Zusaetzlich unter Windows noetig:** das Visual C++ Redistributable
+(`winget install --id Microsoft.VCRedist.2015+.x64`, Adminrechte) und der
+freigegebene Kamerazugriff (zwei Schalter unter *Datenschutz → Kamera*).
+Details und Pruefbefehle: README → *Voraussetzungen* / *Troubleshooting*.
 
 #### macOS
 
@@ -79,7 +90,7 @@ via CFFI Python-Bindings (nicht per WebSocket wie beim Legacy-SDK 2.x).
 Python-Versionen muss die Binding-Datei kopiert/umbenannt werden (C-ABI ist kompatibel):
 
 - **Windows**: `_leapc_cffi.cp312-win_amd64.pyd` → `_leapc_cffi.cp3XX-win_amd64.pyd`
-  (wird von `start.ps1`/`start.bat` automatisch erledigt)
+  (wird von `start.ps1 --leap` / `start.bat --leap` erledigt)
 - **macOS**: `_leapc_cffi.cpython-312-darwin.so` → `_leapc_cffi.cpython-3XX-darwin.so`
 
 **Shared Library Pfad**:
@@ -240,7 +251,7 @@ Live-Kamera**: mit gesetztem Spiegel-Flag abgespielt ergibt er dasselbe Bild
 *und* dieselben Labels.
 
 Der Sim-Clip ist eine solche Eigenaufnahme und laeuft deshalb unter derselben
-Einstellung wie die Live-Kamera (`sidecar.mirror`).
+Einstellung wie die Live-Kamera (`sources.webcam.mirror`).
 
 `_handedness()` in `sidecar.py` ist die einzige Stelle, die das Label
 korrigiert, und sie liest dasselbe Flag, das auch die Spiegelung steuert
@@ -280,7 +291,7 @@ VideoLab, Checkbox „Gespiegelt"
                       └─ Sidecar._video_mirror  ─► spiegelt + dreht das Label
 ```
 
-Die Live-Kamera nutzt weiterhin das globale `sidecar.mirror`; ein Video nutzt
+Die Live-Kamera nutzt `sources.webcam.mirror`; ein Video nutzt
 ausschliesslich sein eigenes Flag:
 
 ```python
@@ -561,6 +572,15 @@ Uebersicht mit Spalten-Wirkungen (MPI in `NVAL_NUM`, Provenienz in
 
 Ein frueheres 2-Tabellen-Schema (v1: `patients`/`measurements`) wird beim
 ersten Oeffnen automatisch migriert (Backup: `tappd_v1_backup.db`).
+
+Seit dem Video-Lab-Stand (09/2026) traegt der `OBSERVATION_BLOB` einer
+Video-Messung zusaetzlich `provenance` (Kamera/Import, Spiegel-Flags,
+Archiv-Clip, Spur, Auswertungs-Quelle — `video/meta.py`), klinische Masken
+liegen als kodierte Zeilen mit `CATEGORY_CHAR='CLINICAL'` daneben
+(`clinical/store.py`; die Messungs-Abfragen lassen sie aus), und `NOTE_FACT`
+haelt eine Notiz je Eintrag mit Anhaengen (`NOTE_BLOB`). Details:
+[DB_KONZEPT.md](DB_KONZEPT.md) §2.3/§2.9, Datenfluss und Speicher-Topologie
+in [BLUEPRINT.md](BLUEPRINT.md) §1.
 
 ### Rohdaten-Speicherung
 

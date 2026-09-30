@@ -28,6 +28,23 @@ POINTS: dict[str, tuple[float, float]] = {
 }
 POINT_ORDER = ["LO", "RO", "MI", "LU", "RU"]   # calibration sequence
 
+# Target layouts. The webcam gaze feature (iris vs. eye-corner midpoint)
+# resolves horizontal shifts well (3–5 px at 60 cm) but vertical ones hardly
+# at all (~1 px: small movement, lid occlusion) — so the clinical default is
+# the horizontal layout; "vertical" is prepared for a lid-based feature.
+LAYOUTS: dict[str, tuple[dict[str, tuple[float, float]], list[str]]] = {
+    "five_point": (POINTS, POINT_ORDER),
+    # start in the centre (that is where the eyes are anyway), then the outer
+    # points in turn, each visited three times — the reference of a point is
+    # the median over its visits, so a late arrival on the first visit does
+    # not drag it
+    "horizontal": ({"L": (0.08, 0.50), "M": (0.50, 0.50), "R": (0.92, 0.50)},
+                   ["M", "L", "R", "L", "R", "L", "R"]),
+    "vertical": ({"O": (0.50, 0.10), "M": (0.50, 0.50), "U": (0.50, 0.90)},
+                 ["M", "O", "U", "O", "U", "O", "U"]),
+}
+SEQUENCES = ("random", "alternate")   # alternate: outer points in fixed turn (L, R, L, R …)
+
 
 class Phase(Enum):
     IDLE = auto()
@@ -66,6 +83,10 @@ class SaccadeTask:
     guard_max_ipd_change: float = 0.12
     guard_max_nose_shift: float = 0.15
     rng_seed: int | None = None
+    layout: str = "five_point"
+    sequence: str = "random"
+    calib_visits: list[str] | None = None    # explicit visit order; None = layout default
+    min_separation_snr: float = 4.0          # references must be this many noise-sd apart
 
     # state
     phase: Phase = Phase.IDLE
@@ -77,8 +98,25 @@ class SaccadeTask:
     fail_reason: str = ""
 
     def __post_init__(self) -> None:
+        if self.layout not in LAYOUTS:
+            raise ValueError(f"Unbekanntes Sakkaden-Layout '{self.layout}' "
+                             f"(erlaubt: {', '.join(LAYOUTS)})")
+        if self.sequence not in SEQUENCES:
+            raise ValueError(f"Unbekannte Zielfolge '{self.sequence}' (erlaubt: random, alternate)")
+        pts, default_visits = LAYOUTS[self.layout]
+        self.points = dict(pts)
+        visits = list(self.calib_visits) if self.calib_visits else list(default_visits)
+        bad = [v for v in visits if v not in self.points]
+        if bad:
+            raise ValueError(f"Eichfolge nennt unbekannte Punkte {bad} für Layout '{self.layout}'")
+        self.calib_visits = visits                          # what the screen walks through
+        self.calib_order = list(dict.fromkeys(visits))      # distinct points, first-seen order
+        self._outer = [p for p in self.calib_order if p not in ("M", "MI")]
+        self.noise: dict[str, float] = {}                   # per point: robust sd of samples
+        self._seq_i = 0
         self._rng = random.Random(self.rng_seed)
         self._calib_samples: dict[str, list[tuple[float, float]]] = {}
+        self._visit_samples: dict[int, list[tuple[float, float]]] = {}
         self._calib_point_started: float | None = None
         self._test_started: float | None = None
         self._target_shown_at: float | None = None
@@ -106,8 +144,8 @@ class SaccadeTask:
 
     @property
     def calib_point(self) -> str | None:
-        if self.phase is Phase.CALIBRATING and self.calib_index < len(POINT_ORDER):
-            return POINT_ORDER[self.calib_index]
+        if self.phase is Phase.CALIBRATING and self.calib_index < len(self.calib_visits):
+            return self.calib_visits[self.calib_index]
         return None
 
     # ── per-frame update ──────────────────────────────────────────
@@ -136,6 +174,7 @@ class SaccadeTask:
         elapsed = t_s - self._calib_point_started
         if elapsed >= self.calib_settle_s:
             self._calib_samples.setdefault(point, []).append(offset)
+            self._visit_samples.setdefault(self.calib_index, []).append(offset)
             # head-pose baseline accumulates over ALL calibration samples
             self._roll_sum += roll_deg
             self._ipd_sum += ipd_px
@@ -146,32 +185,56 @@ class SaccadeTask:
         if elapsed >= self.calib_per_point_s:
             self.calib_index += 1
             self._calib_point_started = t_s
-            if self.calib_index >= len(POINT_ORDER):
+            if self.calib_index >= len(self.calib_visits):
                 self._finish_calibration(t_s)
 
+    @staticmethod
+    def _median2(samples):
+        xs = sorted(s[0] for s in samples)
+        ys = sorted(s[1] for s in samples)
+        return (xs[len(xs) // 2], ys[len(ys) // 2])
+
     def _finish_calibration(self, t_s: float) -> None:
-        for point in POINT_ORDER:
+        for point in self.calib_order:
             samples = self._calib_samples.get(point, [])
             if len(samples) < self.calib_min_samples:
                 self._fail(f"Eichpunkt {point}: zu wenige Samples ({len(samples)})")
                 return
-            xs = sorted(s[0] for s in samples)
-            ys = sorted(s[1] for s in samples)
-            med = (xs[len(xs) // 2], ys[len(ys) // 2])
-            spread = max(math.hypot(s[0] - med[0], s[1] - med[1]) for s in samples)
-            if spread > self.calib_max_spread:
-                self._fail(f"Eichpunkt {point}: Blick zu unruhig ({spread:.3f} IPD)")
-                return
-            self.references[point] = med
-        # references must be separable
+            # One median per visit, the reference is the median of those: a
+            # visit where the eyes arrived late (typically the first one)
+            # cannot drag the reference — that is what repeating the points
+            # buys. The spread check is per visit, so a wobbly visit is
+            # judged on its own, not against the other visits' position.
+            visit_meds = []
+            for idx, vs in self._visit_samples.items():
+                if self.calib_visits[idx] != point or len(vs) < 3:
+                    continue
+                med = self._median2(vs)
+                spread = max(math.hypot(s[0] - med[0], s[1] - med[1]) for s in vs)
+                if spread > self.calib_max_spread:
+                    self._fail(f"Eichpunkt {point} (Besuch {idx + 1}): Blick zu unruhig "
+                               f"({spread:.3f} IPD)")
+                    return
+                visit_meds.append(med)
+            ref = self._median2(visit_meds) if visit_meds else self._median2(samples)
+            self.references[point] = ref
+            # robust noise: median absolute distance to the reference × 1.4826
+            dists = sorted(math.hypot(s[0] - ref[0], s[1] - ref[1]) for s in samples)
+            self.noise[point] = 1.4826 * dists[len(dists) // 2]
+        # references must be separable — by an absolute floor and, more to the
+        # point, relative to the noise: a 0.025-IPD gap is fine when the
+        # samples scatter by 0.002, hopeless when they scatter by 0.02.
         pts = list(self.references.items())
         for i in range(len(pts)):
             for j in range(i + 1, len(pts)):
                 d = math.hypot(pts[i][1][0] - pts[j][1][0],
                                pts[i][1][1] - pts[j][1][1])
-                if d < self.min_separation:
+                sd = max(self.noise.get(pts[i][0], 0.0), self.noise.get(pts[j][0], 0.0))
+                need = max(self.min_separation, self.min_separation_snr * sd)
+                if d < need:
                     self._fail(f"Eichpunkte {pts[i][0]}/{pts[j][0]} nicht trennbar "
-                               f"({d:.3f} IPD) — näher an den Bildschirm?")
+                               f"(Abstand {d:.3f} IPD, nötig {need:.3f} bei Rauschen "
+                               f"{sd:.3f}) — näher an den Bildschirm, Kopf ruhig?")
                     return
         if self._baseline_n:
             self._baseline_roll = self._roll_sum / self._baseline_n
@@ -254,15 +317,22 @@ class SaccadeTask:
             self._dwell_started = None
 
     def _next_target(self, t_s: float) -> None:
-        candidates = [p for p in POINTS if p != self.current_target]
-        if self.prefer_far_targets and self.current_target is not None:
-            cur = POINTS[self.current_target]
-            # weight by squared screen distance → diagonals dominate
-            weights = [(POINTS[p][0] - cur[0]) ** 2 + (POINTS[p][1] - cur[1]) ** 2
-                       for p in candidates]
-            self.current_target = self._rng.choices(candidates, weights=weights)[0]
+        pts = self.points
+        if self.sequence == "alternate" and self._outer:
+            # fixed turn over the outer points: L, R, L, R … (a classic
+            # pro-saccade sequence, every jump a full-width one)
+            self.current_target = self._outer[self._seq_i % len(self._outer)]
+            self._seq_i += 1
         else:
-            self.current_target = self._rng.choice(candidates)
+            candidates = [p for p in pts if p != self.current_target]
+            if self.prefer_far_targets and self.current_target is not None:
+                cur = pts[self.current_target]
+                # weight by squared screen distance → diagonals dominate
+                weights = [(pts[p][0] - cur[0]) ** 2 + (pts[p][1] - cur[1]) ** 2
+                           for p in candidates]
+                self.current_target = self._rng.choices(candidates, weights=weights)[0]
+            else:
+                self.current_target = self._rng.choice(candidates)
         self._target_shown_at = t_s
         self._dwell_started = None
         self._first_move_evaluated = False

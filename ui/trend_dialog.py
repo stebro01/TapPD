@@ -154,5 +154,5 @@ class TrendDialog(QDialog):
         note = f"{n} Messung{'en' if n != 1 else ''}."
         if any_estimated:
             note += ("  Hohle Punkte: Kamera-Quelle (Webcam/Video) — mm-Werte sind "
-                     "Modellschätzungen, innerhalb desselben Patienten vergleichbar.")
+                     "Modellschätzungen, innerhalb desselben Probanden vergleichbar.")
         self._note.setText(note)

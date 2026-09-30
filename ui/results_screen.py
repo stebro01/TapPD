@@ -82,6 +82,9 @@ def save_raw_data(test: BaseParadigm, patient_id: str, features: dict | None = N
 
         if getattr(test, "face_frames", None):
             data["face_frames"] = [asdict(f) for f in test.face_frames]
+        extra = getattr(test, "raw_extra", None)     # paradigm-specific events
+        if extra is not None:
+            data.update(extra())
 
         if test.test_type() == "tower_of_hanoi":
             from paradigms.tower_of_hanoi import TowerOfHanoiTest

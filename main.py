@@ -60,7 +60,7 @@ def main() -> None:
 
     # Restore saved UI mode (dense/touch) — migrates legacy TapPD settings once.
     settings = app_settings()
-    ui_mode = settings.value("ui_mode", "touch")
+    ui_mode = settings.value("ui_mode", "dense")      # kompakt ist Standard; Touch per Umschalter
     theme.set_ui_mode(ui_mode)
     app.setStyleSheet(theme.APP_STYLESHEET)
     if ICON_PATH.exists():

@@ -48,7 +48,7 @@ _PROFILES = {
 
 # Shared mutable sizing — import SZ once, always up-to-date
 SZ = SimpleNamespace()
-_ui_mode = "touch"
+_ui_mode = "dense"
 APP_STYLESHEET = ""
 
 
@@ -137,6 +137,30 @@ QPushButton[cssClass="flat"] {{
 QPushButton[cssClass="flat"]:hover {{
     background-color: {PRIMARY_LIGHT};
     border-radius: 8px;
+}}
+
+/* Menu buttons (QToolButton with a popup) look exactly like push buttons —
+   they sit next to them in the same header row. */
+QToolButton[cssClass="menu"] {{
+    background-color: {CARD_BG};
+    color: {TEXT};
+    border: 1px solid {BORDER};
+    border-radius: 8px;
+    padding: {SZ.BTN_PAD};
+    font-size: {SZ.FONT}px;
+    font-weight: 500;
+    min-height: {SZ.BTN_H}px;
+}}
+QToolButton[cssClass="menu"]:hover {{
+    background-color: {HOVER_BG};
+    border-color: #BDBDBD;
+}}
+QToolButton[cssClass="menu"]:pressed {{
+    background-color: #E0E0E0;
+}}
+QToolButton[cssClass="menu"]::menu-indicator {{
+    image: none;
+    width: 0px;
 }}
 
 /* ── Inputs ──────────────────────────────────────────── */
@@ -303,4 +327,4 @@ QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {{
 
 
 # ── Initialize default mode ─────────────────────────────────────
-set_ui_mode("touch")
+set_ui_mode("dense")

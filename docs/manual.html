@@ -75,14 +75,14 @@
 <header>
   <h1>✋👁 Motryx – Nutzerhandbuch</h1>
   <p>Movement Lab: Kontaktlose Bewegungs- und Okulomotorik-Analyse</p>
-  <span class="ver">Version 0.3.0 · Stand Juli 2026</span>
+  <span class="ver">Version 0.3.0 · Stand September 2026</span>
 </header>
 
 <nav>
   <a href="#ueberblick">Überblick</a>
   <a href="#schnellstart">Schnellstart</a>
   <a href="#quellen">Eingabequellen</a>
-  <a href="#patienten">Patienten</a>
+  <a href="#patienten">Probanden</a>
   <a href="#tests">Tests</a>
   <a href="#okulo">Augen-Tests</a>
   <a href="#ergebnisse">Ergebnisse &amp; Verlauf</a>
@@ -97,7 +97,7 @@
 <p>Motryx digitalisiert klinische Bewegungstests. Handbewegungen und Augenbewegungen
 werden kontaktlos erfasst und automatisch in quantitative Parameter übersetzt —
 live am Gerät oder nachträglich aus Handy-Videos. Alle Ergebnisse landen
-patientenbezogen in einer lokalen Datenbank und lassen sich als Verlauf über die
+probandenbezogen in einer lokalen Datenbank und lassen sich als Verlauf über die
 Zeit betrachten.</p>
 
 <table>
@@ -113,15 +113,33 @@ Zeit betrachten.</p>
 <li><b>Starten:</b> macOS <code>./start.sh</code> · Windows <code>start.ps1</code> /
     <code>start.bat</code> (legt beim ersten Mal die Python-Umgebung an).
     Ohne Sensor: <code>./start.sh --mock</code> (Simulationsmodus).</li>
-<li><b>Patient wählen</b> oder neu anlegen (Startbildschirm).</li>
-<li><b>„+ Neue Session"</b> → Test-Kachel anklicken → bei Hand-Tests Hand wählen.</li>
-<li>Anweisungen folgen — die Aufnahme startet erst, wenn Hand bzw. Gesicht
-    erkannt wurde (Countdown 3-2-1).</li>
-<li><b>Ergebnis</b> wird automatisch gespeichert; „Fortfahren" führt zurück zum Dashboard.</li>
+<li><b>Proband wählen</b> oder neu anlegen (Startbildschirm).</li>
+<li><b>Proband anklicken</b> — das ist bereits der Arbeitsplatz: links alle Sitzungen mit
+    Inhalt, rechts der Arbeitsbereich. <b>„＋ Neue Sitzung"</b> legt eine Gruppe an, über
+    <b>„＋ Hinzufügen"</b> kommt Inhalt hinein: Protokoll aufnehmen, einzelnes Paradigma
+    oder Video importieren. Ein einzelnes Paradigma wird gefilmt, wenn es motorisch ist;
+    interaktive Aufgaben (Hanoi, SRT, TMT, Sakkaden) sind in der Liste als
+    „live am Bildschirm" markiert und starten direkt.</li>
+<li>Je Schritt: Anweisung lesen → <b>● Aufnahme starten</b> → Countdown → Aufnahme →
+    Take ansehen → <b>✔ Übernehmen</b> oder <b>↻ Wiederholen</b>. Unter der Vorschau
+    zeigt eine Zeile live, ob Hände und Gesicht erkannt werden; während der Aufnahme
+    läuft darunter die Messkurve des Paradigmas live mit (Kontrolle — die Kennwerte
+    kommen aus der Auswertung danach). Die Checkbox
+    <b>„Gesicht unkenntlich machen"</b> steht schon vor der Aufnahme bereit und gilt
+    für diesen Take.</li>
+<li><b>Ergebnis</b>: mit „Nach Übernehmen automatisch auswerten" wird der bestätigte
+    Take sofort analysiert; das Ergebnis steht in der Inhaltsliste und im Sitzungsbaum,
+    unter dem Take als Zusammenfassung, und <b>„Details…"</b> öffnet Kennwerte und Kurven.</li>
+<li><b>Notiz</b>: Rechtsklick auf Sitzung, Schritt, Import oder Messung → <b>„📝 Notiz…"</b>
+    — Freitext plus angehängte Dateien (Fotos, PDFs). Ein 📝 im Baum zeigt, wo eine liegt.</li>
+<li><b>Anamnese</b>: „＋ Hinzufügen → Anamnese / klinische Daten…" — Diagnose, H&amp;Y,
+    UPDRS III, Medikation mit LEDD, nicht-motorische Symptome (Abschnitt 4).</li>
+<li><b>Weitergeben</b>: „Proband ▾ → 📦 Export-Paket" (Bericht + Videos als ZIP) und auf dem
+    Startbildschirm „🔬 Forschungsexport" (pseudonymisierte Tabellen, Abschnitt 7).</li>
 </ol>
 
-<figure><img src="img/01_patienten.png" alt="Patientenliste">
-<figcaption>Startbildschirm: Patientenliste. Unten links „✋ Gesture Lab" (Gesten-Bibliothek),
+<figure><img src="img/01_patienten.png" alt="Probandenliste">
+<figcaption>Startbildschirm: Probandenliste. Unten links „✋ Gesture Lab" (Gesten-Bibliothek),
 oben „Über Motryx" mit Versionsnummer, unten „Tracking" für die Eingabequelle.</figcaption></figure>
 
 <h2 id="quellen">3&nbsp;· Eingabequellen</h2>
@@ -156,16 +174,47 @@ Winkel und Verhältnisse sind exakt. Für Verlaufsvergleiche derselben Hand sind
 gut geeignet; absolute Vergleiche zwischen Geräten nicht. Die App kennzeichnet alle
 betroffenen Werte automatisch.</div>
 
-<h2 id="patienten">4&nbsp;· Patienten &amp; Sessions</h2>
-<figure><img src="img/02_patient_detail.png" alt="Patienten-Detail">
-<figcaption>Patienten-Detail: Session-Matrix (Zeilen = Sitzungen, Spalten = Tests).
-Zellen anklicken öffnet die Detailansicht; gedrückt halten bietet Aktionen
-(Messung ergänzen, Session löschen). Oben: 🎬 VideoLab, ✋ Gesture Lab, 📈 Verlauf.</figcaption></figure>
+<h2 id="patienten">4&nbsp;· Probanden &amp; Sessions</h2>
+<figure><img src="img/02_patient_detail.png" alt="Probanden-Detail">
+<figcaption>Probanden-Arbeitsplatz: links alle Sitzungen mit ihren Schritten — Zustand
+(○ offen, ◐ aufgenommen, ✔ bestätigt), Ergebnis und 📋, wenn es in der Akte liegt —,
+rechts der Arbeitsbereich zum gewählten Element (Aufnahme, Take, Video-Schnitt).
+Rechtsklick auf einen Schritt: Details, erneut aufnehmen, neu auswerten, Paradigma/Seite
+ändern, Notiz, entfernen; auf eine Messung oder Anamnese zusätzlich „Anderer Sitzung
+zuweisen…" (Messungen aus Takes bleiben bei ihrem Video). Oben rechts: „Proband ▾" (Bearbeiten, Verlauf, CSV, Löschen),
+„＋ Neue Sitzung", „＋ Hinzufügen".</figcaption></figure>
 <ul>
-<li><b>Zellen-Symbole:</b> L/R = durchgeführte Hand, ✓ = bilateral/Augen erledigt, · = offen.</li>
-<li><b>CSV-Export</b> (unten) exportiert alle Messungen des Patienten für die Statistik.</li>
-<li>Jede Messung speichert <b>Quelle</b> (Leap/Webcam/Video/Simulation), Dauer und Rohdaten-Verweis.</li>
+<li><b>Symbole im Baum:</b> ○ offen · ◐ aufgenommen, noch nicht gesichtet · ✔ bestätigt (Video liegt vor);
+    die Spalte „Ergebnis" zeigt je Sitzung die Art (<i>Protokoll 2/4</i>, <i>Live · 3 Messungen</i>,
+    <i>Import · 2 Seg.</i>) und je Schritt z.&nbsp;B. <code>MPI 0.62 ·📋</code> oder „nicht ausgewertet".
+    📝 = Notiz vorhanden (📎n = Anhänge), der Tooltip zeigt den Text.</li>
+<li><b>Notizen:</b> eine je Eintrag — Sitzung, Aufnahme-Schritt, importiertes Video oder Messung.
+    Der Dialog nimmt Freitext und Dateien auf (Hinzufügen, Öffnen, Entfernen); die Dateien liegen unter
+    <code>data/attachments/</code>, die Notiz in der Datenbank. „Erneut aufnehmen" eines ausgewerteten
+    Schritts fragt nach und entfernt dessen Messung, damit keine Messung ohne Video zurückbleibt.</li>
+<li><b>CSV-Export</b> (Menü „Proband ▾") exportiert alle Messungen des Probanden für die Statistik.</li>
+<li>Jede Messung speichert <b>Quelle</b> (Leap/Webcam/Video/Simulation), Dauer, Rohdaten-Verweis und —
+    bei Video — ihre <b>Herkunft</b> (siehe Abschnitt 8).</li>
 </ul>
+<figure><img src="img/11d_notiz.png" alt="Notiz-Dialog">
+<figcaption>Notiz zu einem Aufnahme-Schritt: Text und angehängte Dateien.</figcaption></figure>
+<h3>Anamnese und klinische Daten</h3>
+<p><b>＋ Hinzufügen → Anamnese / klinische Daten…</b> öffnet eine Maske für die
+gewählte Sitzung: Diagnose und Verlauf (Diagnosejahr, Erstsymptom-Seite, Subtyp,
+Hoehn &amp; Yahr, MDS-UPDRS III und ob im ON oder OFF erhoben), Familienanamnese,
+Stürze und Gang, nicht-motorische Symptome mit MoCA, die Medikation (eine Zeile je
+Präparat mit Einzeldosis, Einnahmen pro Tag und Uhrzeiten; Zustand bei der Messung,
+Minuten seit letzter Einnahme, tiefe Hirnstimulation) und Bemerkungen. Alter und
+Geschlecht kommen aus den Stammdaten. Unten rechnet die Maske live die
+<b>Erkrankungsdauer</b> und die <b>LEDD</b> (Levodopa-Äquivalenzdosis; Faktoren nach
+Tomlinson et&nbsp;al. 2010 stehen in der Maskendatei). Nichts ist Pflicht — eine
+Anamnese darf lückenhaft sein. Eine neue Maske beginnt mit den Antworten der
+letzten, im Baum steht sie als 📋 mit Kurzzeile („H&amp;Y 2 · UPDRS III 28 · LEDD 842 mg
+· OFF"); anklicken zeigt alle Antworten, Rechtsklick bietet Bearbeiten, Notiz und
+Löschen. Jede Antwort wird als eigene kodierte Beobachtung gespeichert und steht
+damit Auswertungen und Exporten zur Verfügung.</p>
+<figure><img src="img/11h_anamnese.png" alt="Anamnese-Maske">
+<figcaption>Die Anamnese-Maske mit Medikation und live berechneter LEDD.</figcaption></figure>
 
 <h2 id="tests">5&nbsp;· Tests durchführen</h2>
 <figure><img src="img/04_dashboard.png" alt="Dashboard">
@@ -204,21 +253,35 @@ sakkadische Intrusionen, mittlere Lidspalte.</p>
 <figure><img src="img/08_sakkaden_start.png" alt="Sakkaden Start">
 <figcaption>Sakkaden-Test: Startansicht mit Anweisung. „▶ Eichung starten" beginnt Phase 1.</figcaption></figure>
 <ol class="steps">
-<li><b>Phase 1 – Eichung (~13&nbsp;s):</b> Ein Punkt erscheint nacheinander an
-    5 Positionen (Ecken + Mitte). Jeden Punkt ruhig fixieren, <b>nur die Augen bewegen</b>.</li>
-<li><b>Phase 2 – Test (30&nbsp;s):</b> Punkte erscheinen in zufälliger Folge
-    (bevorzugt weite Sprünge). So schnell wie möglich hinschauen — sobald der Blick
-    das Ziel kurz hält, springt der Punkt weiter.</li>
+<li><b>Phase 1 – Eichung (~14&nbsp;s):</b> Ein Punkt erscheint zuerst in der Mitte,
+    dann abwechselnd links und rechts — jede Seite dreimal (7 Schritte). Jeden Punkt
+    ruhig fixieren, <b>nur die Augen bewegen</b>. Die Referenz je Seite ist der Median
+    über die drei Besuche; ein zu später Blick beim ersten Sprung schadet nicht.
+    Die Eichung gilt, wenn die Referenzen links / Mitte / rechts deutlich weiter
+    auseinanderliegen als das Blick-Rauschen (Faktor 4). Die Fehlermeldung nennt
+    sonst Abstand, nötigen Abstand und Rauschen — Kopf ruhig, näher an den Bildschirm.
+    (Das frühere 5-Punkt-Layout mit Ecken bleibt in <code>test_config.yaml</code> wählbar;
+    vertikale Blicksprünge löst die Webcam mit dem aktuellen Merkmal aber kaum auf.)</li>
+<li><b>Phase 2 – Test (30&nbsp;s):</b> Der Punkt springt im festen Wechsel links,
+    rechts, links, rechts — jeder Sprung über die volle Bildschirmbreite. So schnell wie
+    möglich hinschauen — sobald der Blick das Ziel kurz hält, springt der Punkt weiter.</li>
 </ol>
 <figure><img src="img/09_sakkaden_eichung.png" alt="Sakkaden Eichung">
-<figcaption>Phase 1: Eichpunkt 2/5 (rechts oben). Kopf ruhig — ein Kopfpose-Wächter
+<figcaption>Phase 1: Eichpunkt. Kopf ruhig — ein Kopfpose-Wächter
 erkennt Drehungen und wertet betroffene Abschnitte nicht.</figcaption></figure>
 <p><b>Ergebnis:</b> erreichte Ziele &amp; Ziele/min, Sakkaden-Latenz (Median/Mittel),
 Richtungsfehler-Rate, Anteil ungültiger Abschnitte (Kopfbewegung, Blinzeln).</p>
 <div class="warn"><b>Eichung schlägt fehl?</b> Meldung „Blick zu unruhig" oder
 „Punkte nicht trennbar" → näher an den Bildschirm (größere Blickwinkel), Beleuchtung
-verbessern, Brillenreflexe vermeiden. Feineinstellungen:
-<code>paradigms/test_config.yaml → saccade_test</code>.</div>
+verbessern, Brillenreflexe vermeiden. Die Checkbox <b>„🔧 Debug"</b> auf dem
+Sakkaden-Bildschirm zeigt neben dem Stimulus das Kamerabild mit den Augenpunkten und die
+Qualität des Eye-Trackings (Gesichts-Rate, Augenabstand in Pixeln, Blick-Streuung,
+Lidspalte, Kopfhaltung) mit Hinweisen — z.&nbsp;B. „IPD nur 40 px: näher an die Kamera
+oder höhere Auflösung". Gleichzeitig wird der Lauf als Video und Sample-Log unter
+<code>data/debug/saccade/</code> aufgezeichnet, damit sich die Eichung nachträglich
+nachvollziehen lässt. Feineinstellungen:
+<code>paradigms/test_config.yaml → saccade_test</code>; Kameraauflösung:
+<code>capture/capture.yaml → camera_width</code>.</div>
 
 <h2 id="ergebnisse">7&nbsp;· Ergebnisse &amp; Verlauf</h2>
 <figure><img src="img/07_ergebnis_tapping.png" alt="Ergebnis Finger Tapping">
@@ -232,43 +295,129 @@ als Spitzen) und Lidspalte mit Blink-Schwelle (rechts).</figcaption></figure>
 <li><b>MPI (Motor Performance Index):</b> Komposit-Score 0–1 aus Geschwindigkeit,
     Amplitude, Ermüdung und Regelmäßigkeit — grün &gt; 0,7 · gelb 0,4–0,7 · rot &lt; 0,4.</li>
 <li><b>Automatisches Speichern:</b> Jedes Ergebnis wird sofort in der Datenbank abgelegt
-    („Verwerfen" löscht es wieder). Optional werden die Roh-Frames als JSON gesichert.</li>
+    („Verwerfen" löscht es wieder). Optional werden die Roh-Frames als JSON gesichert;
+    Video-Auswertungen schreiben sie immer.</li>
+<li><b>Details einer Messung</b> (Doppelklick oder „Details…"): Kennwert-Tabelle, Zeitverlauf,
+    bei Sakkaden Blickverlauf mit Eichphase, Ziel-Spur und Latenz je Ziel, bei Fixation
+    Blickversatz und Lidspalte (Live-Okulomotorik-Tests speichern kein Video, nur die
+    Gesichts-Samples; ein Kamerabild liefert der Debug-Modus),
+    Peaks, Spektrum, Amplituden-Dekrement — für Live- wie für Video-Messungen. Darunter
+    aufklappbar <b>„Herkunft der Messung"</b>: Kamera, Aufnahmezeit, Spiegelung, Archiv-Clip,
+    worauf ausgewertet wurde.</li>
 </ul>
+<figure><img src="img/11e_details.png" alt="Details einer Video-Messung">
+<figcaption>Details einer Video-Messung mit aufgeklappter Herkunft.</figcaption></figure>
 <figure><img src="img/03_verlauf.png" alt="Verlaufsansicht">
 <figcaption>📈 Verlauf: beliebiges Merkmal über die Zeit, getrennt nach Hand.
 Hohle Punkte = Kamera-Quelle (≈mm-Modellskala), gefüllte = Leap.</figcaption></figure>
 
-<h2 id="videolab">8&nbsp;· VideoLab — Handy-Videos auswerten</h2>
-<figure><img src="img/11_videolab.png" alt="VideoLab">
-<figcaption>VideoLab: Video laden, Bereich mit den zwei Reglern markieren,
-Segment benennen und Paradigma zuordnen, dann analysieren.</figcaption></figure>
+<h3>Exporte</h3>
+<ul>
+<li><b>📦 Export-Paket</b> („Proband ▾"): ein ZIP zur Übergabe — Bericht als HTML, PDF und
+    JSON (Stammdaten, Anamnese, Medikation mit LEDD, Messungen mit Kennwerten, Kurven und
+    Herkunft, Notizen), die Archiv-Clips (wahlweise nur anonymisierte), Tracking-Spuren,
+    Rohdaten und Anhänge, dazu ein Manifest mit Prüfsummen. Optional pseudonymisiert.</li>
+<li><b>🔬 Forschungsexport</b> (Startbildschirm): pseudonymisierte Langtabellen aller
+    Probanden als CSV — Probanden, Sitzungen mit klinischen Werten, Messungen mit Herkunft,
+    Kennwerte, klinische Items, Medikation — mit Codebuch. Die Zuordnung Pseudonym ↔ Proband
+    bleibt lokal auf dem Rechner. Optional Notizen und die Rohdaten/Spuren je Messung.</li>
+<li><b>CSV-Export</b> („Proband ▾"): alle Kennwerte eines Probanden breit, eine Zeile je Messung.</li>
+</ul>
+
+<h2 id="videolab">8&nbsp;· Aufnahme, Import und Auswertung</h2>
+<figure><img src="img/11_sitzung.png" alt="Neue Sitzung">
+<figcaption>Eine neue Sitzung: sie erscheint als Gruppe in der Liste, rechts die drei
+Möglichkeiten, Inhalt hinzuzufügen. Der Arbeitsbereich folgt danach der Auswahl —
+Aufnahme eines Schritts, Sichtung des Takes oder Schnitt eines importierten Videos.
+Unten: Kamera wechseln, Gesichtserkennung, Status.</figcaption></figure>
+<p>Über <b>＋ Hinzufügen</b> kommt Inhalt in die Sitzung: <b>Protokoll aufnehmen</b>
+(mehrere Schritte nacheinander), <b>Einzelnes Paradigma</b> (ein Schritt) oder
+<b>Video importieren</b>. Ein importiertes Video erscheint als eigener Eintrag;
+angeklickt öffnet es den Schnitt-Bereich.</p>
+<figure><img src="img/11f_paradigma_wahl.png" alt="Einzelnes Paradigma wählen">
+<figcaption>„Einzelnes Paradigma": Paradigma, Seite und Dauer — motorische Aufgaben werden
+gefilmt, interaktive starten live.</figcaption></figure>
+<figure><img src="img/11b_aufnahme.png" alt="Aufnahme eines Protokollschritts">
+<figcaption>Aufnahme-Bereich eines offenen Schritts: Kamera-Vorschau, Anweisung, Erkennungszeile,
+die Optionen „automatisch auswerten" und „Gesicht unkenntlich machen", rechts „● Aufnahme starten".</figcaption></figure>
+<figure><img src="img/11c_take_info.png" alt="Bestätigter Take mit Aufnahme-Info">
+<figcaption>Bestätigter, ausgewerteter Take: Zusammenfassung (Zeitpunkt, MPI, erste Kennwerte),
+„Details…", „Tracking-Overlay" und das aufgeklappte <b>Aufnahme-Info</b>-Panel; der Bereich
+scrollt, wenn Info und Messkurve zusammen mehr Platz brauchen.</figcaption></figure>
+<h3>Take ansehen: Player und Tracking-Overlay</h3>
+<p>Der Player zeigt eigene Takes so gespiegelt, wie die Vorschau bei der Aufnahme —
+links ist links. <b>„Tracking-Overlay"</b> spielt den Take mit den Landmarken ab, die die
+Analyse <i>gemessen</i> hat (gespeichert neben dem Clip), nicht mit einer neuen Erkennung;
+das funktioniert deshalb auch auf einem Archiv mit verwischtem Gesicht. Das Overlay setzt
+an der aktuellen Stelle des Players ein („ab 12,3 s" in der Statuszeile), läuft bis zum Ende
+und dann von vorn; beim Ausschalten übernimmt der Player die Stelle. Nur Takes ohne
+gespeicherte Analyse werden live nachgerechnet — die Statuszeile sagt es.</p>
+<h3>Aufnahme-Info: was, wann, womit</h3>
+<p>Unter jedem Take liegt aufklappbar die <b>Aufnahme-Info</b>: Art (eigene Aufnahme oder
+Import), Zeitpunkt, Kamera, Auflösung/fps/Frames, Take-Nr., ob gespiegelt und ob die
+Händigkeit vertauscht war, der Archiv-Clip (Größe, Codec/CRF, anonymisiert ja/nein), ob der
+Roh-Take noch liegt, die Tracking-Spur und jede Auswertung (wann, auf Roh-Take oder Clip,
+Messung #, Rohdaten, Augenreferenz, MediaPipe-Version). Passt etwas nicht zusammen — Clip
+fehlt, Auswertung ohne Spur oder nicht in der Akte, Seite des Schritts ungleich Segment,
+Take aus einer älteren Version ohne Metadaten — steht das als <b>⚠ Hinweis</b> im Kopf des
+Panels. Dieselbe Herkunft trägt die Messung in der Akte.</p>
+<h3>Was von einem Take bleibt (Video-Archiv)</h3>
+<p>Der Recorder schreibt etwa <b>1&nbsp;MB pro Sekunde</b>. Nach dem Übernehmen läuft
+jeder Take automatisch durch drei Stufen: <b>Auswerten</b> (auf dem Roh-Take, volle
+Qualität) → <b>Archivieren</b> (derselbe Extraktor wie bei Import-Segmenten: Größe
+begrenzen, H.264 mit x264-CRF, Gesicht nach <code>privacy.deface</code> unkenntlich
+machen, Iris-Spur für die Tremor-Referenz sichern) → <b>Aufräumen</b> (Roh-Take
+löschen, sobald der Archiv-Clip vorliegt). Ein 640×480-Take wird dabei rund
+<b>35× kleiner</b>; die Messung in der Akte verweist auf den Archiv-Clip.</p>
+<p><b>Nachträglich ändern:</b> Rechtsklick auf einen bestätigten Schritt bietet
+<b>Neu auswerten</b> (dieselbe Messung wird aktualisiert, keine Kopie) und
+<b>Paradigma / Seite ändern</b> (das alte Ergebnis wird aus der Akte entfernt und der
+Take unter dem neuen Label neu ausgewertet). Der Take selbst bleibt unangetastet.
+Ist der Roh-Take schon aufgeräumt, läuft „Neu auswerten" auf dem archivierten Clip —
+mit verwischtem Gesicht, was für Hand-Aufgaben ohne Belang ist, für Tremor aber die
+Augenreferenz kostet; das Label sagt beides. Der Clip wird dabei weder erneut
+komprimiert noch erneut verwischt.</p>
+<p>Einstellungen in <code>video/video.yaml</code>: <code>archive.compact_takes</code>
+(Archivieren an/aus), <code>archive.keep_raw_take</code> (Roh-Take zusätzlich behalten),
+<code>segments.crf</code> (Qualität, 18 ≈ nahezu verlustfrei … 28 klein).
+Solange der Roh-Take noch da ist, wird für eine erneute Auswertung er verwendet;
+danach der Archiv-Clip.</p>
+<figure><img src="img/11g_schnitt.png" alt="Schnitt-Bereich">
+<figcaption>Schnitt-Bereich eines importierten Videos: Zeitleiste, Drehen, „Gespiegelt"
+(gilt für Player und Analyse), Defacing, „Bereich übernehmen"; unten Segmente und Auswertung.</figcaption></figure>
+<p>Das importierte Video wird im Schnitt-Bereich bearbeitet:</p>
 <ol class="steps">
 <li><b>Video laden</b> — wird automatisch normalisiert (Größe/Format);
     falsch orientierte Videos mit <b>↻ 90°</b> drehen.</li>
 <li><b>Segment markieren</b> (Onset/Offset auf der Zeitleiste) → „Bereich übernehmen" →
     Paradigma + Hand wählen. Tremor ist per <i>Augen-Referenz</i> möglich
     (Gesicht muss im Video sichtbar sein).</li>
-<li><b>Defacing</b> (Checkbox): anonymisiert das Gesicht im gespeicherten Segment-Clip —
-    <i>hand-schonend</i>: eine Hand vor dem Gesicht bleibt scharf.
+<li><b>Gesicht unkenntlich machen</b> (Checkbox): anonymisiert das Gesicht im gespeicherten
+    Segment-Clip — <i>hand-schonend</i>: eine Hand vor dem Gesicht bleibt scharf.
     Die Analyse läuft immer auf dem Original.</li>
-<li><b>▶ Analyse starten</b> — läuft mit Overlay und Live-Kurve; die bewegte Hand wird
-    automatisch erkannt und der gewählten Seite zugeordnet.</li>
-<li><b>💾 In Patientenakte</b> übernimmt das Ergebnis als reguläre Messung
-    (erscheint in Matrix und Verlauf, Quelle „video").</li>
+<li><b>Nach Anlegen automatisch auswerten</b> (Checkbox, Standard an): das Segment wird
+    nach dem Zuschnitt sofort analysiert — mit Overlay und Live-Kurve; die bewegte Hand
+    wird automatisch erkannt und der gewählten Seite zugeordnet — und als Messung in die
+    Akte übernommen. Es durchläuft dieselbe Pipeline wie ein eigener Take: Ergebnis,
+    Rohdaten, Tracking-Spur und Herkunft („importiertes Original"). Unter dem Segment
+    stehen Zusammenfassung, <b>Details…</b> und die Aufnahme-Info; <b>⟳ Neu auswerten</b>
+    aktualisiert dieselbe Messung.</li>
+<li>Im Sitzungsbaum stehen die Segmente unter dem Import-Eintrag (✂) mit Ergebnis;
+    Rechtsklick: Details, Neu auswerten, Notiz, Segment löschen (nimmt die Messung mit).</li>
 </ol>
 
 <h2 id="gesturelab">9&nbsp;· Gesture Lab — klinische Handposen</h2>
 <figure><img src="img/12_gesturelab.png" alt="Gesture Lab">
 <figcaption>Gesture Lab mit drei Bereichen: GESTEN (Referenzposen aufnehmen),
 ANALYSE (Soll/Ist-Vergleich, Gewichte), ERKENNUNG (Einzeln oder 12-Posen-Batterie).
-Kopfzeile zeigt Patient und aktive Quelle.</figcaption></figure>
+Kopfzeile zeigt Proband und aktive Quelle.</figcaption></figure>
 <ul>
-<li><b>Bibliothek aufbauen</b> (einmalig, ohne Patient): im Bereich GESTEN jede Pose
+<li><b>Bibliothek aufbauen</b> (einmalig, ohne Proband): im Bereich GESTEN jede Pose
     aufnehmen (statisch: stoppt automatisch nach 3&nbsp;s). Mit <b>⬆ Export / ⬇ Import</b>
     lässt sich die fertige Bibliothek als JSON zwischen Rechnern teilen.</li>
-<li><b>Patientenbezogene Batterie:</b> aus der <i>Patienten-Detailansicht</i> öffnen →
+<li><b>Probandenbezogene Batterie:</b> aus der <i>Probanden-Detailansicht</i> öffnen →
     ERKENNUNG → Modus „Batterie" → alle 12 Posen durchlaufen →
-    <b>💾 In Patientenakte speichern</b>. Ergebnis (Score, Ähnlichkeiten pro Pose)
+    <b>💾 In Probandenakte speichern</b>. Ergebnis (Score, Ähnlichkeiten pro Pose)
     erscheint in Matrix und Verlauf.</li>
 <li>Live-Feedback pro Finger (❌/✓) zeigt, welcher Finger von der Referenz abweicht.</li>
 </ul>
@@ -280,7 +429,7 @@ Kopfzeile zeigt Patient und aktive Quelle.</figcaption></figure>
     <td>Ultraleap-Software installiert und Dienst gestartet? USB prüfen (LED grün).
         Nur eine App-Instanz gleichzeitig. Details: README → Troubleshooting.</td></tr>
 <tr><td>Webcam-Tests gesperrt</td>
-    <td>MediaPipe-Umgebung einrichten: <code>bash mediapipe_sidecar/setup_sidecar.sh</code>,
+    <td>MediaPipe-Umgebung einrichten &mdash; Windows: <code>powershell mediapipe_sidecar\setup_sidecar.ps1</code>, macOS: <code>bash mediapipe_sidecar/setup_sidecar.sh</code>;
         dann unter „Tracking" die Webcam übernehmen.</td></tr>
 <tr><td>„Kein Gesicht erkannt"</td>
     <td>Frontal in die Kamera, Gesicht vollständig im Bild, mehr Licht,
@@ -291,6 +440,11 @@ Kopfzeile zeigt Patient und aktive Quelle.</figcaption></figure>
 <tr><td>Tremor auf Webcam gesperrt / Warnung „Augen-Referenz"</td>
     <td>Gesicht muss mit im Bild sein (liefert den Maßstab). Bei &lt; 50&nbsp;%
         Abdeckung erscheint eine Warnung — Amplituden dann nicht verwenden.</td></tr>
+<tr><td>Links und rechts vertauscht?</td>
+    <td>Eigene Takes zeigen Player, Vorschau und Overlay unter der Webcam-Einstellung
+        (<code>capture/capture.yaml → sources.webcam.mirror</code>); importierte Videos
+        unter ihrem eigenen „Gespiegelt"-Flag im Schnitt-Bereich. Die Aufnahme-Info
+        nennt beide Flags je Take.</td></tr>
 <tr><td>Fehler direkt nach einem Software-Update</td>
     <td>App einmal <b>neu starten</b> (alte Sitzung kann gemischte Modul-Stände laden).</td></tr>
 <tr><td>Logs einsehen</td>
@@ -305,7 +459,7 @@ Dieses Handbuch ist über den Button „📖 Anleitung" auf dem Startbildschirm 
 zugelassenes Medizinprodukt. Es ersetzt keine ärztliche Untersuchung.</div>
 
 </main>
-<footer>Motryx 0.3.0 · © 2026 Stefan Brodoehl · Screenshots automatisch erzeugt aus der App
+<footer>Motryx 0.3.0 (Video-Lab-Stand 09/2026) · © 2026 Stefan Brodoehl · Screenshots automatisch erzeugt aus der App
 (<code>docs/make_screenshots.py</code>)</footer>
 </body>
 </html>

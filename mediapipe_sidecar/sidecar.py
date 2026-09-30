@@ -1,8 +1,9 @@
 """MediaPipe hand-tracking sidecar (runs on Python 3.12).
 
-The main TapPD app runs on Python 3.14, where MediaPipe has no wheels.  This
-standalone process does the camera capture + MediaPipe inference and streams
-results back to the main app over a local TCP socket as newline-delimited JSON.
+The main Motryx app runs on Python 3.12+ (3.13/3.14 in practice), where
+MediaPipe has no wheels.  This standalone process does the camera capture +
+MediaPipe inference and streams results back to the main app over a local TCP
+socket as newline-delimited JSON.
 
 It is *pure perception*: it emits raw landmarks (image + world), handedness and
 (throttled) preview JPEGs.  All domain mapping to TapPD's ``HandFrame`` happens
@@ -195,6 +196,8 @@ class Sidecar:
         self._mirror = True
         self._video_mirror = False      # per-clip, set with the "start" command
         self._frames_mirrored = False   # what the running capture actually does
+        self._realtime = True           # throttle video replay to the clip's fps
+        self._track = True              # run the landmarkers (False = frames only)
         self._capture_thread: threading.Thread | None = None
         self._closing = threading.Event()   # tells the camera thread to exit
         self._quit = threading.Event()      # process should terminate
@@ -270,6 +273,12 @@ class Sidecar:
             # Per-clip mirror flag; only meaningful for video (a live camera
             # uses the global sidecar.mirror setting).
             self._video_mirror = bool(msg.get("mirror", False))
+            # realtime=False: replay a clip as fast as MediaPipe can chew it —
+            # for analysis, where nobody watches the frames go by.
+            self._realtime = bool(msg.get("realtime", True))
+            # track=False: decode and stream frames only, no MediaPipe at all —
+            # for replaying an archived take under a *stored* overlay.
+            self._track = bool(msg.get("track", True))
             self.start(int(msg.get("index", 0)), msg.get("video") or None,
                        None if ss is None else float(ss),
                        None if ee is None else float(ee),
@@ -442,7 +451,7 @@ class Sidecar:
                         time.sleep(_MISS_RETRY_S)
                     continue
 
-                if is_video and frame_interval:   # throttle replay to the clip's fps
+                if is_video and frame_interval and self._realtime:   # throttle to the clip's fps
                     dt = time.perf_counter() - last_frame_t
                     if dt < frame_interval:
                         time.sleep(frame_interval - dt)
@@ -486,6 +495,18 @@ class Sidecar:
 
                 self._maybe_record(raw_bgr)   # write live frames to a clip if requested
 
+                if not self._track:
+                    # Frames only: the app draws a stored track over them.
+                    now = time.perf_counter()
+                    if self._preview_on and (now - last_preview) >= (1.0 / self._preview_fps):
+                        last_preview = now
+                        payload = self._preview_payload(frame_bgr, None, None)
+                        payload["frame"] = frame_idx - 1
+                        if is_video:   # seconds into the file, so the app can seek its player there
+                            payload["t"] = round(max(0.0, (cap.get(cv2.CAP_PROP_POS_FRAMES) - 1) / vid_fps), 3)
+                        self._send(payload)
+                    continue
+
                 frame_rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
                 mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=frame_rgb)
                 # Absolute monotonic ms; strictly greater than the last value so
@@ -522,7 +543,10 @@ class Sidecar:
 
                 h0, w0 = frame_bgr.shape[:2]
                 hands = self._hands_payload(result, w0, h0, self._frames_mirrored)
-                msg = {"type": "hand", "ts": int(time.time() * 1_000_000), "hands": hands}
+                # frame / w / h let the app keep a per-frame track of the
+                # analysis (image landmarks) and replay it over the archived clip.
+                msg = {"type": "hand", "ts": int(time.time() * 1_000_000), "hands": hands,
+                       "frame": frame_idx - 1, "w": w0, "h": h0}
                 if self._face_on and self._last_iris_px is not None:
                     msg["iris_px"] = self._last_iris_px
                     msg["iris_age_ms"] = int(ts_ms - self._last_iris_ts_ms)
@@ -530,8 +554,12 @@ class Sidecar:
 
                 if self._preview_on and (now - last_preview) >= (1.0 / self._preview_fps):
                     last_preview = now
-                    self._send(self._preview_payload(frame_bgr, result,
-                                                     self._last_face_result if self._face_on else None))
+                    payload = self._preview_payload(frame_bgr, result,
+                                                    self._last_face_result if self._face_on else None)
+                    payload["frame"] = frame_idx - 1
+                    if is_video:   # seconds into the file, so the app can seek its player there
+                        payload["t"] = round(max(0.0, (cap.get(cv2.CAP_PROP_POS_FRAMES) - 1) / vid_fps), 3)
+                    self._send(payload)
         finally:
             cap.release()
             if self._writer is not None:
@@ -546,13 +574,21 @@ class Sidecar:
             h, w = frame_bgr.shape[:2]
             fourcc = cv2.VideoWriter_fourcc(*self._record_codec)
             self._writer = cv2.VideoWriter(self._record_path, fourcc, self._record_fps, (w, h))
+            self._record_size = (w, h)
+            self._record_frames = 0
         if time.perf_counter() < self._record_until:
             self._writer.write(frame_bgr)
+            self._record_frames += 1
         else:
             self._writer.release()
             self._writer = None
             path, self._record_path = self._record_path, None
-            self._send({"type": "recorded", "path": path})
+            w, h = self._record_size
+            # The facts of the file just written — the app keeps them as the
+            # take's provenance (resolution, rate, length, codec).
+            self._send({"type": "recorded", "path": path, "w": w, "h": h,
+                        "fps": self._record_fps, "frames": self._record_frames,
+                        "codec": self._record_codec})
 
     # ── serialization ────────────────────────────────────────────
     @staticmethod
@@ -577,6 +613,8 @@ class Sidecar:
                     sum(lms[j].x for j in _PALM_ANCHORS) / len(_PALM_ANCHORS) * w,
                     sum(lms[j].y for j in _PALM_ANCHORS) / len(_PALM_ANCHORS) * h,
                 ]
+                # Normalized image landmarks: what an overlay needs, per frame.
+                entry["image"] = [[round(lm.x, 4), round(lm.y, 4)] for lm in lms]
             hands.append(entry)
         return hands
 
@@ -652,6 +690,13 @@ def _run(reader, writer, model_path: str) -> None:
                 pass
 
     sidecar = Sidecar(send, model_path)
+    # Who is talking: the app records these versions with every take/analysis.
+    try:
+        import platform
+        send({"type": "hello", "mediapipe": getattr(mp, "__version__", "?"),
+              "opencv": cv2.__version__, "python": platform.python_version()})
+    except Exception:
+        pass
     try:
         for line in reader:
             line = line.strip()

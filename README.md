@@ -20,7 +20,7 @@ VideoLab schneiden, anonymisieren und auswerten.
   Capability-Gating (Tests, die eine Quelle nicht unterstuetzt, sind gesperrt)
 - **VideoLab**: Handy-Video importieren, Segmente schneiden (Onset/Offset),
   Gesicht anonymisieren (hand-aware Defacing), Paradigma auf dem Segment
-  auswerten, Ergebnis in die Patientenakte exportieren
+  auswerten, Ergebnis in die Probandenakte exportieren
 - **Tremor auf Kamera-Quellen** ueber Augen-Referenz (Iris-Skala → absolute
   Handposition); mm-Werte von Kamera-Quellen sind als Modellschaetzung (≈mm)
   gekennzeichnet
@@ -28,7 +28,7 @@ VideoLab schneiden, anonymisieren und auswerten.
   Fehleranalyse pro Finger
 - Echtzeit-Visualisierung, YAML-konfigurierbare Analyse-Pipeline,
   Auto-Onset/Offset-Detection, bilaterale Tremor-Analyse (+ Asymmetrie)
-- Patientenverwaltung (SQLite, i2b2-Sternschema) mit Provenienz pro Messung
+- Probandenverwaltung (SQLite, i2b2-Sternschema) mit Provenienz pro Messung
   (`source_kind`), **📈 Verlaufsansicht** (Merkmale ueber Zeit), Detail-Plots,
   CSV-Export, optionale JSON-Rohdaten
 - Motor Performance Index (MPI) als Komposit-Verlaufsmarker
@@ -105,10 +105,10 @@ pip install -r requirements.txt
    - **Windows**: Laeuft automatisch als Dienst (LeapSvc.exe)
    - **macOS**: `/Applications/Ultraleap Hand Tracking.app` oeffnen
 3. LeapC Python-Bindings ins Projekt kopieren:
-   - **Windows**: `start.ps1` / `start.bat` erledigt dies automatisch aus `C:\Program Files\Ultraleap\LeapSDK\leapc_cffi\`
+   - **Windows**: `start.ps1 --leap` / `start.bat --leap` holt sie aus `C:\Program Files\Ultraleap\LeapSDK\leapc_cffi\` (ohne `--leap` bleibt der Leap-Pfad aus)
    - **macOS**: `cp -r "/Applications/Ultraleap Hand Tracking.app/Contents/LeapSDK/leapc_cffi/" ./leapc_cffi/`
 4. Falls die Python-Version nicht mit den SDK-Bindings uebereinstimmt (SDK liefert 3.12):
-   - **Windows**: `start.ps1` / `start.bat` benennt die `.pyd`-Datei automatisch um
+   - **Windows**: `start.ps1 --leap` / `start.bat --leap` benennt die `.pyd`-Datei automatisch um
    - **macOS**: `cp leapc_cffi/_leapc_cffi.cpython-312-darwin.so leapc_cffi/_leapc_cffi.cpython-3XX-darwin.so`
 5. Leap Motion Controller per USB anschliessen (LED sollte gruen leuchten)
 
@@ -144,13 +144,143 @@ pip install -r requirements.txt
 
 ### Bedienung
 
-1. **Patient waehlen** oder neuen anlegen
-2. **Test anklicken** im Dashboard (8 Test-Karten)
-3. **Hand waehlen** (L/R) bei unilateralen Tests, Auto-Detection bei kognitiven Tests
-4. **Hand-Detection** → 3-2-1 Countdown → Aufnahme mit Live-Plot / interaktive Aufgabe
-5. **Ergebnisse** werden automatisch gespeichert
-6. **Verwerfen** / **Neu aufnehmen** / **Fortfahren** (mit optionaler Rohdaten-Speicherung)
-7. Weitere Tests durchfuehren oder Session beenden
+1. **Proband anklicken** — das ist bereits der Arbeitsplatz: links alle
+   Sitzungen mit ihrem Inhalt, rechts der Arbeitsbereich, der der Auswahl folgt
+2. **„＋ Neue Sitzung"** legt eine Gruppe an; **„＋ Hinzufuegen"** fuellt die
+   gewaehlte Sitzung: *Protokoll aufnehmen*, *Einzelnes Paradigma* oder
+   *Video importieren*. Das Paradigma entscheidet selbst: motorische Aufgaben
+   werden als Video-Schritt gefilmt, interaktive (Hanoi, SRT, TMT, Sakkaden)
+   laufen live am Bildschirm — in der Auswahl entsprechend markiert
+3. **Aufnehmen** je Schritt: Anweisung lesen → Countdown → Aufnahme (mit
+   Live-Kurve des Paradigmas zur Kontrolle, z. B. Daumen-Zeigefinger-Distanz —
+   die Kennwerte kommen aus der Auswertung der Datei danach) →
+   Take ansehen → **Uebernehmen** oder **Wiederholen**. Die Checkbox
+   **„Gesicht unkenntlich machen"** steht schon vor der Aufnahme unter dem Bild
+   (Vorgabe aus `video.yaml`, `privacy.deface`) und bleibt bis zum Uebernehmen
+   aenderbar — pro Take, also lassen sich einzelne Aufnahmen bewusst ohne
+   Defacing archivieren
+4. Nach dem Uebernehmen laeuft automatisch: **Auswerten** (Ergebnis landet
+   sofort in der Akte, 📋 im Baum) → **Archivieren** (kompakter Clip) →
+   Roh-Take aufraeumen. Vor dem Uebernehmen entscheidet die Checkbox
+   **„Gesicht unkenntlich machen"** pro Take ueber das Defacing des Archivs
+   (Vorgabe aus `video.yaml`); die Analyse laeuft immer auf dem unveraenderten
+   Take. **„Tracking-Overlay"** spielt einen bestaetigten Take mit den
+   Landmarken ab, die die Analyse **gemessen** hat (gespeichert als
+   `seg_XXX.track.json` neben dem Clip) — nicht neu berechnet, was auf einem
+   verwischten Archiv auch nicht ginge. Nur fuer Takes ohne gespeicherte
+   Analyse wird live nachgerechnet; die Statuszeile sagt, welcher Fall vorliegt.
+   Das Overlay ist eine zweite Wiedergabe ueber den Sidecar (er dekodiert den
+   Clip), kein Zeichnen ueber den Player. Es setzt an der aktuellen Stelle des
+   Players ein (Statuszeile: „ab 12,3 s"), laeuft bis zum Ende und dann von
+   vorn; beim Ausschalten springt der Player an die Stelle, an der das Overlay
+   stand. Player und Overlay zeigen dieselbe Seite: der Player
+   spiegelt eigene Takes unter der Webcam-Einstellung, importierte Videos
+   unter ihrem eigenen Flag (`ui/widgets/video_view.py`).
+   Ein ausgewerteter Schritt zeigt unter dem Player eine Zusammenfassung
+   (Zeitpunkt, MPI, erste Kennwerte, worauf ausgewertet wurde) und den Button
+   **„Details…"**: Kennwert-Tabelle und Kurven der Messung, derselbe Dialog wie
+   fuer jede andere Messung. Dafuer schreibt jede Video-Auswertung die
+   Rohdaten als JSON nach `data/samples/` (siehe unten), die Messung verweist
+   darauf. Darunter das aufklappbare **„Aufnahme-Info"**: wann und mit welcher
+   Kamera gefilmt wurde (Aufloesung, fps, Frames, Take-Nr.), ob gespiegelt und
+   ob die Haendigkeit vertauscht war, ob der Archiv-Clip anonymisiert ist
+   (Modus, Groesse, Codec/CRF), ob der Roh-Take noch liegt, ob eine
+   Tracking-Spur existiert und welche Auswertung wann auf welcher Datei lief
+   (Messung #, Rohdaten, Augenreferenz, MediaPipe-Version). Passt etwas nicht
+   zusammen — Clip fehlt, Auswertung ohne Spur oder nicht in der Akte, Seite
+   des Schritts ungleich Segment, Take aus einer aelteren Version ohne
+   Metadaten — steht das als ⚠-Hinweis im Kopf des Panels. Dieselbe
+   Herkunft zeigt der Details-Dialog einer Messung („Herkunft der Messung")
+   und die Messungs-Ansicht im Baum, gespeist aus `provenance` in der Akte
+   **Anderer Sitzung zuweisen…** (Rechtsklick auf eine Messung oder eine
+   Anamnese) verschiebt Live-Messungen, Messungen „ohne Sitzung" und Masken
+   samt Notiz in eine andere Sitzung; eine Messung, die aus einem Take oder
+   Segment stammt, bleibt bei ihrem Video. Augen-Tests (Fixation, Sakkaden)
+   laufen wie Hanoi/SRT/TMT live am Bildschirm, nicht als Video-Schritt: der
+   Arbeitsplatz gibt dafuer die Kamera frei, das Ergebnis landet in der
+   Sitzung, Abbrechen und „Fortfahren" fuehren dorthin zurueck. Scheitert die
+   Sakkaden-Eichung, die Checkbox **„🔧 Debug"** auf dem Sakkaden-Bildschirm
+   einschalten: Kamerabild mit Augenpunkten, Tracking-Qualitaet (Gesichts-Rate,
+   IPD in Pixeln, Blick-Streuung, Lidspalte, Kopfhaltung) mit Warnungen, und der
+   Lauf wird als Video + Sample-Log nach `data/debug/saccade/` aufgezeichnet —
+   `ui/saccade_debug.replay_log(pfad)` spielt ihn offline durch die
+   Eich-Logik, auch mit anderen Schwellen (`paradigms/test_config.yaml →
+   saccade_test`). Faustregel aus den Messungen: bei 640×480 liegt die IPD
+   bei ~55 px, ein Pixel Iris-Versatz sind ~2 % IPD bei 4 % Trennschwelle —
+   `capture.yaml camera_width: 1280` und ~50 cm Abstand machen die Eichung
+   deutlich robuster. Der Test laeuft standardmaessig **horizontal**: Eichung
+   mit drei Punkten Mitte / links / rechts, die aeusseren je dreimal besucht
+   (`calibration.visits`, Referenz = Median der Besuche, Trennschwelle
+   relativ zum Rauschen), Ziele im festen Wechsel links,
+   rechts, links, rechts (jeder Sprung volle Breite); `layout: five_point`
+   oder `vertical` in `test_config.yaml → saccade_test` schalten um. Grund:
+   vertikal liefert das Iris-Merkmal nur ~1 px Versatz, horizontal 3–5 px
+5. **Rechtsklick** auf einen Schritt: **Details…**, erneut aufnehmen, **neu
+   auswerten** (aktualisiert dieselbe Messung), **Paradigma/Seite aendern**
+   (loescht das alte Ergebnis, wertet neu aus), entfernen. Auf eine Sitzung:
+   Inhalt hinzufuegen, loeschen. **Neu auswerten** nimmt den Roh-Take, solange
+   er noch da ist; ist er schon aufgeraeumt (Standard nach dem Archivieren),
+   laeuft die Analyse auf dem archivierten, ggf. verwischten Clip — das Label
+   sagt es. Fuer Hand-Aufgaben (Tapping, Oeffnen/Schliessen, Pro-/Supination)
+   spielt das verwischte Gesicht keine Rolle, die Zahlen weichen nur durch die
+   Kompression minimal ab; fuer Tremor (Absolutposition) fehlt dann die
+   Augenreferenz, auch das steht im Label. Der Clip wird dabei weder erneut
+   komprimiert noch erneut verwischt. **Erneut aufnehmen** bei einem bereits
+   ausgewerteten Schritt fragt nach und entfernt die zugehoerige Messung aus der
+   Akte — sonst bliebe eine Messung ohne Video zurueck (die Datei des alten
+   Takes bleibt). **Notiz…** (auf Sitzung, Schritt, Import und Messung):
+   Freitext plus angehaengte Dateien (Fotos, PDFs …) zu genau diesem Eintrag;
+   ein 📝 in der Ergebnis-Spalte (📎n = Anzahl Anhaenge, Tooltip = Text)
+   zeigt, wo eine Notiz liegt, die Aufnahme-Info und die Messungs-Ansicht
+   fuehren sie mit auf. Notizen liegen in `NOTE_FACT`, die Dateien unter
+   `data/attachments/<Patient>/<Eintrag>/`. Waehrend einer Auswertung zeigt der Arbeitsbereich
+   den Take mit Hand-Overlay, einen Fortschrittsbalken und die Messkurve;
+   die Dauer entspricht etwa der Clip-Laenge (MediaPipe ist auf einer
+   Laptop-CPU der Engpass)
+6. Ein importiertes Video erscheint als Eintrag der Sitzung, seine Segmente
+   darunter wie die Schritte eines Protokolls (✂ Name, Bereich, Seite,
+   Ergebnis, 📋). Angeklickt oeffnet es den Schnitt-Bereich: Bereich auf der
+   Zeitleiste markieren → **„Bereich uebernehmen"** → Paradigma und Seite
+   waehlen. Das Segment wird zugeschnitten (Groesse, Codec, „Gesicht
+   unkenntlich machen") und — mit **„Nach Anlegen automatisch auswerten"** —
+   sofort auf dem importierten Original analysiert und als Messung in die
+   Akte uebernommen. Ab hier gibt es keinen Unterschied mehr zu einem
+   eigenen Take: dieselbe Pipeline (`ui/segment_pipeline.py`) schreibt
+   Ergebnis, Rohdaten-JSON, Tracking-Spur und Herkunft, unter dem Segment
+   stehen Zusammenfassung, **„Details…"** und die Aufnahme-Info, Rechtsklick
+   im Baum bietet Details, Neu auswerten, Notiz und Loeschen (nimmt die
+   Messung mit). Einzige Unterschiede: Quelle der Analyse ist das Original
+   mit dem Bereich des Segments (Herkunft: „importiertes Original"), die
+   Spiegelung kommt vom Flag „Gespiegelt" des Videos, und aufgeraeumt wird
+   nichts — das importierte Video bleibt
+7. **Anamnese / klinische Daten** (Menue „＋ Hinzufuegen"): eine Maske je
+   Sitzung mit Diagnose und Verlauf (Diagnosejahr, Seite, Subtyp, Hoehn &
+   Yahr, MDS-UPDRS III), Familienanamnese, Stuerzen und Gang, nicht-motorischen
+   Symptomen, MoCA und der Medikation (eine Zeile je Praeparat, Zustand
+   ON/OFF, Minuten seit letzter Einnahme, THS). Erkrankungsdauer und
+   **LEDD** (Levodopa-Aequivalenzdosis, Faktoren nach Tomlinson 2010) werden
+   live berechnet. Die Maske ist in `clinical/forms/pd_anamnese.yaml`
+   beschrieben und laesst sich dort erweitern (Item-Typen integer, decimal,
+   scale, choice, multichoice, bool, text, date; Wiederholgruppen; berechnete
+   Felder). Eine neue Maske beginnt mit den Antworten der letzten. Im Baum
+   erscheint sie als 📋-Eintrag mit Kurzzeile („H&Y 2 · UPDRS III 28 · LEDD
+   842 mg · OFF"); Rechtsklick: Bearbeiten, Notiz, Loeschen. Jede Antwort
+   liegt als eigene kodierte Beobachtung in der Datenbank (siehe
+   DB_KONZEPT.md), Messungs-Abfragen lassen diese Zeilen aus
+8. Menue **„Proband ▾"**: Bearbeiten, 📈 Verlauf, CSV-Export, **📦 Export-Paket**,
+   Proband loeschen. Das Export-Paket ist ein ZIP zur Uebergabe: Bericht als
+   HTML, PDF und JSON (Stammdaten, Anamnese, Medikation mit LEDD, alle
+   Messungen mit Kennwerten, Kurven und Herkunft, Notizen), die Archiv-Clips
+   (wahlweise nur anonymisierte), Tracking-Spuren, Rohdaten-JSON, Anhaenge und
+   ein Manifest mit SHA-256 je Datei (`export/bundle.py`, `verify_bundle`).
+   Optional pseudonymisiert (kein Name, kein Geburtsdatum)
+9. **🔬 Forschungsexport** (Startbildschirm, unten): pseudonymisierte
+   Langtabellen aller Probanden als CSV — `patients`, `visits` (mit H&Y,
+   UPDRS III, LEDD, ON/OFF), `measurements` (Herkunft, Qualitaetsflags),
+   `features_long`, `clinical_long`, `medication`, optional `notes` und
+   `signals/` (Rohdaten, Spuren) — plus automatisch erzeugtes `codebook.md`
+   und `manifest.json`. Die Zuordnung Pseudonym ↔ Proband liegt nur lokal in
+   `data/pseudonyms.json` (`export/research.py`, `export/pseudonyms.py`)
 
 ## Projektstruktur
 
@@ -161,13 +291,21 @@ eine Analyse jeder Komponente) steht in **[BLUEPRINT.md](BLUEPRINT.md)**. Kurzfa
 |---|---|
 | `capture/` | Source-Layer: Leap / Webcam(MediaPipe) / Simulation / Replay, Factory, Capabilities |
 | `mediapipe_sidecar/` | Python-3.12-Prozess fuer cv2/MediaPipe (Hand- + Face-Tracking, Transcode, Extract) |
-| `video/` | Video-Service: Import, Schnitt, Defacing, Clip-Store, DB-Export (VideoLab + Sim-Quelle) |
+| `video/` | Video-Service: Aufnahmeprotokolle (YAML), Import, Schnitt, Defacing, Archiv, Herkunft (`meta.py`), Video-Session-Store, DB-Export |
 | `paradigms/` | Paradigmen (Registry, Runner, config-getriebene Feature-Berechnung) |
 | `analysis/` | Signalverarbeitung (Filter, FFT, Peaks, Onset) |
+| `clinical/` | Klinische Daten per YAML-Maske (Schema, Validierung, LEDD, Speicherung als kodierte Beobachtungen) |
+| `export/` | Berichte (HTML/PDF), Export-Paket (ZIP), Forschungsexport (Langtabellen + Codebuch), Pseudonyme |
 | `gesture_lab/` | Gesten-Pipeline (Posen-Templates, Matching, Fehleranalyse) |
-| `storage/` | SQLite (i2b2-Sternschema) + Raw-JSON-Store |
-| `ui/` | PyQt6-Screens und geteilte Widgets |
-| `data/` | DB, Clips, Video-Sessions, Rohdaten, Logs (nicht im Repo) |
+| `storage/` | SQLite (i2b2-Sternschema: Messungen mit Herkunft, klinische Zeilen, Notizen), Anhaenge, Raw-JSON-Store |
+| `ui/` | PyQt6: Probanden-Arbeitsplatz (Baum + Aufnahme-/Schnitt-Bereich ueber eine `SegmentPipeline`), Live-Tests, Dialoge, geteilte Widgets |
+| `docs/` | Nutzerhandbuch (`manual.html`) mit automatisch erzeugten Screenshots |
+| `data/` | DB, Clips, Video-Sessions (Takes, Archiv-Clips, Spuren), Rohdaten, Anhaenge, Pseudonyme, Logs (nicht im Repo) |
+
+Schichten und Vertraege: [ARCHITECTURE.md](ARCHITECTURE.md) · Komponenten-Karte
+und Datenfluesse: [BLUEPRINT.md](BLUEPRINT.md) · Sitzungs-/Video-Lab-Konzept:
+[SESSION_KONZEPT.md](SESSION_KONZEPT.md) · klinische Daten und Exporte:
+[KLINIK_KONZEPT.md](KLINIK_KONZEPT.md) · Datenbank: [DB_KONZEPT.md](DB_KONZEPT.md)
 
 ## Tests & Berechnete Features
 
@@ -190,17 +328,41 @@ Aufgaben-Details stehen in
 Index** (Komposit-Score 0–1, farbcodiert, Default-Merkmal der Verlaufsansicht)
 ist dort in §10 beschrieben.
 
+## Testsuite
+
+```bash
+.\.venv\Scripts\python.exe -m pytest -q                 # alles (~2 min, Sidecar-Tests inklusive)
+.\.venv\Scripts\python.exe -m pytest -q -m "not sidecar" # schnell (~1 min), ohne Sidecar
+```
+
+Drei Ebenen:
+
+- **Unit-Tests** (`tests/test_*.py`): Eingabe-Mapping, Quellen, Protokolle,
+  Video-Store/-Archiv/-Export, Datenbank, Paradigmen-Logik.
+- **UI-Integration** (`tests/ui/`): das echte `MotryxMainWindow` offscreen auf
+  der Simulationsquelle — Proband → Sitzung → Protokoll → Take → Bestaetigen →
+  Akte, Umlabeln, Kamerawechsel, Live-Messung bis zum Ergebnis, alle
+  Bildschirme und Dialoge. Keine Kamera noetig.
+- **Sidecar** (Marker `sidecar`): die Pipeline mit echtem MediaPipe
+  (Analyse → Archiv → Aufraeumen) und `mediapipe_sidecar/tests/` unter dem
+  Sidecar-Python (Haendigkeit, Backend-Wahl, Enumeration, ffmpeg-Nachlauf).
+  Werden uebersprungen, wenn das Sidecar-venv fehlt.
+
 ## Ausgabeformate
 
 ### Automatische Speicherung
 
 Jede Messung wird automatisch in der SQLite-Datenbank gespeichert (`data/tappd.db`).
 Optional koennen Rohdaten als JSON in `data/samples/` gespeichert werden (Checkbox auf dem Ergebnis-Screen).
+Video-Auswertungen (bestaetigte Takes, importierte Segmente ueber die Aufnahme-Pipeline)
+schreiben diese JSON immer; die Messung verweist in `raw_data_path` darauf, damit der
+Details-Dialog die Kurven zeichnet. Aeltere Video-Messungen verweisen nur auf den Clip —
+nach **Neu auswerten** ist die JSON da.
 
 ### CSV-Export
 
 - **Einzelmessung**: ueber "CSV Export" auf dem Ergebnis-Screen
-- **Alle Messungen eines Patienten**: ueber "CSV Export" in der Patienten-Detailansicht
+- **Alle Messungen eines Probanden**: ueber "CSV Export" in der Probanden-Detailansicht
 
 ### JSON-Rohdaten
 
@@ -244,7 +406,7 @@ sqlite3 data/tappd.db \
    - **Windows**: `_leapc_cffi.cp3XX-win_amd64.pyd` + `LeapC.dll`
    - **macOS**: `_leapc_cffi.cpython-3XX-darwin.so` + `libLeapC.dylib`
 
-   Auf Windows kopiert `start.ps1`/`start.bat` diese automatisch aus dem SDK.
+   Auf Windows kopiert `start.ps1 --leap` / `start.bat --leap` diese aus dem SDK.
 
 5. **Nur eine App-Instanz gleichzeitig**
    LeapC erlaubt nur eine aktive Verbindung. Falls eine alte Instanz laeuft,
@@ -253,7 +415,7 @@ sqlite3 data/tappd.db \
 ### Spiegelung & Haendigkeit
 
 Das **Live-Kamerabild wird gespiegelt** (Selfie-Ansicht): die linke Hand des
-Patienten erscheint links im Bild — **und wird auch als links erkannt**. Beides
+Probanden erscheint links im Bild — **und wird auch als links erkannt**. Beides
 gehoert zusammen, denn MediaPipe vergibt links/rechts aus Sicht des Bildes, das
 es bekommt; wird das Bild gedreht, muss das Label mitgedreht werden. Der Sidecar
 erledigt das in einem Schritt, ohne Zutun.
@@ -281,6 +443,27 @@ Aufnahmegeraet ab. Im VideoLab neben der Drehen-Schaltflaeche: Checkbox
 **„Gespiegelt"**, standardmaessig aus, pro Video mit der Video-Session
 gespeichert. Details in [TECHNICAL_DETAILS.md](TECHNICAL_DETAILS.md) →
 *Spiegelung & Haendigkeit*.
+
+### Video-Archiv: was von einem Take bleibt
+
+Der Recorder schreibt ~1 MB/s. Nach dem Uebernehmen durchlaeuft jeder Take
+automatisch: **Auswerten** (auf dem Roh-Take, volle Qualitaet) → **Archivieren**
+(derselbe Extraktor wie bei Import-Segmenten: Groessenbegrenzung, H.264 mit
+x264-CRF, Defacing nach `privacy.deface`, Iris-Spur) → **Aufraeumen** (Roh-Take
+loeschen, sobald der Archiv-Clip da ist). Ein 640x480-Take wird ~35x kleiner;
+die Messung verweist auf den Archiv-Clip (`raw_data_path`).
+
+```yaml
+# video/video.yaml
+archive:
+  compact_takes: true    # Takes zu Archiv-Clips komprimieren
+  keep_raw_take: false   # Roh-Take zusaetzlich behalten
+segments:
+  crf: 23                # x264-Qualitaet (18 nahezu verlustfrei … 28 klein; 0 = aus)
+```
+
+Der CRF-Nachlauf braucht `imageio-ffmpeg` im Sidecar-venv (`setup_sidecar`
+installiert es); fehlt es, bleibt der cv2-Clip — groesser, aber vorhanden.
 
 ### Kamera-Aufloesung einstellen
 
@@ -345,7 +528,7 @@ scheitert.
 Die Bindings aus dem SDK sind fuer Python 3.12 kompiliert. Bei neueren Python-Versionen
 muss die Datei kopiert/umbenannt werden (C-ABI ist kompatibel):
 
-- **Windows**: `start.ps1`/`start.bat` erledigt dies automatisch
+- **Windows**: `start.ps1 --leap` / `start.bat --leap` erledigt dies automatisch
 - **macOS**: `cp leapc_cffi/_leapc_cffi.cpython-312-darwin.so leapc_cffi/_leapc_cffi.cpython-3XX-darwin.so`
 
 (XX durch die eigene Minor-Version ersetzen, z.B. 314 fuer Python 3.14)

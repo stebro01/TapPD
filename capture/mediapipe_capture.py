@@ -1,6 +1,6 @@
 """Webcam capture device backed by the MediaPipe sidecar.
 
-MediaPipe has no wheels for the app's Python (3.14), so the actual camera +
+MediaPipe has no wheels for the app's Python (3.13/3.14), so the actual camera +
 inference runs in ``mediapipe_sidecar/`` on Python 3.12.  This device is the
 *client*: it spawns the sidecar, acts as the socket server it connects back to,
 sends commands, and converts the sidecar's raw-landmark JSON into ``HandFrame``
@@ -52,11 +52,17 @@ class WebcamSource(BaseCaptureDevice):
         self.camera_index = camera_index
         self.flip_handedness = flip_handedness
         self.replay_path = replay_path  # if set, sidecar loops this video clip
+        self.camera_name = ""           # display name of camera_index (set by the UI)
+        self.sidecar_info: dict = {}    # versions from the sidecar's hello message
+        self.last_recorded: dict = {}   # facts of the last clip written by `record`
         # Whether that clip has to be mirrored to show the subject as in a
         # mirror. Per clip, because it depends on the recording device — a
         # front-camera phone clip is usually already mirrored, a clip filmed by
         # an examiner is not. Set at import; live capture uses sidecar.mirror.
         self.replay_mirror = False
+        # False = the sidecar only decodes and streams frames (no MediaPipe):
+        # for replaying an archived take under its stored analysis overlay.
+        self.replay_track = True
         self._range: tuple[float, float] | None = None  # play-once [start_s, end_s]
         self._loop = True               # False = play the range once, then "done"
         self._recorded_callback = None  # called(path) when a record finishes
@@ -234,13 +240,34 @@ class WebcamSource(BaseCaptureDevice):
         return []
 
     # ── recording ─────────────────────────────────────────────────
-    def play_range(self, video: str, start_s: float, end_s: float) -> None:
+    def play_range(self, video: str, start_s: float, end_s: float,
+                   realtime: bool = True) -> None:
         """Configure a one-shot bounded playback of `video[start_s:end_s]`
         (VideoLab). The next start_recording() plays it once and fires the
-        done-callback at the offset. Leaves the looping `replay_path` path alone."""
+        done-callback at the offset. Leaves the looping `replay_path` path alone.
+
+        ``realtime=False`` lets the sidecar run the clip as fast as it can —
+        right for an analysis nobody watches frame by frame."""
         self.replay_path = video
         self._range = (float(start_s), float(end_s))
         self._loop = False
+        self._realtime = bool(realtime)
+
+    def play_from(self, video: str, start_s: float) -> None:
+        """Review replay that begins at ``start_s`` and runs once to the end
+        (then the done-callback fires); ``play_loop()`` continues from the top."""
+        self.replay_path = video
+        self._range = (float(start_s), None)
+        self._loop = False
+        self._realtime = True
+
+    def play_loop(self, video: str | None = None) -> None:
+        """Plain looping replay of the whole clip (the default)."""
+        if video:
+            self.replay_path = video
+        self._range = None
+        self._loop = True
+        self._realtime = True
 
     def start_recording(self, callback: Callable[[HandFrame], None]) -> None:
         if not self.is_connected():
@@ -252,7 +279,9 @@ class WebcamSource(BaseCaptureDevice):
         self._send({"cmd": "start", "index": self.camera_index,
                     "video": self.replay_path or None,
                     "start_s": s, "end_s": e, "loop": self._loop,
-                    "mirror": bool(self.replay_mirror)})
+                    "mirror": bool(self.replay_mirror),
+                    "realtime": bool(getattr(self, "_realtime", True)),
+                    "track": bool(self.replay_track)})
         log.debug("MediaPipe-Aufnahme gestartet (Kamera %d, replay=%s, range=%s)",
                   self.camera_index, self.replay_path or "-", self._range)
 
@@ -398,8 +427,11 @@ class WebcamSource(BaseCaptureDevice):
                              for c in msg.get("items", [])]
             self._cameras_event.set()
         elif mtype == "recorded":
+            self.last_recorded = {k: v for k, v in msg.items() if k != "type"}
             if self._recorded_callback is not None:
                 self._recorded_callback(msg.get("path", ""))
+        elif mtype == "hello":
+            self.sidecar_info = {k: v for k, v in msg.items() if k != "type"}
         elif mtype == "done":
             self._recording = False   # drop any late frames
             if self._done_callback is not None:

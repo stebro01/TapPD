@@ -1,6 +1,7 @@
 """Detail dialog: feature table + analysis plots for a single measurement."""
 
 import json
+import logging
 import math
 from pathlib import Path
 
@@ -105,6 +106,12 @@ class DetailDialog(QDialog):
         content.addWidget(self._canvas, stretch=1)
         self._root_layout.addLayout(content, stretch=1)
 
+        # Where the numbers come from: camera / import, mirror settings,
+        # archive clip, analysis source — collapsed until asked for.
+        from ui.widgets.meta_panel import MetaPanel
+        self._meta = MetaPanel("Herkunft der Messung")
+        self._root_layout.addWidget(self._meta)
+
         # Show initial measurement
         self._show_measurement(self._measurements[self._current_idx])
 
@@ -177,18 +184,33 @@ class DetailDialog(QDialog):
         # Update plots
         self._figure.clear()
         self.figure = self._figure  # for _plot_from_json methods
-        raw_path = measurement.raw_data_path
-        if raw_path and Path(raw_path).exists():
-            self._plot_from_json(raw_path, measurement.test_type)
+        raw_path = measurement.raw_data_path or ""
+        note = ""
+        if raw_path and Path(raw_path).exists() and raw_path.lower().endswith(".json"):
+            try:
+                self._plot_from_json(raw_path, measurement.test_type)
+            except Exception:
+                logging.getLogger(__name__).warning("Rohdaten nicht lesbar: %s", raw_path,
+                                                    exc_info=True)
+                self._figure.clear()
+                note = "Rohdaten nicht lesbar"
+        elif raw_path and Path(raw_path).exists():
+            # Older video measurements point at the archived clip only.
+            note = "Nur der Video-Clip ist hinterlegt —\nKurven gibt es nach „Neu auswerten“."
         else:
+            note = "Keine Rohdaten vorhanden"
+        if note:
             ax = self._figure.add_subplot(111)
-            ax.text(0.5, 0.5, "Keine Rohdaten vorhanden",
-                    ha="center", va="center", fontsize=12, color="#999")
+            ax.text(0.5, 0.5, note, ha="center", va="center", fontsize=12, color="#999")
             ax.set_facecolor(f"{theme.BG}")
             ax.axis("off")
 
         self._figure.tight_layout()
         self._canvas.draw()
+
+        from video.meta import describe_measurement, measurement_issues
+        self._meta.set_content(describe_measurement(measurement),
+                               measurement_issues(measurement))
 
     def _style_ax(self, ax):
         ax.set_facecolor(f"{theme.BG}")
@@ -220,6 +242,128 @@ class DetailDialog(QDialog):
             self._plot_srt(data, fs)
         elif test_type.startswith("trail_making"):
             self._plot_tmt(data, fs)
+        elif test_type == "saccade_test":
+            self._plot_saccade(data)
+        elif test_type == "ocular_fixation":
+            self._plot_fixation(data)
+
+    # ── Ocular plots (face_frames in the raw JSON) ───────────────────
+
+    @staticmethod
+    def _faces(data) -> list:
+        """FacePose objects from the raw dicts (tuples restored) — so the gaze
+        offset is computed by the same code as live."""
+        from capture.base_capture import FacePose
+        out = []
+        for d in data.get("face_frames") or []:
+            try:
+                out.append(FacePose(
+                    timestamp_us=int(d["timestamp_us"]),
+                    iris_left=tuple(d["iris_left"]), iris_right=tuple(d["iris_right"]),
+                    corners_left=tuple(tuple(c) for c in d["corners_left"]),
+                    corners_right=tuple(tuple(c) for c in d["corners_right"]),
+                    ear_left=float(d.get("ear_left", 0.0)),
+                    ear_right=float(d.get("ear_right", 0.0)),
+                    nose=tuple(d["nose"]) if d.get("nose") else None))
+            except (KeyError, TypeError, ValueError):
+                continue
+        return out
+
+    def _plot_saccade(self, data) -> None:
+        """Left: gaze (%IPD) over time along the axis the targets spread on,
+        with the target trace laid over it (reference position of the shown
+        target from show to acquire, dot at acquisition, red = first movement
+        went the wrong way). Right: latency per target, median dashed."""
+        faces = self._faces(data)
+        if len(faces) < 2:
+            raise ValueError("keine Gesichts-Samples")
+        t0 = faces[0].timestamp_us
+        ts = [(f.timestamp_us - t0) / 1e6 for f in faces]
+        ox = [f.gaze_offset_ipd[0] * 100.0 for f in faces]
+        oy = [f.gaze_offset_ipd[1] * 100.0 for f in faces]
+        sac = data.get("saccade") or {}
+        hits = sac.get("hits") or []
+        refs = sac.get("references") or {}
+        pts = sac.get("points") or {}
+        xs = [v[0] for v in pts.values()] or [0.5]
+        ys = [v[1] for v in pts.values()] or [0.5]
+        use_y = (max(ys) - min(ys)) > (max(xs) - min(xs))
+        trace = oy if use_y else ox
+        comp = 1 if use_y else 0
+        label = "vertikal" if use_y else "horizontal"
+        accent = f"{theme.ACCENT_DARK}"
+        danger = f"{theme.DANGER}"
+
+        ax1 = self.figure.add_subplot(1, 2, 1)
+        self._style_ax(ax1)
+        ax1.plot(ts, trace, color=PRIMARY, linewidth=0.9)
+        t_test = sac.get("test_started_s")
+        if t_test is not None:
+            ax1.axvspan(0.0, float(t_test), color=f"{theme.ACCENT}", alpha=0.10, lw=0)
+            ax1.text(float(t_test) / 2, max(trace), "Eichung", ha="center", va="top",
+                     fontsize=8, color=TEXT_SECONDARY)
+        for h in hits:
+            ref = refs.get(h.get("target"))
+            if ref is None:
+                continue
+            y = float(ref[comp]) * 100.0
+            ax1.plot([h["shown_at_s"], h["acquired_at_s"]], [y, y], color=accent,
+                     linewidth=2.0, alpha=0.7, solid_capstyle="butt")
+            ax1.plot([h["acquired_at_s"]], [y], "o", markersize=4,
+                     color=accent if h.get("first_move_correct", True) else danger)
+        for key, ref in refs.items():
+            ax1.axhline(float(ref[comp]) * 100.0, color=TEXT_SECONDARY, linewidth=0.5,
+                        linestyle=":", alpha=0.6)
+            ax1.text(ts[-1], float(ref[comp]) * 100.0, f" {key}", fontsize=8,
+                     va="center", color=TEXT_SECONDARY)
+        ax1.set_xlabel("Zeit (s)", fontsize=9, color=TEXT_SECONDARY)
+        ax1.set_ylabel(f"Blickversatz {label} (%IPD)", fontsize=9, color=TEXT_SECONDARY)
+        title = "Sakkaden — Blick und Ziele" if hits else "Sakkaden — Blick"
+        if not sac:
+            title += "  (Ziele nicht gespeichert: ältere Aufnahme)"
+        ax1.set_title(title, fontsize=10, fontweight="bold")
+
+        ax2 = self.figure.add_subplot(1, 2, 2)
+        self._style_ax(ax2)
+        if hits:
+            lat = [(h["acquired_at_s"] - h["shown_at_s"]) * 1000.0 for h in hits]
+            cols = [accent if h.get("first_move_correct", True) else danger for h in hits]
+            ax2.bar(range(1, len(lat) + 1), lat, color=cols, width=0.8)
+            med = sorted(lat)[len(lat) // 2]
+            ax2.axhline(med, color=PRIMARY, linewidth=0.9, linestyle="--")
+            ax2.text(len(lat) + 0.4, med, f" Median {med:.0f} ms", fontsize=8,
+                     va="center", color=PRIMARY)
+            ax2.set_xlabel("Ziel Nr.", fontsize=9, color=TEXT_SECONDARY)
+            ax2.set_ylabel("Latenz (ms)", fontsize=9, color=TEXT_SECONDARY)
+            ax2.set_title("Latenz je Ziel (rot: erste Bewegung falsch)", fontsize=10,
+                          fontweight="bold")
+        else:
+            self._plot_ear(ax2, ts, [f.ear for f in faces])
+
+    def _plot_ear(self, ax, ts, ears) -> None:
+        ax.plot(ts, ears, color=f"{theme.ACCENT_DARK}", linewidth=0.9)
+        ax.axhline(0.18, color=f"{theme.DANGER}", linewidth=0.8, linestyle="--")
+        ax.set_xlabel("Zeit (s)", fontsize=9, color=TEXT_SECONDARY)
+        ax.set_ylabel("Lidspalte (EAR)", fontsize=9, color=TEXT_SECONDARY)
+        ax.set_title("Blinzeln", fontsize=10, fontweight="bold")
+
+    def _plot_fixation(self, data) -> None:
+        """Fixation: gaze offset from centre (%IPD) and eye aspect ratio."""
+        faces = self._faces(data)
+        if len(faces) < 2:
+            raise ValueError("keine Gesichts-Samples")
+        t0 = faces[0].timestamp_us
+        ts = [(f.timestamp_us - t0) / 1e6 for f in faces]
+        gaze = [math.hypot(*f.gaze_offset_ipd) * 100.0 for f in faces]
+        ax1 = self.figure.add_subplot(1, 2, 1)
+        self._style_ax(ax1)
+        ax1.plot(ts, gaze, color=PRIMARY, linewidth=0.9)
+        ax1.set_xlabel("Zeit (s)", fontsize=9, color=TEXT_SECONDARY)
+        ax1.set_ylabel("Blickversatz (%IPD)", fontsize=9, color=TEXT_SECONDARY)
+        ax1.set_title("Fixation", fontsize=10, fontweight="bold")
+        ax2 = self.figure.add_subplot(1, 2, 2)
+        self._style_ax(ax2)
+        self._plot_ear(ax2, ts, [f.ear for f in faces])
 
     # ── Spatial SRT plots ────────────────────────────────────────
 

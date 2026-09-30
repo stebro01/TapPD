@@ -22,8 +22,10 @@ The (future) tremor adapter reads this track instead of re-detecting the (now
 blurred) face. The face landmarker runs if EITHER defacing OR eye-ref capture is
 requested, so the per-frame detection is shared.
 
-Usage: extract.py SRC DEST START_S END_S MAX_W MAX_H FPS_CAP FOURCC DEFACE BLUR EYEREF
+Usage: extract.py SRC DEST START_S END_S MAX_W MAX_H FPS_CAP FOURCC DEFACE BLUR EYEREF [CRF]
   DEFACE: off | blur | mesh   BLUR: gaussian kernel for "blur"   EYEREF: 1 | 0
+  CRF: x264 quality for a final ffmpeg re-encode (0/absent = skip). cv2's writer
+  cannot set a bitrate, so this pass is what actually makes the clip compact.
 """
 
 import json
@@ -132,6 +134,45 @@ def _deface(frame, landmarks, mode: str, blur: int, exclude_mask=None):
     return frame
 
 
+def _reencode(path: str, crf: int) -> dict:
+    """Re-encode `path` in place with x264 at `crf` via the bundled ffmpeg.
+
+    Returns {"reencoded": bool, "bytes_before", "bytes_after"}. Any failure —
+    no imageio-ffmpeg, ffmpeg error — leaves the cv2 output as it is; the clip
+    is then merely bigger, never missing.
+    """
+    import subprocess
+    before = os.path.getsize(path) if os.path.isfile(path) else 0
+    info = {"reencoded": False, "bytes_before": before, "bytes_after": before}
+    if crf <= 0 or before == 0:
+        return info
+    try:
+        import imageio_ffmpeg
+        exe = imageio_ffmpeg.get_ffmpeg_exe()
+    except Exception:
+        return info
+    tmp = path + ".x264.mp4"
+    try:
+        r = subprocess.run(
+            [exe, "-y", "-loglevel", "error", "-i", path,
+             "-c:v", "libx264", "-crf", str(int(crf)), "-preset", "veryfast",
+             "-pix_fmt", "yuv420p", "-movflags", "+faststart", "-an", tmp],
+            capture_output=True, text=True, timeout=600)
+        if r.returncode == 0 and os.path.isfile(tmp) and os.path.getsize(tmp) > 0:
+            os.replace(tmp, path)
+            info["reencoded"] = True
+            info["bytes_after"] = os.path.getsize(path)
+    except Exception:
+        pass
+    finally:
+        if os.path.isfile(tmp):
+            try:
+                os.remove(tmp)
+            except OSError:
+                pass
+    return info
+
+
 def main() -> int:
     src, dest = sys.argv[1], sys.argv[2]
     start_s, end_s = float(sys.argv[3]), float(sys.argv[4])
@@ -140,6 +181,7 @@ def main() -> int:
     deface = sys.argv[9] if len(sys.argv) > 9 else "off"
     blur = int(sys.argv[10]) if len(sys.argv) > 10 else 35
     capture_eyeref = (sys.argv[11] == "1") if len(sys.argv) > 11 else True
+    crf = int(float(sys.argv[12])) if len(sys.argv) > 12 else 0
 
     cap = cv2.VideoCapture(src)
     if not cap.isOpened():
@@ -237,9 +279,10 @@ def main() -> int:
                        "avg_ipd_mm": _AVG_IPD_MM, "iris": iris_track}, f)
         wrote_eyeref = True
 
+    enc = _reencode(dest, crf)
     print(json.dumps({"ok": True, "path": dest, "w": w, "h": h, "fps": round(out_fps, 3),
                       "frames": n, "deidentified": do_deface, "eyeref": wrote_eyeref,
-                      "thumb": dest + ".thumb.jpg"}))
+                      "thumb": dest + ".thumb.jpg", **enc}))
     return 0
 
 

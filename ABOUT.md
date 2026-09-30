@@ -46,7 +46,7 @@ Die Quelle wird mit jeder Messung gespeichert (Simulationsdaten sind klar als so
 
 ## Technologie
 
-- Python 3.14 / PyQt6; CV-Sidecar (Python 3.12) mit MediaPipe Hand- + Face-Landmarker und OpenCV
+- Python 3.12+ / PyQt6; CV-Sidecar (Python 3.12) mit MediaPipe Hand- + Face-Landmarker und OpenCV
 - Tracking-Quellen: Leap Motion (Ultraleap Gemini v5) · Webcam/Video (MediaPipe)
 - SQLite-Datenbank (i2b2-Sternschema) für Patienten, Messungen und Gesten-Vorlagen
 - Echtzeit-Signalverarbeitung (NumPy, SciPy)

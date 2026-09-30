@@ -92,3 +92,17 @@ def test_export_without_result_raises(env):
     seg = vs.add_segment("leer", 0.0, 5.0, paradigm="finger_tapping")
     with pytest.raises(ValueError):
         export_result(vs, seg, "finger_tapping")
+
+
+def test_export_points_at_the_raw_json_when_the_analysis_wrote_one(env, tmp_path):
+    from video.export import export_or_update
+    vs, seg = _session_with_result(env)
+    seg.clip_path = str(tmp_path / "seg_001.mp4")
+    m = export_result(vs, seg, "finger_tapping")
+    assert m.raw_data_path == seg.clip_path            # no JSON yet: the clip
+
+    raw = tmp_path / "raw.json"
+    raw.write_text("{}")
+    seg.results["finger_tapping"]["raw_path"] = str(raw)
+    m2 = export_or_update(vs, seg, "finger_tapping")
+    assert m2.id == m.id and m2.raw_data_path == str(raw)

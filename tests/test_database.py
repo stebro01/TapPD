@@ -656,3 +656,19 @@ class TestSourceKindProvenance:
             "SELECT SOURCESYSTEM_CD FROM OBSERVATION_FACT WHERE PATIENT_NUM=?",
             (p.id,)).fetchone()[0]
         assert cd == "TAPPD:mock"
+
+
+def test_move_measurement_takes_its_note_along(conn):
+    from storage.database import Note, get_notes, move_measurement, save_note
+    from tests.conftest import make_patient_row, make_session_row
+    pid = make_patient_row(conn, code="MV01")
+    s1, s2 = make_session_row(conn, pid), make_session_row(conn, pid)
+    m = save_measurement(conn, Measurement(patient_id=pid, session_id=None,
+                                           test_type="finger_tapping", hand="right"))
+    save_note(conn, Note(patient_id=pid, session_id=None, kind="measurement", ref=str(m.id), text="n"))
+    move_measurement(conn, m.id, s2)
+    assert [x.id for x in get_session_measurements(conn, s2)] == [m.id]
+    assert get_session_measurements(conn, s1) == []
+    assert get_notes(conn, pid)[0].session_id == s2
+    move_measurement(conn, m.id, None)
+    assert [x.id for x in get_measurements(conn, pid) if x.session_id is None] == [m.id]

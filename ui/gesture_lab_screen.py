@@ -124,7 +124,7 @@ class GestureLabScreen(QWidget):
         src = {"leap": "Leap", "webcam": "Kamera", "mock": "Simulation"}.get(
             source_kind(self.capture), "?")
         p = self.patient
-        who = p.display_name if p is not None else "kein Patient (nur Bibliothek)"
+        who = p.display_name if p is not None else "kein Proband (nur Bibliothek)"
         self._context_lbl.setText(f"{who}  ·  Quelle: {src}")
 
     def _build_panels(self) -> None:

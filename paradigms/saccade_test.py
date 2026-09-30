@@ -50,6 +50,10 @@ class SaccadeTest(BaseParadigm):
             guard_max_roll_deg=float(guard.get("max_roll_deg", 8.0)),
             guard_max_ipd_change=float(guard.get("max_ipd_change", 0.12)),
             guard_max_nose_shift=float(guard.get("max_nose_shift_ipd", 0.15)),
+            layout=str(cfg.get("layout", "horizontal")),
+            sequence=str(test.get("sequence", "alternate")),
+            calib_visits=[str(v) for v in calib["visits"]] if calib.get("visits") else None,
+            min_separation_snr=float(test.get("min_separation_snr", 4.0)),
         )
         self._t0_us: int | None = None
 
@@ -60,7 +64,8 @@ class SaccadeTest(BaseParadigm):
         return (
             "Sakkaden-Test (Okulomotorik)\n\n"
             "Phase 1 – Eichung: Schauen Sie ruhig auf den jeweils "
-            "angezeigten Punkt (5 Positionen).\n\n"
+            f"angezeigten Punkt ({len(self.task.calib_visits)} Schritte, "
+            f"{len(self.task.calib_order)} Positionen).\n\n"
             "Phase 2 – Test: Schauen Sie SO SCHNELL WIE MÖGLICH auf den "
             "aufleuchtenden Punkt. Sobald Ihr Blick erkannt wird, springt "
             "der Punkt weiter.\n\n"
@@ -101,6 +106,25 @@ class SaccadeTest(BaseParadigm):
 
     def get_live_metric_label(self) -> str:
         return "Blickversatz (%IPD)"
+
+    # ── raw data ───────────────────────────────────────────────────
+    def raw_extra(self) -> dict:
+        """Events for the raw JSON (next to ``face_frames``): the calibration
+        result and every target with its show/acquire times — what the
+        detail plot needs to draw targets over the gaze trace. Times are
+        seconds since the first face sample, like ``SaccadeTask``."""
+        task = self.task
+        return {"saccade": {
+            "layout": task.layout, "calib_visits": list(task.calib_visits),
+            "points": {k: list(v) for k, v in task.points.items()},
+            "references": {k: list(v) for k, v in task.references.items()},
+            "noise": dict(getattr(task, "noise", {})),
+            "test_started_s": getattr(task, "_test_started", None),
+            "phase": task.phase.name, "fail_reason": task.fail_reason,
+            "hits": [{"target": h.target, "shown_at_s": h.shown_at_s,
+                      "acquired_at_s": h.acquired_at_s,
+                      "first_move_correct": h.first_move_correct} for h in task.hits],
+        }}
 
     # ── features ───────────────────────────────────────────────────
     def compute_features(self) -> dict[str, float]:

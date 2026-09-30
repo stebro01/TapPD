@@ -1,0 +1,43 @@
+id: updrs_hand_basis
+name: "MDS-UPDRS Hand – Basisprotokoll"
+description: >
+  Ruheaufnahme, Kopfdrehung zur Dokumentation, Finger-Tapping beidseits.
+  Jeder Schritt wird einzeln aufgenommen und vom Untersucher bestätigt.
+
+# Gelten fuer jeden Schritt, der nichts Eigenes angibt.
+defaults:
+  duration_s: 20
+  countdown_s: 3
+
+steps:
+  - id: rest
+    title: "Ruheaufnahme"
+    instruction: >
+      Bitte entspannt sitzen, Hände locker auf den Oberschenkeln ablegen
+      und ruhig atmen. Nicht bewusst stillhalten.
+    duration_s: 30
+    paradigm: rest_tremor
+    hand: both
+
+  - id: head_turn
+    title: "Kopfdrehung"
+    instruction: >
+      Kopf langsam nach rechts drehen, kurz halten, dann nach links.
+      Zweimal wiederholen.
+    paradigm: ""          # Dokumentationsschritt: aufnehmen, nicht auswerten
+
+  - id: tap_right
+    title: "Finger-Tapping rechts"
+    instruction: >
+      Daumen und Zeigefinger der rechten Hand so schnell und so weit
+      wie möglich öffnen und schließen.
+    paradigm: finger_tapping
+    hand: right
+
+  - id: tap_left
+    title: "Finger-Tapping links"
+    instruction: >
+      Daumen und Zeigefinger der linken Hand so schnell und so weit
+      wie möglich öffnen und schließen.
+    paradigm: finger_tapping
+    hand: left
