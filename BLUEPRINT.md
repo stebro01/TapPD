@@ -352,12 +352,17 @@ Video-Messung) · ≈mm-Ehrlichkeit in allen Anzeigen · Verlaufsansicht · Them
 zentralisiert · **Video-Lab 09/2026**: ein Arbeitsplatz je Proband, YAML-Protokolle,
 eine Pipeline für Takes und Import, Overlay aus gespeicherter Spur, Metadaten +
 Konsistenzprüfung, Notizen mit Anhängen, YAML-Anamnese mit LEDD, Export-Paket und
-Forschungsexport · 435 grüne Tests inkl. echter Sidecar-Integration.
+Forschungsexport · **Sakkaden 09/2026**: horizontales 3-Punkt-Layout, Eichung
+Mitte → L/R je dreimal (Median über Besuche, Trennschwelle relativ zum Rauschen),
+Debug-Modus mit Vorschau, Video, Sample-Log und Replay, Details-Grafik mit
+Ziel-Spur und Latenzen; erste Eichung am echten Probanden erfolgreich ·
+447 grüne Tests inkl. echter Sidecar-Integration.
 
 **Offen (geplant):**
 1. Klinische **Validierung an realem Material**: Eye-Ref-Tremor-Amplituden
    (z-Achse prinzipbedingt nicht erfassbar; In-Plane-Messung), Schwellen der
-   Augen-Tests (`saccade_test`-Block: dwell/confidence_margin/Kopf-Toleranzen),
+   Augen-Tests (`saccade_test`-Block: dwell/confidence_margin/Kopf-Toleranzen,
+   Eich-Wiederholungen und `min_separation_snr` über mehrere Probanden),
    Referenzmessungen Leap vs. Webcam.
 2. **Mimik-Batterie** über Blendshapes (Hypomimie) und **Smooth Pursuit**;
    kalibrierte `GazePose` — Sidecar-Protokoll ist vorbereitet (additiv).

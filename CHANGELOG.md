@@ -116,6 +116,15 @@ Versionierung: SemVer-artig (0.x = Forschungsprototyp).
   verweist darauf statt auf den Clip. Der Dialog stürzt bei älteren
   Video-Messungen (Clip als `raw_data_path`) nicht mehr ab, sondern sagt, dass
   Kurven erst nach „Neu auswerten" da sind.
+- **Akte zieht mit dem Projektordner um** (`storage/paths.py`): DB, Video-Sitzungen
+  und Notiz-Anhänge speichern absolute Pfade des Aufnahme-Rechners; die Lader
+  (`Measurement`-Zeilen, `VideoSession.load`, Anhänge) suchen jeden Pfad, den es
+  hier nicht gibt, unter dem aktuellen `data/` — gleicher Teilpfad, Windows- oder
+  Unix-Schreibweise. Damit läuft dieselbe Akte nach Kopieren von `data/` auf dem
+  MacBook weiter. `start.sh` ist jetzt das Gegenstück zu `start.ps1` (Python ≥ 3.12
+  suchen, Sidecar beim ersten Start einrichten, `--leap` als Opt-in);
+  `.gitattributes` hält Shell-Skripte auf LF. README: Abschnitt „Auf einem zweiten
+  Rechner weiterarbeiten". Debug-Aufnahmen (`data/debug`) aus dem Repo entfernt.
 - **Details für Okulomotorik-Messungen** (`ui/detail_dialog.py`): Sakkaden zeigen
   den Blickverlauf (%IPD, Achse der Ziel-Anordnung) mit Eichphase, Ziel-Spur
   (Referenzposition des gezeigten Ziels von Anzeige bis Erreichen, Punkt beim

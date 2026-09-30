@@ -42,9 +42,15 @@ def add_attachment(patient_code: str, kind: str, ref: str, src: str) -> dict:
             "added_at": datetime.now().isoformat(timespec="seconds")}
 
 
+def attachment_path(entry: dict) -> str:
+    """The attachment's file on this machine (re-rooted if the record moved)."""
+    from storage.paths import resolve
+    return resolve(entry.get("path", ""))
+
+
 def remove_attachment(entry: dict) -> bool:
     """Delete the copied file; True when it is gone afterwards."""
-    path = entry.get("path", "")
+    path = attachment_path(entry)
     try:
         if path and os.path.isfile(path):
             os.remove(path)

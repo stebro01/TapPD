@@ -46,7 +46,8 @@ VideoLab schneiden, anonymisieren und auswerten.
   weil MediaPipe keine Wheels fuer 3.13/3.14 liefert
   - **Windows**: `powershell mediapipe_sidecar\setup_sidecar.ps1` (`start.ps1` ruft
     es beim ersten Start selbst auf)
-  - **macOS**: `bash mediapipe_sidecar/setup_sidecar.sh`
+  - **macOS**: `bash mediapipe_sidecar/setup_sidecar.sh` (`start.sh` ruft es beim
+    ersten Start selbst auf; braucht `brew install python@3.12`)
 
 ### Zusaetzlich unter Windows
 
@@ -91,12 +92,21 @@ Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
 
 ### macOS
 
+`./start.sh` legt beim ersten Start alles selbst an: das App-venv mit dem
+neuesten Python ≥ 3.12, das es findet (Homebrew-Pfade eingeschlossen), das
+Sidecar-venv mit Python 3.12 und die MediaPipe-Modelle. Von Hand geht es so:
+
 ```bash
-# Virtual Environment
+brew install python@3.12          # fuer die Sidecar (MediaPipe hat keine 3.13/3.14-Wheels)
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
+bash mediapipe_sidecar/setup_sidecar.sh
 ```
+
+Beim ersten Kamerazugriff fragt macOS nach der Freigabe fuer das Terminal
+bzw. die Python-App (*Systemeinstellungen → Datenschutz & Sicherheit →
+Kamera*). Ohne Freigabe bleibt die Kameraauswahl leer.
 
 ### Sensor-Setup
 
@@ -135,12 +145,35 @@ pip install -r requirements.txt
 ### macOS
 
 ```bash
-# Mit Sensor (Auto-Detection)
+# Webcam (Standard)
 ./start.sh
 
-# Ohne Sensor (Simulationsmodus)
+# Ohne Kamera (Simulationsmodus)
 ./start.sh --mock
+
+# Zusaetzlich den Leap-Pfad einrichten und einschalten
+./start.sh --leap
 ```
+
+`start.sh` und `start.ps1` sind Gegenstuecke: gleiche Flags, gleiche
+Einrichtungsschritte, `--leap` kopiert die LeapC-Bindings aus der Ultraleap-App
+und setzt `MOTRYX_ENABLE_LEAP=1`.
+
+### Auf einem zweiten Rechner weiterarbeiten
+
+Der Code kommt per `git clone` / `git pull`, die **Akte nicht**: alles unter
+`data/` (Datenbank `data/*.db`, Rohdaten `data/samples/`, Clips `data/clips/`,
+Video-Sitzungen `data/video_sessions/`, Debug-Logs `data/debug/`) ist bewusst
+nicht im Repository. Zum Umziehen den Ordner `data/` komplett kopieren
+(USB, AirDrop, Netzlaufwerk). Die Akte speichert absolute Pfade des
+Aufnahme-Rechners; beim Laden sucht `storage/paths.py` jeden Pfad, den es hier
+nicht gibt, unter dem aktuellen `data/` (gleicher Teilpfad, egal ob Windows-
+oder Unix-Schreibweise). Das Projekt darf also auf dem anderen Rechner
+woanders liegen. Zwei Rechner gleichzeitig auf einer Akte sind nicht
+vorgesehen: die DB ist eine SQLite-Datei, die zuletzt kopierte gewinnt.
+
+Nicht mitkopieren: `.venv/`, `mediapipe_sidecar/.venv/`, `leapc_cffi/` — die
+sind plattformspezifisch und werden vom Launcher neu angelegt.
 
 ### Bedienung
 

@@ -366,8 +366,9 @@ class VideoSession:
     def load(cls, path: str) -> "VideoSession":
         with open(path, "r", encoding="utf-8") as f:
             d = json.load(f)
+        from storage.paths import resolve, resolve_keys
         vs = cls(patient_id=d["patient_id"], patient_code=d.get("patient_code", ""),
-                 video_path=d.get("video_path", ""), video_name=d.get("video_name", ""),
+                 video_path=resolve(d.get("video_path", "")), video_name=d.get("video_name", ""),
                  mirrored=bool(d.get("mirrored", False)),
                  created_at=d.get("created_at", ""), path=path,
                  db_session_id=d.get("db_session_id"),
@@ -381,6 +382,18 @@ class VideoSession:
         known = {f.name for f in fields(RecordingStep)}
         vs.steps = [RecordingStep(**{k: v for k, v in s.items() if k in known})
                     for s in d.get("steps", [])]
+        # Paths were written absolute on the recording machine; re-root them
+        # under this project's data/ when the folder moved (storage.paths).
+        for seg in vs.segments:
+            seg.clip_path = resolve(seg.clip_path)
+            seg.thumb_path = resolve(seg.thumb_path)
+            seg.source_path = resolve(seg.source_path)
+            seg.track_path = resolve(seg.track_path)
+            for res in (seg.results or {}).values():
+                if isinstance(res, dict):
+                    resolve_keys(res, ("raw_path",))
+        for step in vs.steps:
+            step.clip_path = resolve(step.clip_path)
         return vs
 
 
