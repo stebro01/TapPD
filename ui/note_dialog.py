@@ -126,8 +126,10 @@ class NoteDialog(QDialog):
 
     def _open(self) -> None:
         a = self._current()
-        if a and os.path.isfile(a.get("path", "")):
-            QDesktopServices.openUrl(QUrl.fromLocalFile(a["path"]))
+        from storage.attachments import attachment_path
+        path = attachment_path(a) if a else ""
+        if path and os.path.isfile(path):
+            QDesktopServices.openUrl(QUrl.fromLocalFile(path))
 
     def _remove(self) -> None:
         a = self._current()

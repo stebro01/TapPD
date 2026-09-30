@@ -1,0 +1,11 @@
+# Shell scripts must stay LF: a CRLF start.sh fails on macOS with
+# "bad interpreter" even though git on Windows checks files out as CRLF.
+*.sh    text eol=lf
+*.ps1   text eol=crlf
+*.bat   text eol=crlf
+# Binary payloads that must never be touched by line-ending conversion.
+*.mp4   binary
+*.task  binary
+*.png   binary
+*.ico   binary
+*.db    binary

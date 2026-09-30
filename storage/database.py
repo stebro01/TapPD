@@ -11,6 +11,8 @@ import json
 import logging
 import shutil
 import sqlite3
+
+from storage import paths as _paths
 from dataclasses import dataclass, field
 from datetime import date, datetime
 from pathlib import Path
@@ -544,8 +546,11 @@ def _row_to_measurement(r) -> Measurement:
         duration_s=blob.get("duration_s", 0.0),
         features_json=json.dumps(features, default=str),
         recorded_at=d.get("START_DATE") or "",
-        raw_data_path=blob.get("raw_data_path", ""),
-        provenance=blob.get("provenance") or {},
+        # Stored absolute; re-rooted under this project's data/ when the
+        # record was recorded elsewhere (see storage.paths).
+        raw_data_path=_paths.resolve(blob.get("raw_data_path", "")),
+        provenance=_paths.resolve_keys(blob.get("provenance") or {},
+                                       ("video_session", "clip_path", "track_path")),
         # Blob is authoritative; the SOURCESYSTEM_CD column ('TAPPD:<kind>')
         # is the SQL-queryable mirror and the fallback for old rows.
         source_kind=blob.get("source_kind", "")
