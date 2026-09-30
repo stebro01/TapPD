@@ -46,7 +46,7 @@
                  PARADIGM-LAYER                                          │
 ┌────────────────────────────────────────────────────────────┐          │
 │                    paradigms/  (Paradigm)                │          │
-│  registry.py (SINGLE SOURCE OF TRUTH: 11 ParadigmSpecs)     │          │
+│  registry.py (SINGLE SOURCE OF TRUTH: 12 ParadigmSpecs)     │          │
 │  BaseParadigm ── ParadigmRunner (geteilter Frame-Pump)    │──────────┘
 │  recorder.py (config-getriebene Feature-Berechnung + MPI)  │  features
 │       │  nutzt                                             │

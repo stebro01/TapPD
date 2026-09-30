@@ -93,6 +93,9 @@ PARADIGMS: list[ParadigmSpec] = [
     ParadigmSpec("saccade_test", "Sakkaden", "Okulo.", "Blicksprünge auf Ziele",
                  Category.OCULAR, False, "ocular_fixation", SCREEN_SACCADE,
                  "paradigms.saccade_test:SaccadeTest"),
+    ParadigmSpec("smooth_pursuit", "Blickfolge", "Okulo.", "Finger mit den Augen folgen",
+                 Category.OCULAR, False, "smooth_pursuit", SCREEN_METRIC,
+                 "paradigms.smooth_pursuit:SmoothPursuitTest"),
 ]
 
 BY_KEY: dict[str, ParadigmSpec] = {p.key: p for p in PARADIGMS}

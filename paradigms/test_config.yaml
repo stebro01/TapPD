@@ -478,6 +478,27 @@ ocular_fixation:
     min_face_frames: 30            # darunter: leeres Ergebnis
 
 
+smooth_pursuit:
+  bilateral: false
+  duration_s: 40             # 3x waagerecht + 3x senkrecht, je ~3 s je Strecke
+
+  instructions: |
+    Blickfolge (Okulomotorik)
+
+    Untersucher bewegt den Finger langsam, ~3 s je Strecke.
+    Patient folgt NUR mit den Augen, Kopf still.
+    Erst waagerecht, dann senkrecht.
+
+  analysis:
+    blink_ear_threshold: 0.18      # Lidschlaege verderben die Iris-Schaetzung
+    min_paired_frames: 60          # darunter: leeres Ergebnis
+    min_target_excursion_ipd: 0.15 # Ziel hat sich nicht bewegt -> kein Gain
+    catchup_velocity_ipd_s: 0.6    # Schwelle fuer eine Nachsetz-Sakkade
+    catchup_target_ratio: 3.0      # ... und sie muss das Ziel deutlich ueberholen
+    max_lag_ms: 500                # Suchbereich der Kreuzkorrelation
+    smooth_window: 5               # Median gegen Landmark-Ausreisser
+
+
 saccade_test:
   bilateral: false
 

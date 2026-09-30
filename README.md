@@ -12,9 +12,11 @@ VideoLab schneiden, anonymisieren und auswerten.
 
 - 5 klinische Motorik-Tests (MDS-UPDRS 3.4, 3.5, 3.6, 3.15, 3.17) + 3
   kognitiv-motorische Paradigmen (Tuerme von Hanoi, Spatial SRT, Trail Making Test)
-- **Okulomotorik per Webcam**: Fixation & Blinzeln (Blinkrate, Fixationsstreuung)
-  und Sakkaden-Test (5-Punkt-Eichung → gaze-contingente Ziele, Latenz,
-  Richtungsfehler, Kopfpose-Waechter)
+- **Okulomotorik per Webcam**: Fixation & Blinzeln (Blinkrate, Fixationsstreuung),
+  Sakkaden-Test (5-Punkt-Eichung → gaze-contingente Ziele, Latenz,
+  Richtungsfehler, Kopfpose-Waechter) und **Blickfolge** (Patient folgt dem
+  Finger des Untersuchers; Gain, Nachsetz-Sakkaden, Nachlauf — Ziel und Blick
+  aus demselben Bild, daher ohne Eichung; wie alle Augen-Tests live)
 - **Vier Tracking-Quellen**, zur Laufzeit umschaltbar: Leap Motion (praeziseste
   3D-Position), Webcam (MediaPipe), Video-Replay, Simulation — mit
   Capability-Gating (Tests, die eine Quelle nicht unterstuetzt, sind gesperrt)
@@ -354,6 +356,7 @@ und Datenfluesse: [BLUEPRINT.md](BLUEPRINT.md) · Sitzungs-/Video-Lab-Konzept:
 | Trail Making A/B | – | Gesamtzeit, RT, Fehler, Pfad-Effizienz, Fatigue |
 | Fixation & Blinzeln | Okulo. | Blinkrate, Fixationsstreuung (%IPD), Intrusionen |
 | Sakkaden-Test | Okulo. | Ziele/min, Latenz (ms), Richtungsfehler, Kopf-Waechter |
+| Blickfolge | Okulo. | Pursuit-Gain, R², Nachsetz-Sakkaden/s, Nachlauf (ms), Achse |
 
 Die vollstaendigen Feature-Tabellen mit Beschreibungen, Einheiten und
 Aufgaben-Details stehen in

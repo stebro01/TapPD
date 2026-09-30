@@ -484,6 +484,43 @@ Alle Schwellen: `paradigms/test_config.yaml` → `saccade_test`.
 | head_invalid_pct / blink_pct | Ungueltige Anteile | – |
 | calibration_ok | Eichung gueltig | 0/1 |
 
+**Blickfolge** (`smooth_pursuit`) — Der Untersucher bewegt einen Finger langsam
+vor dem Patienten (~3 s je Strecke), der Patient folgt nur mit den Augen. Das
+Ziel wird vom **Hand**-Tracker verfolgt, der Blick vom **Face**-Tracker: beide
+aus demselben Kamerabild und derselben Zeitbasis. Deshalb braucht dieses
+Paradigma keine Eichung — gemessen wird nicht die absolute Blickrichtung,
+sondern das Verhaeltnis zweier gleichzeitig erfasster Bewegungen. Aus demselben
+Grund waere es -- anders als der gaze-contingente Sakkadentest -- grundsaetzlich
+auch aus einem Video auswertbar; im aktuellen Stand laeuft es aber wie alle
+Augen-Tests nur live (`registry.is_live_only`, Kategorie OCULAR).
+
+Beide Signale laufen in IPD-Einheiten (Vielfache des Pupillenabstands), damit
+Kamera-Abstand und Aufloesung herausfallen. Die Hand des Untersuchers ist die,
+die sich bewegt — liegt eine ruhende Patientenhand mit im Bild, wird sie ueber
+die Exkursion ausgeschlossen.
+
+| Feature | Beschreibung | Einheit |
+|---------|-------------|---------|
+| pursuit_gain | Steigung Blick- ueber Zielgeschwindigkeit, **entsakkadiert** | – |
+| pursuit_r2 | Guete dieser Regression (niedrig = Blick folgt nicht) | – |
+| catchup_saccades_per_s | Nachsetz-Sakkaden ("sakkadierte Blickfolge") | /s |
+| pursuit_lag_ms | Nachlauf des Blicks (Kreuzkorrelation) | ms |
+| pursuit_axis_vertical | 1 = senkrechter Durchgang, 0 = waagerecht | 0/1 |
+| target_excursion_ipd | tatsaechliche Zielauslenkung (Qualitaetspruefung) | IPD |
+
+Zwei Punkte, die beim Lesen der Werte zaehlen:
+
+- **Der Gain wird entsakkadiert berechnet.** Pursuit-Gain beschreibt die glatte
+  Komponente; eine Nachsetz-Sakkade traegt eine um eine Groessenordnung hoehere
+  Geschwindigkeit bei und zieht die Steigung je nach Lage im Schwung in beide
+  Richtungen. Ohne diesen Ausschluss las das 0,90-Szenario 0,69. Die Sakkaden
+  werden separat gezaehlt — sie sind ein eigener Befund, kein Teil des Gains.
+- **Der Gain ist ein Relativmass.** Der Zielabstand wird ueber den
+  Pupillenabstand *auf Gesichtstiefe* skaliert; der Finger ist naeher an der
+  Kamera, sein Bildversatz also ueberschaetzt. Zwischen Gruppen vergleichbar,
+  nicht als absoluter Verstaerkungsfaktor lesbar. `catchup_saccades_per_s` und
+  `pursuit_lag_ms` sind tiefenunabhaengig und damit belastbarer.
+
 Bewusst NICHT ausgewiesen: Spitzengeschwindigkeit in °/s — bei 30-Hz-Kamera
 nicht messbar (Sakkadendauer 30–80 ms); Latenz-/Zaehlmetriken sind valide.
 

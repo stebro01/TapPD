@@ -95,6 +95,10 @@ class SimulationSource(BaseCaptureDevice):
 
             if self._mode == "ocular_fixation":
                 frames, face = [], self._build_face(t, timestamp_us)
+            elif self._mode == "smooth_pursuit":
+                # The only scenario that needs BOTH modalities at once: a
+                # moving target (the examiner's hand) and the gaze following it.
+                frames, face = self._build_pursuit(t, timestamp_us)
             else:
                 frames, face = self._build_frames(t, timestamp_us), None
             tcb = self._tracking_callback
@@ -135,6 +139,48 @@ class SimulationSource(BaseCaptureDevice):
             corners_right=((350.0, 200.0), (380.0, 200.0)),
             ear_left=ear, ear_right=ear,
         )
+
+    # Scripted pursuit: gain 0.90, one catch-up saccade every 2 s.
+    PURSUIT_GAIN = 0.90
+    PURSUIT_AMPL_IPD = 0.45          # target sweep amplitude, IPD units
+    PURSUIT_HZ = 0.25                # 4 s per full left-right-left cycle
+    PURSUIT_CATCHUP_IPD = 0.12       # size of the scripted catch-up step
+
+    def _build_pursuit(self, t: float, timestamp_us: int):
+        """Synthetic smooth-pursuit scenario: hand sweeps, gaze follows.
+
+        Returns ``(hands, face)``. The hand carries the target position in mm
+        (as the Leap/mock convention demands, y up); the face carries a gaze
+        offset that tracks it at ``PURSUIT_GAIN`` with a periodic catch-up
+        step, so the paradigm has something to detect.
+        """
+        from capture.base_capture import FacePose, HandFrame
+
+        target_ipd = self.PURSUIT_AMPL_IPD * math.sin(2 * math.pi * self.PURSUIT_HZ * t)
+        # Staircase catch-up: a discrete jump every 2 s, alternating sign.
+        catchup = self.PURSUIT_CATCHUP_IPD * (1 if int(t / 2.0) % 2 else -1)
+        gaze_x = self.PURSUIT_GAIN * target_ipd + catchup
+
+        hand = HandFrame(
+            timestamp_us=timestamp_us,
+            hand_type="right",
+            palm_position=(target_ipd * 63.0, 0.0, 0.0),   # mm, eye-referenced
+            palm_velocity=(0.0, 0.0, 0.0),
+            confidence=1.0,
+        )
+        # Corners fixed, IPD 50 px → gaze_offset_ipd is exactly (iris_mid-340)/50.
+        ix = 340.0 + 50.0 * gaze_x
+        blink = (t % 4.0) < 0.15
+        ear = 0.06 if blink else 0.30
+        face = FacePose(
+            timestamp_us=timestamp_us,
+            iris_left=(ix - 25.0, 200.0),
+            iris_right=(ix + 25.0, 200.0),
+            corners_left=((300.0, 200.0), (330.0, 200.0)),
+            corners_right=((350.0, 200.0), (380.0, 200.0)),
+            ear_left=ear, ear_right=ear,
+        )
+        return [hand], face
 
     def _build_frames(self, t: float, timestamp_us: int) -> list[HandFrame]:
         """Build one or two frames depending on mode."""

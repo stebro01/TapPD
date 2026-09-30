@@ -314,6 +314,33 @@ Versionierung: SemVer-artig (0.x = Forschungsprototyp).
   Abspiel-Players; Clips werden für die Analyse nicht mehr in Echtzeit
   gedrosselt (auf schnellen Rechnern kürzer, auf dieser CPU ≈ Clip-Länge).
 
+### Hinzugefügt — Blickfolge (`smooth_pursuit`)
+- **Blickfolge** (`smooth_pursuit`) als drittes Okulomotorik-Paradigma. Der
+  Untersucher bewegt einen Finger, der Patient folgt nur mit den Augen; das Ziel
+  läuft über den Hand-Tracker, der Blick über den Face-Tracker — beide aus
+  demselben Kamerabild und derselben Zeitbasis. Dadurch **keine Eichung nötig**.
+  Anders als der gaze-contingente Sakkadentest (dort hängt der Reiz davon ab,
+  wohin der Patient schaut) wäre sie damit grundsätzlich auch aus einem Video
+  auswertbar; im aktuellen Stand läuft sie aber wie alle Augen-Tests nur live
+  (`registry.is_live_only`, Kategorie OCULAR).
+  - Kennwerte: `pursuit_gain`, `pursuit_r2`, `catchup_saccades_per_s`,
+    `pursuit_lag_ms`, `pursuit_axis_vertical`, `target_excursion_ipd`.
+  - Der Gain wird **entsakkadiert** berechnet: eine Nachsetz-Sakkade trägt eine
+    um eine Größenordnung höhere Geschwindigkeit bei und zieht die Regression je
+    nach Lage im Schwung in beide Richtungen — ohne den Ausschluss las das
+    0,90-Testszenario 0,69. Die Sakkaden werden separat gezählt.
+  - Liegt eine ruhende Patientenhand mit im Bild, wird sie über die Exkursion
+    ausgeschlossen; Ziel ist die Hand, die sich bewegt.
+  - Konfiguration unter `smooth_pursuit:` in `paradigms/test_config.yaml`,
+    Mock-Szenario `smooth_pursuit` (Hand **und** Gesicht gleichzeitig — das
+    erste Szenario, das beide Modalitäten braucht), 9 Unit-Tests.
+
+### Hinweis — Blickfolge
+- `pursuit_gain` ist ein **Relativmaß**: die Zielentfernung wird über den
+  Pupillenabstand auf Gesichtstiefe skaliert, der Finger ist näher an der Kamera.
+  Zwischen Gruppen vergleichbar, kein absoluter Verstärkungsfaktor.
+  `catchup_saccades_per_s` und `pursuit_lag_ms` sind tiefenunabhängig.
+
 ## [0.3.0] — 2026-07-15
 
 **Multimodal-Release: TrackingFrame-Envelope, Face-Stream, Okulomotorik.**

@@ -30,6 +30,7 @@ Die Quelle wird mit jeder Messung gespeichert (Simulationsdaten sind klar als so
 **Okulomotorik (Kamera):**
 - **Fixation & Blinzeln** – Blinkrate, Fixationsstabilität, sakkadische Intrusionen
 - **Sakkaden-Test** – 5-Punkt-Eichung, dann gaze-contingente Zufallsziele (Latenz, Ziele/min, Richtungsfehler)
+- **Blickfolge** – Patient folgt dem Finger des Untersuchers; Pursuit-Gain, Nachsetz-Sakkaden, Nachlauf
 
 **Gesten:**
 - **Gesten-Batterie (Gesture Lab)** – 12 klinische Handposen mit Referenz-Bibliothek, Ähnlichkeits-Scoring und Fehleranalyse pro Finger
