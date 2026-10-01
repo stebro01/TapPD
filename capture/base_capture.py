@@ -60,6 +60,9 @@ class HandPose:
     pinch_distance: float = 0.0
     grab_strength: float = 0.0
     confidence: float = 1.0
+    # Index of the source frame on video replays (None live). With the clip's
+    # fps it re-derives the media timestamp, so it is kept in the raw data.
+    frame_index: int | None = None
 
     def to_dict(self) -> dict:
         return {

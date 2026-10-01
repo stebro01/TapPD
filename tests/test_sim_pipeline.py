@@ -187,8 +187,11 @@ def test_webcam_native_tracking_envelopes(fake_video):
     # (Deterministic face-envelope coverage lives in the mock/unit tests.)
     assert all(isinstance(tf, TrackingFrame) for tf in got)
     for tf in got:
-        assert tf.timestamp_us > 0
+        assert tf.timestamp_us >= 0          # media time: frame 0 of the clip is 0 µs
         assert tf.hands or tf.face is not None
+    # Media time never runs backwards, not even over the loop's wrap.
+    ts = [tf.timestamp_us for tf in got]
+    assert ts == sorted(ts)
     for tf in got:
         if tf.face is not None:
             assert 0.02 < tf.face.ear < 0.8 and tf.face.ipd_px > 5

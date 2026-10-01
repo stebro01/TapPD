@@ -27,6 +27,14 @@ def _count_seeded_concepts() -> int:
 EXPECTED_CONCEPT_COUNT = _count_seeded_concepts()
 
 
+@pytest.fixture(autouse=True)
+def _sidecar_log_out_of_data(tmp_path_factory, monkeypatch):
+    """Every test that spawns the MediaPipe sidecar appends its stderr to a
+    log — keep that in the test's temp dir, not in the real data/logs."""
+    import capture.mediapipe_capture as mc
+    monkeypatch.setattr(mc, "_SIDECAR_LOG", str(tmp_path_factory.getbasetemp() / "sidecar.log"))
+
+
 @pytest.fixture()
 def conn():
     """Fresh in-memory SQLite connection with star schema + seed data."""

@@ -110,11 +110,18 @@ def note_archive(seg, clip, deface: str | None) -> dict:
 def analysis_meta(runner, *, mirrored: bool) -> dict:
     """Software and settings the analysis ran with."""
     src = getattr(runner, "_src", None)
-    return {
+    meta = {
         "mirror": bool(mirrored),
         "num_hands": 2,
         "sidecar": dict(getattr(src, "sidecar_info", {}) or {}),
     }
+    # Time base (media time at the clip's fps) and frames expected vs. processed
+    # — what makes a result auditable for a truncated or odd-rate clip.
+    timing = getattr(runner, "timing", None)
+    timing = timing() if callable(timing) else None
+    if isinstance(timing, dict) and timing:
+        meta["timing"] = timing
+    return meta
 
 
 def build_provenance(session, seg, result: dict) -> dict:

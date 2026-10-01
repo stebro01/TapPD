@@ -41,6 +41,17 @@ _MAX_CONSECUTIVE_MISSES = 100
 _MISS_RETRY_S = 0.02
 
 
+def media_time_us(frame: int, fps: float) -> int:
+    """Presentation time of the 0-based ``frame`` of a clip at ``fps``, in µs.
+
+    The time base of every video message: where the frame sits in the clip,
+    not when it happened to be processed.  Replaying faster than real time
+    (analysis) or slower (a big clip on a slow CPU) therefore cannot stretch
+    or compress the time axis the measurements are computed on.
+    """
+    return int(round(frame * 1_000_000 / fps))
+
+
 def _handedness(name: str | None, mirrored: bool) -> str:
     """MediaPipe's Left/Right label, corrected for a mirrored frame.
 
@@ -225,7 +236,7 @@ class Sidecar:
         self._last_iris_px = None            # [[xL,yL],[xR,yR]] or None
         self._last_iris_ts_ms = -1
         self._last_face_result = None        # reused by the preview payload
-        self._last_face_t = 0.0
+        self._last_face_t = 0.0              # live: wall-clock time of the last face run
         self._face_interval = 0.2            # s between face detections (0 = full rate)
 
     # ── lifecycle ────────────────────────────────────────────────
@@ -375,17 +386,25 @@ class Sidecar:
         # correct the handedness label to match.
         mirror_frames = bool(self._video_mirror) if is_video else bool(self._mirror)
         self._frames_mirrored = mirror_frames
+        # The eye reference belongs to the pass that measured it: another source
+        # or another range of the same clip starts without one — its age would
+        # otherwise be judged on the new pass's clock and pass as fresh.
+        self._last_iris_px = None
+        self._last_iris_ts_ms = -1
+        self._last_face_result = None
         start_frame = 0
         end_frame = None
         if is_video:
             cap = cv2.VideoCapture(self._video_path)
+            # The clip's frame rate as OpenCV reports it for this file — the
+            # time base of every message of this pass (media_time_us).
             vid_fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
             if vid_fps <= 0:
                 vid_fps = 30.0
             frame_interval = 1.0 / vid_fps
             # Optional bounded play range → frame bounds (seconds×fps). The
-            # `hand` timestamp is wall-clock, so the offset is enforced here by
-            # frame count, and "done" (loop=False) is the authoritative stop.
+            # offset is enforced by frame count, and "done" (loop=False) is the
+            # authoritative stop.
             if self._range_start_s is not None:
                 start_frame = max(0, round(self._range_start_s * vid_fps))
             if self._range_end_s is not None:
@@ -427,6 +446,30 @@ class Sidecar:
                 self._send({"type": "error", "msg": f"{what} konnte nicht geöffnet werden"})
                 return
 
+            # Clock of this pass.  Video: media time (frame index / clip fps),
+            # the same whatever the processing speed or the realtime flag.
+            # Live: wall clock, as always.
+            # MediaPipe's VIDEO mode also needs timestamps that keep increasing
+            # over the landmarker's lifetime, which outlives this pass: a video
+            # continues after the last value with media-time spacing (the face
+            # landmarker smooths over these deltas), and a camera that follows
+            # a faster-than-real-time replay is shifted past that replay's end
+            # instead of being pinned to +1 ms per frame until the clock
+            # catches up (a no-op for a camera-only process).
+            mp_base_ms = self._last_ts_ms + 1
+            live_shift_ms = max(0, mp_base_ms - int(time.perf_counter() * 1000))
+            played = 0            # frames delivered in this pass (loops included)
+            last_pos = None       # index in the file of the last delivered frame
+            last_face_n = None    # `played` count of the last face run (video)
+            pts_ref = None        # (PTS ms, index) at the start of a run through the file
+            pts_drift_ms = 0.0    # largest drift of the container PTS against index/fps
+            if is_video:
+                # Before the first frame: the app takes its sample rate from
+                # here and knows which frames make the range complete.
+                self._send({"type": "video", "fps": vid_fps,   # frames 0 = unknown
+                            "frames": max(0, int(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)),
+                            "start_frame": start_frame, "end_frame": end_frame})
+
             last_preview = 0.0
             last_frame_t = 0.0
             frame_idx = start_frame   # local count; CAP_PROP_POS_FRAMES is unreliable
@@ -464,13 +507,19 @@ class Sidecar:
                     if is_video and self._loop_video:
                         cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame)   # loop the range
                         frame_idx = start_frame
+                        pts_ref = None   # PTS restart with the file; media time runs on
                         continue
                     if is_video:
                         # Play-once: emit "done" once, then idle warm (keep the file
                         # open so a re-run / new range restarts cheaply).
                         if not self._done_sent:
                             self._done_sent = True
-                            self._send({"type": "done"})
+                            # What was delivered, so the app can tell a complete
+                            # range from one the file ended early (eof).
+                            self._send({"type": "done", "frames": played,
+                                        "first_frame": start_frame, "last_frame": last_pos,
+                                        "end_frame": end_frame, "eof": not at_end,
+                                        "pts_drift_ms": round(pts_drift_ms, 2)})
                         self._streaming = False
                         continue
                     misses += 1
@@ -481,6 +530,26 @@ class Sidecar:
                     continue
                 misses = 0
                 frame_idx += 1
+
+                if is_video:
+                    # Media time: counted on over loop wraps so it keeps
+                    # increasing; for a play-once range it is the frame's
+                    # position in the file.
+                    ts_us = media_time_us(start_frame + played, vid_fps)
+                    mp_ms = mp_base_ms + media_time_us(played, vid_fps) // 1000
+                    # Diagnostic only: index/fps assumes a constant frame rate;
+                    # the container's PTS shows when a clip does not have one.
+                    pts = cap.get(cv2.CAP_PROP_POS_MSEC)
+                    if pts_ref is None:
+                        pts_ref = (pts, frame_idx - 1)
+                    elif pts > 0:   # 0 = backend without PTS, nothing to compare
+                        pts_drift_ms = max(pts_drift_ms, abs(
+                            (pts - pts_ref[0]) - (frame_idx - 1 - pts_ref[1]) * 1000.0 / vid_fps))
+                    played += 1
+                    last_pos = frame_idx - 1
+                else:
+                    ts_us = None    # live: stamped with the wall clock on sending
+                    mp_ms = int(time.perf_counter() * 1000) + live_shift_ms
 
                 # Record the camera's own view, mirror only what is looked at.
                 # A clip stored already-mirrored replays as its own source: the
@@ -509,9 +578,9 @@ class Sidecar:
 
                 frame_rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
                 mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=frame_rgb)
-                # Absolute monotonic ms; strictly greater than the last value so
+                # Monotonic ms; strictly greater than the last value so
                 # detect_for_video stays valid even after a stop/start restart.
-                ts_ms = max(self._last_ts_ms + 1, int(time.perf_counter() * 1000))
+                ts_ms = max(self._last_ts_ms + 1, mp_ms)
                 self._last_ts_ms = ts_ms
                 try:
                     result = self._landmarker.detect_for_video(mp_image, ts_ms)
@@ -522,9 +591,19 @@ class Sidecar:
                 now = time.perf_counter()
                 # Face at its own cadence: "eco" ~5 Hz (eye reference for the
                 # hand stream) or "full" (every frame → dedicated face stream
-                # for ocular paradigms).
-                if self._face_on and (now - self._last_face_t) >= self._face_interval:
-                    self._last_face_t = now
+                # for ocular paradigms).  On video the cadence counts frames,
+                # i.e. media time: the eye reference is then sampled the same
+                # way however fast the clip is processed.
+                if is_video:
+                    face_every = max(1, round(self._face_interval * vid_fps))
+                    face_due = last_face_n is None or (played - last_face_n) >= face_every
+                else:
+                    face_due = (now - self._last_face_t) >= self._face_interval
+                if self._face_on and face_due:
+                    if is_video:
+                        last_face_n = played
+                    else:
+                        self._last_face_t = now
                     fl = self._ensure_face_landmarker()
                     if fl is not None:
                         try:
@@ -539,16 +618,19 @@ class Sidecar:
                                 [lms[_IRIS_L].x * w0, lms[_IRIS_L].y * h0],
                                 [lms[_IRIS_R].x * w0, lms[_IRIS_R].y * h0]]
                             self._last_iris_ts_ms = ts_ms
-                            self._send(self._face_payload(lms, w0, h0))
+                            self._send(self._face_payload(lms, w0, h0, ts_us))
 
                 h0, w0 = frame_bgr.shape[:2]
                 hands = self._hands_payload(result, w0, h0, self._frames_mirrored)
                 # frame / w / h let the app keep a per-frame track of the
                 # analysis (image landmarks) and replay it over the archived clip.
-                msg = {"type": "hand", "ts": int(time.time() * 1_000_000), "hands": hands,
-                       "frame": frame_idx - 1, "w": w0, "h": h0}
+                msg = {"type": "hand",
+                       "ts": ts_us if ts_us is not None else int(time.time() * 1_000_000),
+                       "hands": hands, "frame": frame_idx - 1, "w": w0, "h": h0}
                 if self._face_on and self._last_iris_px is not None:
                     msg["iris_px"] = self._last_iris_px
+                    # Differences of MediaPipe timestamps: media time on video,
+                    # wall clock live — the same base as `ts`.
                     msg["iris_age_ms"] = int(ts_ms - self._last_iris_ts_ms)
                 self._send(msg)
 
@@ -619,10 +701,13 @@ class Sidecar:
         return hands
 
     @staticmethod
-    def _face_payload(lms, w: int, h: int) -> dict:
+    def _face_payload(lms, w: int, h: int, ts_us: int | None = None) -> dict:
         """Dedicated face message: iris centres, eye corners (PIXELS) and the
         eye-aspect-ratio per eye (blink detection) — enough for fixation/
-        blink paradigms without shipping all 478 landmarks at full rate."""
+        blink paradigms without shipping all 478 landmarks at full rate.
+
+        ``ts_us``: the frame's media time on video (the hand message of the
+        same frame carries the same value); None = wall clock (live)."""
         def px(i):
             return [lms[i].x * w, lms[i].y * h]
 
@@ -636,7 +721,7 @@ class Sidecar:
 
         return {
             "type": "face",
-            "ts": int(time.time() * 1_000_000),
+            "ts": ts_us if ts_us is not None else int(time.time() * 1_000_000),
             "iris_px": [px(_IRIS_L), px(_IRIS_R)],
             "corners_px": [[px(_EYE_L[0]), px(_EYE_L[1])],
                            [px(_EYE_R[0]), px(_EYE_R[1])]],

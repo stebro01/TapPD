@@ -73,6 +73,16 @@ def save_raw_data(test: BaseParadigm, patient_id: str, features: dict | None = N
             "is_simulated": src == "mock",
             "features": features or {},
         }
+        # The webcam source declares its time base: "wallclock" live, "media"
+        # on a video replay (frame index / clip fps, which is then also
+        # sample_rate). Video frames keep their frame_index, so the axis can be
+        # re-derived later.
+        time_base = getattr(test.capture, "time_base", None)
+        if isinstance(time_base, str) and time_base:
+            data["time_base"] = time_base
+            video = getattr(test.capture, "video_info", None)
+            if time_base == "media" and isinstance(video, dict) and video:
+                data["video"] = dict(video)
 
         if test.bilateral:
             data["left_frames"] = [asdict(f) for f in test.get_frames("left")]

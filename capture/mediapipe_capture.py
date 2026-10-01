@@ -47,6 +47,10 @@ class SidecarError(RuntimeError):
 
 
 class WebcamSource(BaseCaptureDevice):
+    # Rate the analysis resamples a live camera at (wall-clock timestamps).
+    # A video replay uses the clip's own fps instead, see _dispatch("video").
+    _LIVE_RATE = 30.0
+
     def __init__(self, camera_index: int = 0, flip_handedness: bool = False,
                  replay_path: str = "") -> None:
         self.camera_index = camera_index
@@ -87,10 +91,20 @@ class WebcamSource(BaseCaptureDevice):
         self._cameras: list[tuple[int, str]] = []
         self._cameras_event = threading.Event()
 
-        self._sample_rate = 30.0
+        self._sample_rate = self._LIVE_RATE
         self._sensor_issues: list[str] = []
         self._face_on = False   # face tracking supplies the eye reference
         self._last_face = None  # most recent FacePose from the face stream
+        # Facts of the replayed clip (sidecar "video": fps, frame count, range
+        # bounds) and of the last finished play-once pass ("done": frames
+        # delivered, eof, PTS drift) — provenance of a video analysis.
+        self.video_info: dict = {}
+        self.last_done: dict = {}
+        # Progress of the running stream (reader thread writes, GUI reads), so a
+        # caller can tell a slow analysis from a stalled one.
+        self.frames_seen = 0
+        self.last_frame_index: int | None = None
+        self.last_activity = 0.0         # time.monotonic() of the last frame
 
     # ── preconditions ─────────────────────────────────────────────
     @staticmethod
@@ -226,7 +240,15 @@ class WebcamSource(BaseCaptureDevice):
 
     @property
     def sample_rate(self) -> float:
+        """Rate of the frame timestamps: the clip's fps on a video replay (media
+        time), the assumed live rate on a camera (wall clock)."""
         return self._sample_rate
+
+    @property
+    def time_base(self) -> str:
+        """``"media"`` while a clip is replayed (timestamps = position in the
+        clip), ``"wallclock"`` for the live camera."""
+        return "media" if self.replay_path else "wallclock"
 
     # ── camera enumeration ────────────────────────────────────────
     def list_cameras(self, timeout: float = 5.0) -> list[tuple[int, str]]:
@@ -274,6 +296,16 @@ class WebcamSource(BaseCaptureDevice):
             self.connect()
         self._frame_callback = callback
         self._prev_by_hand.clear()
+        if not self.replay_path:
+            # Live camera: wall clock at the live rate — a previous replay's
+            # clip fps must not carry over. (A replay keeps its fps: a warm
+            # stop/start of the same clip gets no new "video" message.)
+            self._sample_rate = self._LIVE_RATE
+            self.video_info = {}
+        self.last_done = {}
+        self.frames_seen = 0
+        self.last_frame_index = None
+        self.last_activity = time.monotonic()
         self._recording = True
         s, e = self._range or (None, None)
         self._send({"cmd": "start", "index": self.camera_index,
@@ -395,6 +427,10 @@ class WebcamSource(BaseCaptureDevice):
         if mtype == "hand":
             if not self._recording or self._frame_callback is None:
                 return
+            # Every processed frame counts as progress, with or without a hand.
+            self.frames_seen += 1
+            self.last_frame_index = msg.get("frame")
+            self.last_activity = time.monotonic()
             frames = mediapipe_mapping.frames_from_message(
                 msg, flip_handedness=self.flip_handedness,
                 prev_by_hand=self._prev_by_hand,
@@ -432,7 +468,19 @@ class WebcamSource(BaseCaptureDevice):
                 self._recorded_callback(msg.get("path", ""))
         elif mtype == "hello":
             self.sidecar_info = {k: v for k, v in msg.items() if k != "type"}
+        elif mtype == "video":
+            # Arrives before the clip's first frame. Its fps is the time base
+            # of the frames that follow (media time) — hence also the rate the
+            # analysis resamples them at, instead of an assumed 30 Hz.
+            self.video_info = {k: v for k, v in msg.items() if k != "type"}
+            try:
+                fps = float(msg.get("fps") or 0.0)
+            except (TypeError, ValueError):
+                fps = 0.0
+            if fps > 0:
+                self._sample_rate = fps
         elif mtype == "done":
+            self.last_done = {k: v for k, v in msg.items() if k != "type"}
             self._recording = False   # drop any late frames
             if self._done_callback is not None:
                 self._done_callback()

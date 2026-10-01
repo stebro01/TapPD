@@ -31,11 +31,19 @@ modalities (face/eye) can be added without breaking changes.
 // reply to list_cameras
 {"type":"cameras","items":[{"index":0,"name":"OBSBOT Tiny"}]}
 
+// sent once per video pass, before its first frame: the clip's frame rate as
+// OpenCV reports it (the time base of every `ts` of the pass), the file's
+// frame count (0 = unknown) and the range's frame bounds (end_frame
+// exclusive, null = to EOF)
+{"type":"video","fps":30.0,"frames":241,"start_frame":15,"end_frame":225}
+
 // per processed frame (full rate) — raw MediaPipe world landmarks (meters).
+// ts: µs — video: media time, frame index / fps (see Notes); live: wall clock.
 // palm_px: palm centre in image PIXELS (wrist + 5 MCPs centroid).
 // iris_px/iris_age_ms (only while face is on): last known iris centres in
-// PIXELS + their age — the eye reference that makes the hand position
-// absolute in the main app (IPD 63 mm → mm-per-pixel; unlocks tremor).
+// PIXELS + their age (same time base as ts) — the eye reference that makes
+// the hand position absolute in the main app (IPD 63 mm → mm-per-pixel;
+// unlocks tremor).
 {"type":"hand","ts":1719_650_000_000,
  "iris_px":[[xL,yL],[xR,yR]],"iris_age_ms":120,
  "hands":[
@@ -66,7 +74,11 @@ modalities (face/eye) can be added without breaking changes.
 // a play-once range (loop:false) reached its offset or EOF — authoritative stop.
 // Emitted exactly once; never emitted in looping mode. The capture thread then
 // idles warm so a re-run / new range restarts cheaply.
-{"type":"done"}
+// frames/last_frame: what was delivered; eof: the file ended (or failed to
+// decode) before end_frame; pts_drift_ms: largest drift of the container PTS
+// against index/fps — above a frame interval the clip is not constant-rate
+{"type":"done","frames":210,"first_frame":15,"last_frame":224,"end_frame":225,
+ "eof":false,"pts_drift_ms":0.0}
 
 // any error (camera open failed, model missing, etc.)
 {"type":"error","msg":"..."}
@@ -101,6 +113,16 @@ modalities (face/eye) can be added without breaking changes.
   was and gives the position back when switched off).
 - `start` with `start_s` and `loop:false` plays from that offset to the end
   once; the app then restarts without a range to continue from the top.
+- **Time base.** `ts` of `hand` and `face` messages is µs. A live camera
+  stamps the wall clock. A video stamps **media time**: frame index × 10⁶ /
+  fps (the fps of the `video` message), i.e. the frame's position in the file
+  — so a replay faster than real time (`realtime:false`) or slower (a big
+  clip on a slow CPU) gives the same axis. A looping replay keeps counting
+  across the wrap, so `ts` never goes backwards while `frame` restarts. The
+  face cadence (eco = every round(0.2·fps) frames) and `iris_age_ms` run on
+  the same clock; the hand and face message of one frame carry the same `ts`.
+  Media time assumes a constant frame rate; `done.pts_drift_ms` reports how
+  far the container's own timestamps disagree.
 - Clips recorded via `record` store the **unmirrored** camera view, so a clip
   replays exactly like the live camera when `start` carries `mirror:true`.
 

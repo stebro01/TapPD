@@ -48,11 +48,15 @@ def isolated_data(tmp_path, monkeypatch):
     import video.store as store
     import storage.database as db
     import logging_config as lc
+    import ui.results_screen as results_screen
 
     monkeypatch.setattr(store, "VIDEO_SESSIONS_DIR", tmp_path / "video_sessions")
     monkeypatch.setattr(db, "DB_PATH", tmp_path / "test.db")
     monkeypatch.setattr(lc, "LOG_DIR", tmp_path / "logs")
     monkeypatch.setattr(lc, "LOG_FILE", tmp_path / "logs" / "test.log")
+    # Raw per-frame JSON of every analysis (live results and the segment
+    # pipeline) — without this the suite left T001_* files in data/samples.
+    monkeypatch.setattr(results_screen, "SAMPLES_DIR", tmp_path / "samples")
     return tmp_path
 
 

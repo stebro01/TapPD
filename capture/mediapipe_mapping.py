@@ -28,7 +28,10 @@ from capture.base_capture import BoneData, FingerData, HandFrame
 
 M_TO_MM = 1000.0
 AVG_IPD_MM = 63.0          # average human inter-pupillary distance (eye-ref scale)
-_IRIS_MAX_AGE_MS = 1500    # stale eye reference → no absolute position
+# Stale eye reference → no absolute position. Measured in the message's own
+# time base like `ts`: wall clock live, media time on a video replay — there a
+# fast replay cannot make a reference look fresher than the clip says it is.
+_IRIS_MAX_AGE_MS = 1500
 _IRIS_MIN_PX = 10.0        # degenerate iris distance → no reliable scale
 
 WRIST = 0
@@ -181,6 +184,9 @@ def eye_ref_position_mm(palm_px, iris_px, iris_age_ms: int | None) -> tuple | No
 def frames_from_message(msg: dict, flip_handedness: bool = False,
                         prev_by_hand: dict | None = None) -> list[HandFrame]:
     """Convert one ``{"type":"hand", ...}`` sidecar message to HandFrames.
+
+    ``ts`` becomes ``timestamp_us`` as it is: wall clock for a live camera,
+    media time (frame index / clip fps) for a video replay — see PROTOCOL.md.
 
     ``prev_by_hand`` maps hand_type -> previous HandFrame and is updated in place
     so successive calls produce palm velocities.

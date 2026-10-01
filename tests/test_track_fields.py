@@ -28,3 +28,19 @@ def test_fields_are_none_when_the_sidecar_did_not_send_them():
     (f,) = frames_from_message(msg)
 
     assert f.frame_index is None and f.image_landmarks is None and f.iris_norm is None
+
+
+def test_frame_index_survives_the_eye_reference_promotion():
+    """Tremor promotes the eye-referenced position via dataclasses.replace;
+    the frame index (the media-time anchor kept in the raw data) comes along."""
+    from capture.source import WEBCAM, SourceProfile
+    msg = {"type": "hand", "ts": 1000, "frame": 7, "w": 640, "h": 480,
+           "iris_px": [[256.0, 120.0], [384.0, 120.0]], "iris_age_ms": 10,
+           "hands": [{"handedness": "Left", "score": 0.9, "world": _world(),
+                      "palm_px": [300.0, 200.0]}]}
+
+    (f,) = frames_from_message(msg)
+    g = SourceProfile(kind=WEBCAM, capabilities=set()).adapt_frame(f)
+
+    assert g is not f and g.palm_position == tuple(f.eye_ref_mm)
+    assert g.frame_index == 7

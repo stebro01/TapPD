@@ -33,7 +33,8 @@ _DEFAULTS = {
     "analysis": {
         "default_hand": "right",
         "with_face": False,
-        "done_fallback_margin_s": 4.0,
+        "hang_timeout_s": 20.0,
+        "done_grace_s": 2.0,
         "live_plot_window_points": 300,
     },
     "ui": {"video_extensions": ["*.mp4", "*.mov", "*.m4v", "*.avi", "*.mkv", "*.webm"]},

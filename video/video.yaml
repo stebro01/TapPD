@@ -50,7 +50,11 @@ archive:                   # what stays of a confirmed take (own recording)
 analysis:
   default_hand: right      # default hand for unilateral paradigms
   with_face: false         # run the face landmarker during analysis (display only)
-  done_fallback_margin_s: 4.0   # extra wait before forcing finish if "done" is lost
+  # The sidecar's "done" ends an analysis. No time budget: a slow analysis runs
+  # as long as frames keep arriving (they carry media time, so the processing
+  # speed does not change the result).
+  hang_timeout_s: 20.0     # no frame for this long before the range is complete → fail
+  done_grace_s: 2.0        # range complete but "done" missing → finish after this
   live_plot_window_points: 300  # max points shown in the realtime metric plot
 
 ui:

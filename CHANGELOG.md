@@ -40,6 +40,29 @@ Versionierung: SemVer-artig (0.x = Forschungsprototyp).
   hat nie ein Bild gespiegelt, sondern nur das Etikett getauscht.
 
 ### Behoben
+- **Video-Auswertungen liefen auf der Verarbeitungszeit statt auf der
+  Videozeit** (Messvalidität). Der Sidecar stempelte jeden Frame mit der
+  Wanduhr; seit das VideoLab schneller als Echtzeit abspielt
+  (`realtime=False`), war die Zeitachse um den Faktor der
+  Verarbeitungsgeschwindigkeit gestaucht (gemessen ×4,2 auf einem M4 Pro),
+  in Echtzeit bei zu langsamer Verarbeitung gestreckt — Frequenzen,
+  Intervalle, Geschwindigkeiten und Tremorspektren entsprechend falsch;
+  kurze Segmente fielen ganz auf ein leeres Ergebnis. Videoframes tragen jetzt
+  **Medienzeit** (Frame-Index / fps der Datei, laut OpenCV), Hand- und
+  Gesichtsnachricht eines Frames dieselbe; Eco-Takt der Augenreferenz und
+  `iris_age_ms` laufen auf derselben Uhr. Der Sidecar meldet die fps
+  (`{"type":"video"}`), die Quelle nimmt sie als Abtastrate statt pauschal
+  30 Hz. Live-Kamera unverändert (Wanduhr, 30 Hz).
+  ⚠️ Vor dieser Änderung ausgewertete Video-Segmente neu auswerten.
+- **Die Auswertung eines Segments konnte still gekürzt werden**: ein
+  Wanduhr-Budget (Segmentlänge + 4 s) beendete sie auch mitten im Bereich.
+  Jetzt beendet nur das `done` des Sidecars den Lauf; ein Wächter bricht erst
+  ab, wenn `analysis.hang_timeout_s` lang kein Frame mehr kam — dann als
+  Fehler, nicht als verkürztes Ergebnis. Erwartete/verarbeitete Frames,
+  Zeitbasis und fps stehen in der Analyse-Provenienz (`analysis.timing`);
+  die Rohdaten-JSON enthält `time_base`, `video` und je Frame `frame_index`.
+- Die Testsuite schrieb `T001_*`-Rohdaten nach `data/samples` und das
+  Sidecar-Log nach `data/logs`.
 - **Webcam-Tracking startete unter Windows nie**: der Sidecar-Interpreter war
   fest auf `.venv/bin/python3` verdrahtet.
 - **Kameraauswahl sprang auf die erste Kamera zurück** — das Neubefüllen der
